@@ -1,0 +1,103 @@
+T1E34 000:009.755   SEGGER J-Link V9.66 Log File
+T1E34 000:010.372   DLL Compiled: Aug  5 2026 12:09:37
+T1E34 000:010.377   Logging started @ 2026-09-14 13:43
+T1E34 000:010.381   Process: D:\Keil5\Core\UV4\UV4.exe
+T1E34 000:010.868 - 10.384ms 
+T1E34 000:011.001 JLINK_SetWarnOutHandler(...)
+T1E34 000:011.006 - 0.122ms 
+T1E34 000:011.012 JLINK_OpenEx(...)
+T1E34 000:018.684   Firmware: J-Link V9 compiled May  7 2021 16:26:12
+T1E34 000:021.001   Firmware: J-Link V9 compiled May  7 2021 16:26:12
+T1E34 000:021.487   Decompressing FW timestamp took 378 us
+T1E34 000:031.859   Hardware: V9.70
+T1E34 000:031.877   S/N: 602712561
+T1E34 000:031.882   OEM: SEGGER
+T1E34 000:031.887   Feature(s): GDB, RDI, FlashBP, FlashDL, JFlash
+T1E34 000:034.468   Bootloader: (FW returned invalid version)
+T1E34 000:037.569   TELNET listener socket opened on port 19021
+T1E34 000:037.642   WEBSRV WEBSRV_Init(): Starting webserver thread(s)
+T1E34 000:037.834   WEBSRV Webserver running on local port 19080
+T1E34 000:037.917   Looking for J-Link GUI Server exe at: D:\Keil5\Core\ARM\Segger\JLinkGUIServer.exe
+T1E34 000:038.175   Looking for J-Link GUI Server exe at: C:\Program Files\SEGGER\JLink_V966\JLinkGUIServer.exe
+T1E34 000:038.232   Forking J-Link GUI Server: C:\Program Files\SEGGER\JLink_V966\JLinkGUIServer.exe
+T1E34 000:079.268   J-Link GUI Server info: "J-Link GUI server V9.66 "
+T1E34 000:084.925 - 73.698ms returns "O.K."
+T1E34 000:084.956 JLINK_GetEmuCaps()
+T1E34 000:085.076 - 0.005ms returns 0xB9FF7BBF
+T1E34 000:085.085 JLINK_TIF_GetAvailable(...)
+T1E34 000:085.789 - 0.703ms 
+T1E34 000:085.802 JLINK_SetErrorOutHandler(...)
+T1E34 000:085.806 - 0.004ms 
+T1E34 000:086.093 JLINK_ExecCommand("ProjectFile = "C:\Users\hp\Desktop\2026_tank\tank_chassis\MDK-ARM\JLinkSettings.ini"", ...). 
+T1E34 000:114.547   Ref file found at: D:\Keil5\Core\ARM\Segger\JLinkDevices.ref
+T1E34 000:114.722   REF file references invalid XML file: C:\Program Files\SEGGER\JLink_V966\JLinkDevices.xml
+T1E34 000:115.075 - 28.983ms returns 0x00
+T1E34 000:117.023 JLINK_ExecCommand("Device = STM32H723VGTx", ...). 
+T1E34 000:118.548   Flash bank @ 0x08000000: SFL: Parsing sectorization info from ELF file
+T1E34 000:118.559     FlashDevice.SectorInfo[0]: .SectorSize = 0x00020000, .SectorStartAddr = 0x00000000
+T1E34 000:118.565   FlashBank @0x08000000: Sectorization info from SFL ELF file ignored because sectorization override from DLL / XML file is active.
+T1E34 000:119.332   Flash bank @ 0x90000000: SFL: Parsing sectorization info from ELF file
+T1E34 000:119.346     FlashDevice.SectorInfo[0]: .SectorSize = 0x00010000, .SectorStartAddr = 0x00000000
+T1E34 000:124.284   Device "STM32H723VG" selected.
+T1E34 000:124.557 - 7.533ms returns 0x00
+T1E34 000:124.739   ERROR: Unknown command
+T1E34 000:124.758 JLINK_GetHardwareVersion()
+T1E34 000:124.764 - 0.004ms returns 97000
+T1E34 000:124.769 JLINK_GetDLLVersion()
+T1E34 000:124.773 - 0.003ms returns 96600
+T1E34 000:124.779 JLINK_GetOEMString(...)
+T1E34 000:124.784 JLINK_GetFirmwareString(...)
+T1E34 000:124.788 - 0.004ms 
+T1E34 000:128.838 JLINK_GetDLLVersion()
+T1E34 000:128.854 - 0.016ms returns 96600
+T1E34 000:128.859 JLINK_GetCompileDateTime()
+T1E34 000:128.863 - 0.003ms 
+T1E34 000:130.031 JLINK_GetFirmwareString(...)
+T1E34 000:130.045 - 0.013ms 
+T1E34 000:131.172 JLINK_GetHardwareVersion()
+T1E34 000:131.183 - 0.010ms returns 97000
+T1E34 000:132.363 JLINK_GetSN()
+T1E34 000:132.375 - 0.011ms returns 602712561
+T1E34 000:133.523 JLINK_GetOEMString(...)
+T1E34 000:136.723 JLINK_TIF_Select(JLINKARM_TIF_SWD)
+T1E34 000:140.260 - 3.536ms returns 0x00
+T1E34 000:140.280 JLINK_HasError()
+T1E34 000:140.291 JLINK_SetSpeed(50000)
+T1E34 000:140.796 - 0.505ms 
+T1E34 000:140.812 JLINK_GetId()
+T1E34 000:143.183   ConfigTargetSettings() start
+T1E34 000:143.196    J-Link Script File: Executing ConfigTargetSettings()
+T1E34 000:144.951   ConfigTargetSettings() end - Took 276us
+T1E34 000:146.145   InitTarget() start
+T1E34 000:146.159    J-Link Script File: Executing InitTarget()
+T1E34 000:148.152   SWD selected. Executing JTAG -> SWD switching sequence.
+T1E34 000:260.910   Error: Failed to initialize DAP.
+T1E34 000:262.201   Can not attach to CPU. Trying connect under reset.
+T1E34 000:316.193   SWD selected. Executing JTAG -> SWD switching sequence.
+T1E34 000:428.115   Error: Failed to initialize DAP.
+T1E34 000:429.394   Connecting to CPU via connect under reset failed.
+T1E34 000:479.938   
+  ***** Error: 
+T1E34 000:479.960   J-Link script file function InitTarget() returned with error code -1
+T1E34 000:481.599   InitTarget() end - Took 333ms
+T1E34 000:482.813   Connect failed. Resetting via Reset pin and trying again.
+T1E34 000:547.410   ConfigTargetSettings() start
+T1E34 000:547.438    J-Link Script File: Executing ConfigTargetSettings()
+T1E34 000:548.690   ConfigTargetSettings() end - Took 14us
+T1E34 000:549.855   InitTarget() start
+T1E34 000:549.869    J-Link Script File: Executing InitTarget()
+T1E34 000:552.006   SWD selected. Executing JTAG -> SWD switching sequence.
+T1E34 000:664.213   Error: Failed to initialize DAP.
+T1E34 000:665.597   Can not attach to CPU. Trying connect under reset.
+T1E34 000:719.657   SWD selected. Executing JTAG -> SWD switching sequence.
+T1E34 000:832.344   Error: Failed to initialize DAP.
+T1E34 000:833.795   Connecting to CPU via connect under reset failed.
+T1E34 000:884.953   
+  ***** Error: 
+T1E34 000:884.985   J-Link script file function InitTarget() returned with error code -1
+T1E34 000:886.617   InitTarget() end - Took 335ms
+T1E34 000:886.636 - 745.823ms returns 0x00000000
+T1E34 001:765.392 JLINK_Close()
+T1E34 001:781.090 - 15.695ms
+T1E34 001:781.141   
+T1E34 001:781.145   Closed
