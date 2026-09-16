@@ -1,0 +1,364 @@
+#include "gimbal_fsm.hpp"
+#include "../user/core/BSP/RemoteControl/DT7.hpp"
+
+namespace
+{
+constexpr float INPUT_DEADBAND = 0.01f;
+constexpr float MOUSE_ANGLE_DEADBAND = 2.0f;
+constexpr float FULL_CIRCLE_DEG = 360.0f;
+
+float Absolute_Value(float value)
+{
+    return (value >= 0.0f) ? value : -value;
+}
+}
+
+using Remote = BSP::REMOTE_CONTROL::RemoteController;
+
+void Class_Gimbal_FSM::Init(const Struct_Gimbal_FSM_Config &__config,
+                            uint8_t __initial_status)
+{
+    Class_FSM::Init(GIMBAL_STATUS_COUNT, __initial_status);
+
+    config = __config;
+    control_output = 0.0f;
+    target_angle = 0.0f;
+    target_speed = 0.0f;
+    control_type = GIMBAL_CONTROL_STOP;
+    angle_target_initialized = 0U;
+    mode_changed_flag = 0U;
+    source_initialized_ = 0U;
+    last_is_keymouse_ = false;
+
+    if (__initial_status == GIMBAL_STATUS_ANGLE)
+    {
+        control_type = GIMBAL_CONTROL_ANGLE;
+    }
+    else if (__initial_status == GIMBAL_STATUS_SPEED)
+    {
+        control_type = GIMBAL_CONTROL_SPEED;
+    }
+}
+
+// ===== 模式判定：FSM 内部根据 s1/s2 和键鼠状态自行决定 =====
+uint8_t Class_Gimbal_FSM::DetermineMode(const Struct_Gimbal_Input &input) const
+{
+    // ---- 键鼠模式：s1中 + s2中 ----
+    if (input.is_keymouse)
+    {
+        if (input.vision_ready && input.vision_fresh && input.mouse_right_held)
+        {
+            return GIMBAL_MODE_VISION;
+        }
+        return GIMBAL_MODE_ANGLE;
+    }
+
+    // ---- 遥控器模式 ----
+    else if (input.s1 == Remote::DOWN && input.s2 == Remote::DOWN)
+    {
+        return GIMBAL_MODE_STOP;
+    }
+    else if (input.s1 == Remote::DOWN && input.s2 == Remote::MIDDLE)
+    {
+        return GIMBAL_MODE_SPEED;
+    }
+    else if (input.s1 == Remote::MIDDLE && input.s2 == Remote::DOWN)
+    {
+        return GIMBAL_MODE_ANGLE;
+    }
+
+    else if (input.s1 == Remote::DOWN && input.s2 == Remote::UP)
+    {
+        return GIMBAL_MODE_SPEED;
+    }
+    else if (input.s1 == Remote::UP && input.s2 == Remote::DOWN)
+    {
+        return GIMBAL_MODE_ANGLE;
+    }
+    else if (input.s1 == Remote::MIDDLE && input.s2 == Remote::UP)
+    {
+        return GIMBAL_MODE_ANGLE;
+    }
+    else if (input.s1 == Remote::UP && input.s2 == Remote::MIDDLE)
+    {
+        return GIMBAL_MODE_ANGLE;
+    }
+    else if (input.s1 == Remote::UP && input.s2 == Remote::UP)
+    {
+        if (input.vision_ready && input.vision_fresh)
+        {
+            return GIMBAL_MODE_VISION;
+        }
+        return GIMBAL_MODE_SPEED;
+    }
+    else
+    {
+        return GIMBAL_MODE_STOP;
+        // 非法拨杆值（上电未连接时为 0）→ 强制 STOP，防止云台误动
+        return GIMBAL_MODE_STOP;
+    }
+}
+
+void Class_Gimbal_FSM::Update(const Struct_Gimbal_Input &input, float current_angle)
+{
+    // 1. 确定模式
+    uint8_t mode_command = DetermineMode(input);
+    last_mode_command_ = mode_command;
+
+    const bool source_changed =
+        (source_initialized_ == 0U) || (input.is_keymouse != last_is_keymouse_);
+    source_initialized_ = 1U;
+    last_is_keymouse_ = input.is_keymouse;
+
+    // 2. 计算 angle_input 和 speed_input
+    float angle_input = input.joystick_speed;  // 遥控器默认用摇杆
+    float speed_input = input.joystick_speed;
+
+    if (mode_command == GIMBAL_MODE_VISION)
+    {
+        angle_input = input.vision_angle;
+    }
+    // 速度模式只由遥控器模式使用，键鼠模式在视觉失效时回到角度模式。
+
+    // 3. 状态转移（与原 Update 完全一致）
+    uint8_t next_status = GIMBAL_STATUS_STOP;
+
+    switch (mode_command)
+    {
+    case GIMBAL_MODE_ANGLE:
+        next_status = GIMBAL_STATUS_ANGLE;
+        break;
+    case GIMBAL_MODE_SPEED:
+        next_status = GIMBAL_STATUS_SPEED;
+        break;
+    case GIMBAL_MODE_VISION:
+        next_status = GIMBAL_STATUS_VISION;
+        break;
+    case GIMBAL_MODE_STOP:
+    default:
+        next_status = GIMBAL_STATUS_STOP;
+        break;
+    }
+
+    if (Get_Now_Status_Serial() != next_status)
+    {
+        Set_Status(next_status);
+        mode_changed_flag = 1U;
+
+        switch (next_status)
+        {
+        case GIMBAL_STATUS_ANGLE:
+            Enter_Angle_State(current_angle);
+            break;
+        case GIMBAL_STATUS_SPEED:
+            Enter_Speed_State();
+            break;
+        case GIMBAL_STATUS_VISION:
+            Enter_Vision_State(current_angle);
+            break;
+        case GIMBAL_STATUS_STOP:
+        default:
+            Enter_Stop_State();
+            break;
+        }
+    }
+    else if (source_changed)
+    {
+        // 输入源切换时，即使控制类型相同也重新锚定，防止继承旧目标
+        switch (next_status)
+        {
+        case GIMBAL_STATUS_ANGLE:
+            Enter_Angle_State(current_angle);
+            break;
+        case GIMBAL_STATUS_SPEED:
+            Enter_Speed_State();
+            break;
+        case GIMBAL_STATUS_VISION:
+            Enter_Vision_State(current_angle);
+            break;
+        case GIMBAL_STATUS_STOP:
+        default:
+            Enter_Stop_State();
+            break;
+        }
+        mode_changed_flag = 1U;
+    }
+
+    switch (Get_Now_Status_Serial())
+    {
+    case GIMBAL_STATUS_ANGLE:
+        control_type = GIMBAL_CONTROL_ANGLE;
+        if (angle_target_initialized == 0U)
+        {
+            target_angle = Apply_Angle_Rule(current_angle);
+            angle_target_initialized = 1U;
+        }
+        if (source_changed == false && input.is_keymouse &&
+            Absolute_Value(input.mouse_angle_delta) > MOUSE_ANGLE_DEADBAND)
+        {
+            target_angle += input.mouse_angle_delta * config.mouse_angle_scale;
+            target_angle = Apply_Angle_Rule(target_angle);
+        }
+        else if (source_changed == false && !input.is_keymouse &&
+                 Absolute_Value(angle_input) > INPUT_DEADBAND)
+        {
+            target_angle += angle_input * config.angle_step;
+            target_angle = Apply_Angle_Rule(target_angle);
+        }
+        control_output = target_angle;
+        target_speed = 0.0f;
+        break;
+
+    case GIMBAL_STATUS_SPEED:
+        control_type = GIMBAL_CONTROL_SPEED;
+        if (Absolute_Value(speed_input) > INPUT_DEADBAND)
+        {
+            target_speed = speed_input * config.speed_scale;
+        }
+        else
+        {
+            target_speed = 0.0f;
+        }
+        control_output = target_speed;
+        break;
+
+    case GIMBAL_STATUS_VISION:
+        control_type = GIMBAL_CONTROL_ANGLE;
+        if (mode_changed_flag == 0U)
+        {
+            float desired_angle = Apply_Angle_Rule(angle_input);
+
+            // 无斜坡规划：视觉目标角直接作为目标角。
+            // yaw 轴仍需要 unwrap：把有界的视觉角 [-180,180] 展开到与连续反馈角
+            // 相同的"圈数"参考系，否则 (有界目标 - 连续反馈) 会算出数百度的假误差
+            if (config.normalize_angle != 0U)
+            {
+                float diff_t = desired_angle - current_angle;
+                while (diff_t > 180.0f)  { desired_angle -= FULL_CIRCLE_DEG; diff_t -= FULL_CIRCLE_DEG; }
+                while (diff_t < -180.0f) { desired_angle += FULL_CIRCLE_DEG; diff_t += FULL_CIRCLE_DEG; }
+            }
+
+            target_angle = desired_angle;
+        }
+        control_output = target_angle;
+        target_speed = 0.0f;
+        break;
+
+    case GIMBAL_STATUS_STOP:
+    default:
+        control_type = GIMBAL_CONTROL_STOP;
+        control_output = 0.0f;
+        target_speed = 0.0f;
+        break;
+    }
+}
+
+void Class_Gimbal_FSM::Set_Target_Angle(float angle)
+{
+    target_angle = Apply_Angle_Rule(angle);
+    angle_target_initialized = 1U;
+}
+
+void Class_Gimbal_FSM::Set_Target_Speed(float speed)
+{
+    target_speed = speed;
+}
+
+void Class_Gimbal_FSM::ReAnchor(float new_angle)
+{
+    target_angle = Apply_Angle_Rule(new_angle);
+    control_output = target_angle;
+    target_speed = 0.0f;
+    angle_target_initialized = 1U;
+    mode_changed_flag = 1U;
+}
+
+float Class_Gimbal_FSM::Get_Control_Output() const
+{
+    return control_output;
+}
+
+uint8_t Class_Gimbal_FSM::Get_Control_Type() const
+{
+    return control_type;
+}
+
+float Class_Gimbal_FSM::Get_Target_Angle() const
+{
+    return target_angle;
+}
+
+float Class_Gimbal_FSM::Get_Target_Speed() const
+{
+    return target_speed;
+}
+
+uint8_t Class_Gimbal_FSM::Take_Mode_Changed_Flag()
+{
+    uint8_t tmp = mode_changed_flag;
+    mode_changed_flag = 0U;
+    return tmp;
+}
+
+void Class_Gimbal_FSM::Enter_Stop_State()
+{
+    control_type = GIMBAL_CONTROL_STOP;
+    control_output = 0.0f;
+    target_speed = 0.0f;
+}
+
+void Class_Gimbal_FSM::Enter_Angle_State(float current_angle)
+{
+    target_angle = Apply_Angle_Rule(current_angle);
+    target_speed = 0.0f;
+    control_output = target_angle;
+    control_type = GIMBAL_CONTROL_ANGLE;
+    angle_target_initialized = 1U;
+}
+
+void Class_Gimbal_FSM::Enter_Speed_State()
+{
+    target_speed = 0.0f;
+    control_output = 0.0f;
+    control_type = GIMBAL_CONTROL_SPEED;
+}
+
+void Class_Gimbal_FSM::Enter_Vision_State(float current_angle)
+{
+    target_angle = Apply_Angle_Rule(current_angle);
+    target_speed = 0.0f;
+    control_output = target_angle;
+    control_type = GIMBAL_CONTROL_ANGLE;
+    angle_target_initialized = 1U;
+}
+
+float Class_Gimbal_FSM::Apply_Angle_Rule(float angle) const
+{
+    float result = angle;
+
+    if (config.normalize_angle != 0U && config.continuous_angle == 0U)
+    {
+        while (result >= 180.0f)
+        {
+            result -= FULL_CIRCLE_DEG;
+        }
+        while (result < -180.0f)
+        {
+            result += FULL_CIRCLE_DEG;
+        }
+    }
+
+    if (config.limit_angle != 0U)
+    {
+        if (result > config.max_angle)
+        {
+            result = config.max_angle;
+        }
+        else if (result < config.min_angle)
+        {
+            result = config.min_angle;
+        }
+    }
+
+    return result;
+}

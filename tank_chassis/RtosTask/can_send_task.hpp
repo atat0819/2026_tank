@@ -2,14 +2,13 @@
 #define CAN_SEND_TASK_HPP
 
 #include "cmsis_os.h"
-#include "HAL/FDCAN/interface/fdcan_device.hpp"
+#include "HAL/FDCAN/fdcan_hal.hpp"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 void can_send_task(void *argument);
-void CAN2_RxCallback(HAL::CAN::Frame& frame);
 
 typedef struct
 {

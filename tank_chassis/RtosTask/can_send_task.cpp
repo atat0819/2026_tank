@@ -9,9 +9,9 @@
 #include "Alg/Filter/Filter.hpp"
 #include <math.h>
 #include <string.h>
-// 必须包含实现类的头文件，否则编译器不知道 CanDevice 是什么
-#include "HAL/FDCAN/interface/fdcan_device.hpp"
-// 确保包含这个头文件以获取 hcan1 的定义
+// 必须包含实现类的头文件，否则编译器不知道 FdcanDevice 是什么
+#include "HAL/FDCAN/fdcan_hal.hpp"
+// 确保包含这个头文件以获取 hfdcan1 / hfdcan2 / hfdcan3 的定义
 #include "fdcan.h"
 #include "../user/core/Alg/ChassisCalculation/OmniCalculation.hpp"
 #include "../user/core/BSP/Motor/Dji/DjiMotor.hpp"
@@ -117,7 +117,6 @@ static inline void ChassisMotorSendCANChecked()
 }
 
 void ControlTask();
-void CAN1_RxCallback(HAL::CAN::Frame& frame);
 void vofa_sendN(const float *data, uint8_t count);
 
 
@@ -220,11 +219,11 @@ ALG::PID::PID poverty_energy_pid(0.05f, 0.0f, 0.0f, 80.0f, 80.0f, 0.0f);
 
 extern "C" void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t)
 {
-    HAL::CAN::Frame frame;
-    HAL::CAN::ICanDevice *device = nullptr;
-    if (hfdcan->Instance == FDCAN1) device = &HAL::CAN::get_can_bus_instance().get_can1();
-    else if (hfdcan->Instance == FDCAN2) device = &HAL::CAN::get_can_bus_instance().get_can2();
-    else if (hfdcan->Instance == FDCAN3) device = &HAL::CAN::get_can_bus_instance().get_can3();
+    HAL::FDCAN::Frame frame;
+    HAL::FDCAN::IFdcanDevice *device = nullptr;
+    if (hfdcan->Instance == FDCAN1) device = &HAL::FDCAN::get_fdcan_bus_instance().get_fdcan1();
+    else if (hfdcan->Instance == FDCAN2) device = &HAL::FDCAN::get_fdcan_bus_instance().get_fdcan2();
+    else if (hfdcan->Instance == FDCAN3) device = &HAL::FDCAN::get_fdcan_bus_instance().get_fdcan3();
     if (device) while (device->receive(frame)) {}
 }
 /******************************************************* */
@@ -236,23 +235,26 @@ extern "C" void can_send_task(void *argument)
     // 等待裁判系统就位（约需5秒），确保电机上电前裁判系统已就绪
     osDelay(1000);
 
-    // 触发 CAN bus 初始化：HAL_CAN_Start + 激活中断通知
-    HAL::CAN::get_can_bus_instance();
+    // 触发 FDCAN bus 初始化：HAL_FDCAN_Start + 激活中断通知
+    HAL::FDCAN::get_fdcan_bus_instance();
 
-    auto &can1 = HAL::CAN::get_can_bus_instance().get_device(HAL::CAN::CanDeviceId::HAL_Can1);
-    auto &can2 = HAL::CAN::get_can_bus_instance().get_device(HAL::CAN::CanDeviceId::HAL_Can2);
+    auto &fdcan1 = HAL::FDCAN::get_fdcan_bus_instance().get_device(HAL::FDCAN::FdcanDeviceId::HAL_Fdcan1);
+    auto &fdcan2 = HAL::FDCAN::get_fdcan_bus_instance().get_device(HAL::FDCAN::FdcanDeviceId::HAL_Fdcan2);
 /************************************************************************************** */
 /************************************************************************************** */
-    can1.register_rx_callback([](const HAL::CAN::Frame &frame) {
+    fdcan1.register_rx_callback([](const HAL::FDCAN::Frame &frame) {
         if (frame.id >= 0x201 && frame.id <= 0x204)
     {
         // 这是底盘电机的数据，交给 chassis_motor 解析
         chassis_motor.Parse(frame);
     }
+    else if (frame.id == 0x777) {
+       supercap.parse(frame); // 超级电容数据
+   }
 
     });
 /************************************************************************************** */
-   can2.register_rx_callback([](const HAL::CAN::Frame &frame) {
+   fdcan2.register_rx_callback([](const HAL::FDCAN::Frame &frame) {
    // 直接把逻辑写在这里
     if (frame.id == 0x301 ) {
        memcpy(&gimbalChassis_communicate.yaw_offset_deg, frame.data, sizeof(float));
@@ -274,9 +276,6 @@ extern "C" void can_send_task(void *argument)
        gimbal_keyboard = keyboard_value;
        gimbal_keyboard_last_tick = HAL_GetTick();
        gimbal_keyboard_received = true;
-   }
-    else if (frame.id == 0x777) {
-       supercap.parse(frame); // 超级电容数据
    }
 
 });
@@ -404,7 +403,7 @@ osDelay(500);
     //     chassis_motor.sendCAN();
 
     //     // 4. 采集数据 → VOFA+ (JustFloat 模式)
-    //     //    PowerData 来自 UART8 功率计, 在 remote_task.cpp 中断中更新
+    //     //    PowerData 来自 UART7 功率计, 在 remote_task.cpp 中断中更新
     //     float I     = chassis_motor.getCurrent(4);           // 电流 (A)
     //     float omega = chassis_motor.getVelocityRads(4);      // 转子转速 (rad/s)
     //     float P_in  = PowerData.power;                       // 功率计功率 (W)
@@ -644,7 +643,7 @@ vofa_send10(
            chassis_vy_fb
        };
        vofa_sendN(vofa_speed, 4);
- //HAL_UART_Transmit_DMA(&huart6, (const uint8_t*)&yaw_offset_rad, sizeof(yaw_offset_rad));
+ //HAL_UART_Transmit_DMA(&huart10, (const uint8_t*)&yaw_offset_rad, sizeof(yaw_offset_rad));
 
     }
  }
@@ -692,7 +691,7 @@ void vofa_sendN(const float *data, uint8_t count)
     *((uint32_t*)&send_str2[sizeof(float) * count]) = 0x7F800000;
 
     HAL::UART::Data tx_data{send_str2, static_cast<uint16_t>(sizeof(float) * (count + 1))};
-    HAL::UART::get_uart_bus_instance().get_uart6().transmit_dma(tx_data);
+    HAL::UART::get_uart_bus_instance().get_uart10().transmit_dma(tx_data);
 }
 
 #if 0
@@ -714,9 +713,9 @@ void vofa_send9(float x1, float x2, float x3, float x4, float x5, float x6, floa
     // 写入帧尾（协议要求 0x00 0x00 0x80 0x7F）
     *((uint32_t*)&send_str2[sizeof(float) * 9]) = 0x7F800000; // 小端存储为 00 00 80 7F
 
-    // 通过 UART 库发送（使用 UART3，UART6 留给裁判系统）
+    // 通过 UART 库发送（使用 UART10，留给 VOFA 上位机）
     HAL::UART::Data tx_data{send_str2, static_cast<uint16_t>(sizeof(float) * 10)};
-    HAL::UART::get_uart_bus_instance().get_uart3().transmit_dma(tx_data);
+    HAL::UART::get_uart_bus_instance().get_uart10().transmit_dma(tx_data);
 }
 
 // 10通道版: 前两通道 = 功率计实测 vs 模型预测, 后面是4电机 (w, I)
@@ -740,33 +739,9 @@ void vofa_send10(float x1, float x2, float x3, float x4, float x5, float x6, flo
     *((uint32_t*)&send_str2[sizeof(float) * 10]) = 0x7F800000;
 
     HAL::UART::Data tx_data{send_str2, static_cast<uint16_t>(sizeof(float) * 11)};
-    HAL::UART::get_uart_bus_instance().get_uart3().transmit_dma(tx_data);
+    HAL::UART::get_uart_bus_instance().get_uart10().transmit_dma(tx_data);
 }
 #endif
-
-
- 
-//从云台数据发送到can2.让底盘接收，用于控制底盘的vx，vy和旋转速度
-void CAN2_RxCallback(HAL::CAN::Frame& frame)
-{
-    if (frame.id == 0x301 && frame.dlc == 4)
-    {
-        memcpy(&gimbalChassis_communicate.yaw_offset_deg, frame.data, sizeof(float));
-        yaw_offset_updated = true;
-        yaw_offset_timeout_cnt = 0; // 收到数据，清零计数器
-    }
-    else if (frame.id == 0x302 && frame.dlc == 8)
-    {
-        memcpy(&gimbalChassis_communicate.vx, &frame.data[0], sizeof(float));
-        memcpy(&gimbalChassis_communicate.vy, &frame.data[4], sizeof(float));
-        gimbalChassisSpeedUpdated = 1;
-    }
-    else if (frame.id == 0x303 )
-    {
-        gimbalChassis_communicate.s1 = frame.data[0];
-        gimbalChassis_communicate.s2 = frame.data[1];
-    }
-}
 
 
 

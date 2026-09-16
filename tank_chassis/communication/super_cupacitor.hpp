@@ -15,7 +15,7 @@
 
 #pragma once
 
-#include "HAL/FDCAN/interface/fdcan_device.hpp"
+#include "HAL/FDCAN/fdcan_hal.hpp"
 #include <cstdint>
 
 namespace Communication
@@ -50,10 +50,10 @@ public:
     // ======================================================
 
     /**
-     * @brief 解析超级电容发来的CAN帧数据
-     * @param frame CAN帧引用
+     * @brief 解析超级电容发来的FDCAN帧数据
+     * @param frame FDCAN帧引用
      */
-    void parse(const HAL::CAN::Frame &frame);
+    void parse(const HAL::FDCAN::Frame &frame);
 
     /**
      * @brief 更新在线状态（需要在主循环中周期性调用，如每 1ms 调用一次）
@@ -66,7 +66,7 @@ public:
     // ======================================================
 
     /**
-     * @brief 通过 CAN2 向超级电容发送控制数据 (CAN ID: 0x666)
+     * @brief 通过 FDCAN1 向超级电容发送控制数据 (CAN ID: 0x666)
      * @param level_power 等级功率 (W)
      * @param super_cap_cmd 超电指令 (0=开启, 1=关闭)
      * @param communication_energy 缓冲能量 (J), 建议范围 0~60

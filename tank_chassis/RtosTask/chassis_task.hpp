@@ -73,7 +73,6 @@ extern BSP::Motor::Dji::GM3508<4> chassis_motor;
 
 
 void chassis_task(void *argument);
-void CAN1_RxCallback(HAL::CAN::Frame& frame);
 void SafetyCheck();
 
 

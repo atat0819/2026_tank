@@ -6,7 +6,7 @@
  */
 
 #include "super_cupacitor.hpp"
-#include "HAL/FDCAN/interface/fdcan_bus.hpp"
+#include "HAL/FDCAN/fdcan_hal.hpp"
 
 namespace Communication
 {
@@ -23,7 +23,7 @@ SuperCapacitor::SuperCapacitor(uint32_t time_threshold_ms)
 {
 }
 
-void SuperCapacitor::parse(const HAL::CAN::Frame &frame)
+void SuperCapacitor::parse(const HAL::FDCAN::Frame &frame)
 {
     // 仅处理超级电容的CAN ID，且数据长度必须为8字节
     if (frame.id != RX_CAN_ID || frame.dlc < 8)
@@ -69,7 +69,7 @@ HAL_StatusTypeDef SuperCapacitor::sendToSuperCap(float level_power,
                                                 uint8_t is_referee_online)
 {
     // 1. 使用项目统一的 Frame 结构体（零初始化）
-    HAL::CAN::Frame frame = {};
+    HAL::FDCAN::Frame frame = {};
 
     // 2. 配置帧信息
     frame.id              = TX_CAN_ID;
@@ -100,9 +100,9 @@ HAL_StatusTypeDef SuperCapacitor::sendToSuperCap(float level_power,
     // Byte 7: 保留
     frame.data[7] = 0;
 
-    // 4. 通过 CAN1 发送
-    auto &can_bus = HAL::CAN::get_can_bus_instance();
-    bool success = can_bus.get_device(HAL::CAN::CanDeviceId::HAL_Can1).send(frame);
+    // 4. 通过 FDCAN1 发送
+    auto &fdcan_bus = HAL::FDCAN::get_fdcan_bus_instance();
+    bool success = fdcan_bus.get_device(HAL::FDCAN::FdcanDeviceId::HAL_Fdcan1).send(frame);
 
     return success ? HAL_OK : HAL_ERROR;
 }

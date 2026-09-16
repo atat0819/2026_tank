@@ -4,7 +4,7 @@
 #pragma once
 
 #include "../user/core/BSP/Motor/MotorBase.hpp"
-#include "../user/core/HAL/FDCAN/interface/fdcan_bus.hpp"
+#include "../user/core/HAL/FDCAN/fdcan_hal.hpp"
 
 namespace BSP::Motor::LK
 {
@@ -125,13 +125,13 @@ namespace BSP::Motor::LK
             this->unit_data_[i].last_angle = this->unit_data_[i].angle_Deg;
         }
 
-        HAL::CAN::Frame msd;
+        HAL::FDCAN::Frame msd;
 
     public:
         /**
-            * @brief 解析CAN数据
+            * @brief 解析FDCAN数据
             */
-        void Parse(const HAL::CAN::Frame &frame) override
+        void Parse(const HAL::FDCAN::Frame &frame) override
         {
             for (uint8_t i = 0; i < N; ++i)
             {
@@ -152,22 +152,20 @@ namespace BSP::Motor::LK
         }
 
         /**
-         * @brief               发送Can数据
+         * @brief               发送FDCAN数据
          *
-         * @param han           Can句柄
-         * @param pTxMailbox    邮
+         * @param id            电机编号（1 ~ N）
          */
         void sendCAN(uint8_t id)
         {
-            // 修改此处以适应新的CAN接口
-            HAL::CAN::Frame frame;
+            HAL::FDCAN::Frame frame;
             frame.id = 140 + send_idxs_[id - 1];
             frame.dlc = 8;
             memcpy(frame.data, msd.data, 8);
             frame.is_extended_id = false;
             frame.is_remote_frame = false;
             
-            HAL::CAN::get_can_bus_instance().get_can1().send(frame);
+            HAL::FDCAN::get_fdcan_bus_instance().get_fdcan1().send(frame);
         }
 
        /**

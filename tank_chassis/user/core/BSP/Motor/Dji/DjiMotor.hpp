@@ -73,12 +73,11 @@ template <uint8_t N> class DjiMotorBase : public MotorBase<N>
   public:
     // 解析函数
     /**
-     * @brief 解析CAN数据
+     * @brief 解析FDCAN数据
      *
-     * @param RxHeader  接收数据的句柄
-     * @param pData     接收数据的缓冲区
+     * @param frame 接收到的FDCAN帧
      */
-    void Parse(const HAL::CAN::Frame &frame) override
+    void Parse(const HAL::FDCAN::Frame &frame) override
     {
         const uint16_t received_id = frame.id;
 
@@ -112,22 +111,21 @@ template <uint8_t N> class DjiMotorBase : public MotorBase<N>
     }
 
     /**
-     * @brief               发送Can数据
+     * @brief               发送FDCAN数据
      *
-     * @param han           Can句柄
-     * @param pTxMailbox    邮
+     * @return true         发送成功
+     * @return false        发送失败（发送FIFO满 / 总线错误）
      */
     bool sendCAN()
     {
-        // 修改此处以适应新的CAN接口
-        HAL::CAN::Frame frame = {};
+        HAL::FDCAN::Frame frame = {};
         frame.id = send_idxs_;
         frame.dlc = 8;
         memcpy(frame.data, msd.data, 8);
         frame.is_extended_id = false;
         frame.is_remote_frame = false;
         
-        return HAL::CAN::get_can_bus_instance().get_can1().send(frame);
+        return HAL::FDCAN::get_fdcan_bus_instance().get_fdcan1().send(frame);
     }
 
   protected:
@@ -200,7 +198,7 @@ template <uint8_t N> class DjiMotorBase : public MotorBase<N>
     DjiMotorfeedback feedback_[N]; // 反馈数据
     uint8_t recv_idxs_[N];         // ID索引
     uint32_t send_idxs_;
-    HAL::CAN::Frame msd;
+    HAL::FDCAN::Frame msd;
 
 
 

@@ -5,7 +5,7 @@
  * @date 2025-07-16
  *
  * @details
- * 通过 CAN2 将裁判系统枪管热量相关数据转发给云台主控板:
+ * 通过 FDCAN2 将裁判系统枪管热量相关数据转发给云台主控板:
  *   0x520: [0-1] 枪管冷却值        (uint16_t, 大端)
  *           [2-3] 枪管热量上限      (uint16_t, 大端)
  *           [4-5] 42mm枪管当前热量  (uint16_t, 大端)
@@ -15,7 +15,7 @@
 
 #pragma once
 
-#include "HAL/FDCAN/interface/fdcan_device.hpp"
+#include "HAL/FDCAN/fdcan_hal.hpp"
 #include <cstdint>
 
 namespace Communication
@@ -28,7 +28,7 @@ public:
     ~GimbalRefree() = default;
 
     /**
-     * @brief 发送枪管热量数据给云台 (CAN ID: 0x520)
+     * @brief 发送枪管热量数据给云台 (FDCAN ID: 0x520)
      * @param cooling_value 枪管每秒冷却值
      * @param heat_limit    枪管热量上限
      * @param heat_42mm     42mm枪管当前热量

@@ -54,6 +54,13 @@ void Error_Handler(void);
 
 /* USER CODE BEGIN EFP */
 
+/* FreeRTOS 任务入口（定义在 RtosTask 目录的 .cpp 中，供 Core/Src/freertos.c 创建任务时引用） */
+void can_send_task(void *argument);
+void chassis_task(void *argument);
+void remote_task(void *argument);
+void ui_task(void *argument);
+void up_stair_task(void *argument);
+
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/

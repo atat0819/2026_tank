@@ -6,14 +6,15 @@
 
 ## 模块总览
 
-| 模块                         | 说明        | README  |
-| ---------------------------- | ----------- | ------- |
-| [CAN](./CAN/README.md)       | CAN总线通信 | ✅ 已有 |
-| [UART](./UART/README.md)     | 串口通信    | ✅ 已有 |
-| [DWT](./DWT/README.md)       | 精确计时器  | ✅ 已有 |
-| [LOGGER](./LOGGER/README.md) | 日志系统    | ✅ 已有 |
-| [ASSERT](./ASSERT/README.md) | 断言处理    | ✅ 已有 |
-| [PWM](./PWM/README.md)       | PWM输出     | ✅      |
+| 模块                           | 说明             | README  |
+| ------------------------------ | ---------------- | ------- |
+| [FDCAN](./FDCAN/README.md)     | FDCAN总线通信    | ✅ 已有 |
+| [UART](./UART/README.md)       | 串口通信         | ✅ 已有 |
+| [DWT](./DWT/README.md)         | 精确计时器       | ✅ 已有 |
+| [LOGGER](./LOGGER/README.md)   | 日志系统         | ✅ 已有 |
+| [ASSERT](./ASSERT/README.md)   | 断言处理         | ✅ 已有 |
+| [PWM](./PWM/README.md)         | PWM输出          | ✅      |
+| [CAN](./CAN/README.md)         | CAN总线通信（旧版，已废弃） | ✅ 已有 |
 
 ---
 

@@ -3,7 +3,7 @@
 
 #pragma once
 #include "../user/core/BSP/Motor/MotorBase.hpp"
-#include "../user/core/HAL/FDCAN/interface/fdcan_bus.hpp"
+#include "../user/core/HAL/FDCAN/fdcan_hal.hpp"
 
 namespace BSP::Motor::DM
 {
@@ -115,9 +115,9 @@ namespace BSP::Motor::DM
 
     public:
         /**
-         * @brief 解析CAN数据
+         * @brief 解析FDCAN数据
          */
-        void Parse(const HAL::CAN::Frame &frame) override
+        void Parse(const HAL::FDCAN::Frame &frame) override
         {
             for (uint8_t i = 0; i < N; ++i)
             {
@@ -162,14 +162,14 @@ namespace BSP::Motor::DM
             send_data[6] = ((kd_tmp & 0xF) << 4) | (tor_tmp >> 8);
             send_data[7] = tor_tmp;
 
-            HAL::CAN::Frame frame;
+            HAL::FDCAN::Frame frame;
             frame.id = send_idxs_[id - 1];
             frame.dlc = 8;
             memcpy(frame.data, send_data, sizeof(send_data));
             frame.is_extended_id = false;
             frame.is_remote_frame = false;
             
-            HAL::CAN::get_can_bus_instance().get_can2().send(frame);
+            HAL::FDCAN::get_fdcan_bus_instance().get_fdcan2().send(frame);
         }
 
 
@@ -190,14 +190,14 @@ namespace BSP::Motor::DM
                 data[4 + i] = vbuf[i];
             }
 
-            HAL::CAN::Frame frame;
+            HAL::FDCAN::Frame frame;
             frame.id = 0X100 + send_idxs_[id - 1];
             frame.dlc = 8;
             memcpy(frame.data, data, sizeof(data));
             frame.is_extended_id = false;
             frame.is_remote_frame = false;
             
-            HAL::CAN::get_can_bus_instance().get_can2().send(frame);
+            HAL::FDCAN::get_fdcan_bus_instance().get_fdcan2().send(frame);
         }
 
         /**
@@ -213,14 +213,14 @@ namespace BSP::Motor::DM
                 data[i] = vbuf[i];
             }
 
-            HAL::CAN::Frame frame;
+            HAL::FDCAN::Frame frame;
             frame.id = 0X200 + send_idxs_[id - 1];
             frame.dlc = 8;
             memcpy(frame.data, data, sizeof(data));
             frame.is_extended_id = false;
             frame.is_remote_frame = false;
             
-            HAL::CAN::get_can_bus_instance().get_can2().send(frame);
+            HAL::FDCAN::get_fdcan_bus_instance().get_fdcan2().send(frame);
         }
 
 
@@ -232,7 +232,7 @@ namespace BSP::Motor::DM
         {
             uint8_t send_data[8] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFC};
             
-            HAL::CAN::Frame frame;
+            HAL::FDCAN::Frame frame;
             if(mod == Model::MIT)
             {
                 frame.id = send_idxs_[id - 1];
@@ -250,7 +250,7 @@ namespace BSP::Motor::DM
             frame.is_extended_id = false;
             frame.is_remote_frame = false;
             
-            HAL::CAN::get_can_bus_instance().get_can2().send(frame);
+            HAL::FDCAN::get_fdcan_bus_instance().get_fdcan2().send(frame);
         }
         
         /**
@@ -261,7 +261,7 @@ namespace BSP::Motor::DM
         {
             uint8_t send_data[8] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFD};
 
-            HAL::CAN::Frame frame;
+            HAL::FDCAN::Frame frame;
             if(mod == Model::MIT)
             {
                 frame.id = send_idxs_[id - 1];
@@ -279,7 +279,7 @@ namespace BSP::Motor::DM
             frame.is_extended_id = false;
             frame.is_remote_frame = false;
             
-            HAL::CAN::get_can_bus_instance().get_can2().send(frame);
+            HAL::FDCAN::get_fdcan_bus_instance().get_fdcan2().send(frame);
         }
 
         /**
@@ -290,7 +290,7 @@ namespace BSP::Motor::DM
         {
             uint8_t send_data[8] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFB};
 
-            HAL::CAN::Frame frame;
+            HAL::FDCAN::Frame frame;
             if(mod == Model::MIT)
             {
                 frame.id = send_idxs_[id - 1];
@@ -308,7 +308,7 @@ namespace BSP::Motor::DM
             frame.is_extended_id = false;
             frame.is_remote_frame = false;
             
-            HAL::CAN::get_can_bus_instance().get_can2().send(frame);
+            HAL::FDCAN::get_fdcan_bus_instance().get_fdcan2().send(frame);
         }
 
     protected:

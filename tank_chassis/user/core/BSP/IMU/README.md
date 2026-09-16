@@ -96,7 +96,7 @@ uint8_t imu_rx_buffer[64];
 // UART 接收回调
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
-    if (huart == &huart3)  // 假设 IMU 接在 UART3
+    if (huart == &huart7)  // 示例：按实际接线替换为 IMU 所在的串口
     {
         // 更新 IMU 数据
         imu.DataUpdate(imu_rx_buffer);

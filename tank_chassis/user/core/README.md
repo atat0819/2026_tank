@@ -160,11 +160,11 @@ graph LR
 // 2. 创建电机对象（4个电机）
 BSP::Motor::DjiMotor<4> chassis_motor;
 
-// 3. 在 CAN 接收回调中解析数据
-// 当 CAN 收到电机反馈数据时，这个函数会被调用
-void CAN1_RxCallback(HAL::CAN::Frame& frame)
+// 3. 在 FDCAN 接收回调中解析数据
+// 当 FDCAN 收到电机反馈数据时，这个函数会被调用
+void fdcan1_rx_callback(const HAL::FDCAN::Frame &frame)
 {
-    // 把收到的 CAN 帧交给电机对象解析
+    // 把收到的 FDCAN 帧交给电机对象解析
     // 它会自动判断是哪个电机的数据
     chassis_motor.Parse(frame);
 }

@@ -6,7 +6,7 @@
  */
 
 #include "gimbal_refree.hpp"
-#include "HAL/FDCAN/interface/fdcan_bus.hpp"
+#include "HAL/FDCAN/fdcan_hal.hpp"
 
 namespace Communication
 {
@@ -16,7 +16,7 @@ HAL_StatusTypeDef GimbalRefree::send(uint16_t cooling_value,
                                       uint16_t heat_42mm,
                                       uint8_t ref_online)
 {
-    HAL::CAN::Frame frame = {};
+    HAL::FDCAN::Frame frame = {};
 
     frame.id              = TX_ID;
     frame.dlc             = 8;
@@ -41,8 +41,8 @@ HAL_StatusTypeDef GimbalRefree::send(uint16_t cooling_value,
     // Byte 7: 保留
     frame.data[7] = 0;
 
-    auto &can_bus = HAL::CAN::get_can_bus_instance();
-    bool success  = can_bus.get_device(HAL::CAN::CanDeviceId::HAL_Can2).send(frame);
+    auto &fdcan_bus = HAL::FDCAN::get_fdcan_bus_instance();
+    bool success    = fdcan_bus.get_device(HAL::FDCAN::FdcanDeviceId::HAL_Fdcan2).send(frame);
 
     return success ? HAL_OK : HAL_ERROR;
 }

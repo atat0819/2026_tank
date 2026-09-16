@@ -87,15 +87,15 @@ BSP::Motor::DjiMotor<2> gimbal_motor;
 // 注意：一般把电机对象声明为全局变量
 ```
 
-### 第三步：在 CAN 回调中解析数据
+### 第三步：在 FDCAN 回调中解析数据
 
-这是最关键的一步！当 CAN 收到数据时，系统会调用回调函数，你需要把数据交给电机对象解析。
+这是最关键的一步！当 FDCAN 收到数据时，系统会调用回调函数，你需要把数据交给电机对象解析。
 
 ```cpp
-// CAN1 接收回调函数
-void CAN1_RxCallback(HAL::CAN::Frame& frame)
+// FDCAN1 接收回调函数
+void fdcan1_rx_callback(const HAL::FDCAN::Frame &frame)
 {
-    // frame.id 就是 CAN 帧的 ID
+    // frame.id 就是 FDCAN 帧的 ID
     // 3508 电机的 ID 范围是 0x201-0x208
 
     if (frame.id >= 0x201 && frame.id <= 0x204)
@@ -223,8 +223,8 @@ ALG::PID::PID speed_pid[4] = {
 
 float target_speed[4] = {0, 0, 0, 0};  // 四个电机的目标转速
 
-// CAN 回调（在 CAN 中断中调用）
-void CAN1_RxCallback(HAL::CAN::Frame& frame)
+// FDCAN 回调（在 FDCAN 中断中调用）
+void fdcan1_rx_callback(const HAL::FDCAN::Frame &frame)
 {
     if (frame.id >= 0x201 && frame.id <= 0x204)
     {

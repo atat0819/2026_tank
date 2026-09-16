@@ -5,7 +5,7 @@
 
 #include "../user/core/BSP/Common/StateWatch/state_watch.hpp"
 #include "../user/core/BSP/Common/StateWatch/buzzer_manager.hpp"
-#include "../user/core/HAL/FDCAN/interface/fdcan_bus.hpp"
+#include "../user/core/HAL/FDCAN/fdcan_hal.hpp"
 
 namespace BSP::Motor
 {
@@ -33,7 +33,7 @@ namespace BSP::Motor
         // 设备在线检测
         BSP::WATCH_STATE::StateWatch state_watch_[N];
         // 数据
-        virtual void Parse(const HAL::CAN::Frame &frame) = 0;
+        virtual void Parse(const HAL::FDCAN::Frame &frame) = 0;
         bool is_Enable = false;
 
     public:

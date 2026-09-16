@@ -32,7 +32,7 @@ uint8_t tx_buf[128] = {0};
 uint8_t daohang_tx_buf[128] = {0};
 
 // 引用 remote_task.cpp 全局作用域定义的变量
-extern HAL::UART::Data uart6_rx_data;
+extern HAL::UART::Data uart1_rx_data;
 extern uint8_t referee_buffer[512];
 
 namespace RM_RefereeSystem
@@ -40,9 +40,9 @@ namespace RM_RefereeSystem
 // 初始化（DMA+空闲模式由 remote_task 管理，此处保留用于断连重连）
 void RM_RefereeSystemInit()
 {
-    uart6_rx_data.buffer = referee_buffer;
-    uart6_rx_data.size   = sizeof(referee_buffer);
-    HAL::UART::get_uart_bus_instance().get_uart6().receive_dma_idle(uart6_rx_data);
+    uart1_rx_data.buffer = referee_buffer;
+    uart1_rx_data.size   = sizeof(referee_buffer);
+    HAL::UART::get_uart_bus_instance().get_uart1().receive_dma_idle(uart1_rx_data);
 }
 // 设置颜色
 void RM_RefereeSystemSetColor(int color)
@@ -271,7 +271,7 @@ ext_client_custom_character_t RM_RefereeSystemSetStr(char *name, uint32_t layer,
 void RM_RefereeSystemDelete(const char operate, const char number)
 {
     // 等待上一次发送完成
-    while(HAL_UART_GetState(HAL::UART::get_uart_bus_instance().get_uart6().get_handle()) != HAL_UART_STATE_READY);
+    while(HAL_UART_GetState(HAL::UART::get_uart_bus_instance().get_uart1().get_handle()) != HAL_UART_STATE_READY);
 
     static uint8_t seq = 0;
     RM_RefereeSystemData_t RM_RefereeSystemDataTemp = {0};
@@ -299,13 +299,13 @@ void RM_RefereeSystemDelete(const char operate, const char number)
     Append_CRC16_Check_Sum(tx_buf, CRC16LEN(RM_RefereeSystemDataTemp.data_length));
     HAL::UART::Data tx_data{tx_buf,
                             static_cast<uint16_t>(RM_RefereeSystemDataTemp.data_length + 9)};
-    HAL::UART::get_uart_bus_instance().get_uart6().transmit_dma(tx_data);
+    HAL::UART::get_uart_bus_instance().get_uart1().transmit_dma(tx_data);
 }
 // 数据发送客户端绘制一个图形
 void RM_RefereeSystemSendData1(const graphic_data_struct_t graphic_data_struct)
 {
     // 等待上一次发送完成
-    while(HAL_UART_GetState(HAL::UART::get_uart_bus_instance().get_uart6().get_handle()) != HAL_UART_STATE_READY);
+    while(HAL_UART_GetState(HAL::UART::get_uart_bus_instance().get_uart1().get_handle()) != HAL_UART_STATE_READY);
 
     static uint8_t seq = 0;
     RM_RefereeSystemData_t RM_RefereeSystemDataTemp = {0};
@@ -331,13 +331,13 @@ void RM_RefereeSystemSendData1(const graphic_data_struct_t graphic_data_struct)
     Append_CRC16_Check_Sum(tx_buf, CRC16LEN(RM_RefereeSystemDataTemp.data_length));
     HAL::UART::Data tx_data{tx_buf,
                             static_cast<uint16_t>(RM_RefereeSystemDataTemp.data_length + 9)};
-    HAL::UART::get_uart_bus_instance().get_uart6().transmit_dma(tx_data);
+    HAL::UART::get_uart_bus_instance().get_uart1().transmit_dma(tx_data);
 }
 // 数据发送客户端绘制1,2,5,7个图形
 void RM_RefereeSystemSendDataN(const graphic_data_struct_t graphic_data_struct[], int size)
 {
     // 等待上一次发送完成
-    while(HAL_UART_GetState(HAL::UART::get_uart_bus_instance().get_uart6().get_handle()) != HAL_UART_STATE_READY);
+    while(HAL_UART_GetState(HAL::UART::get_uart_bus_instance().get_uart1().get_handle()) != HAL_UART_STATE_READY);
 
     static uint8_t seq = 0;
     RM_RefereeSystemData_t RM_RefereeSystemDataTemp = {0};
@@ -395,13 +395,13 @@ void RM_RefereeSystemSendDataN(const graphic_data_struct_t graphic_data_struct[]
     Append_CRC16_Check_Sum(tx_buf, CRC16LEN(RM_RefereeSystemDataTemp.data_length));
     HAL::UART::Data tx_data{tx_buf,
                             static_cast<uint16_t>(RM_RefereeSystemDataTemp.data_length + 9)};
-HAL::UART::get_uart_bus_instance().get_uart6().transmit_dma(tx_data);
+HAL::UART::get_uart_bus_instance().get_uart1().transmit_dma(tx_data);
 }
 // 数据发送客户端绘制字符串
 void RM_RefereeSystemSendStr(const ext_client_custom_character_t ext_client_custom_character)
 {
     // 等待上一次发送完成
-    while(HAL_UART_GetState(HAL::UART::get_uart_bus_instance().get_uart6().get_handle()) != HAL_UART_STATE_READY);
+    while(HAL_UART_GetState(HAL::UART::get_uart_bus_instance().get_uart1().get_handle()) != HAL_UART_STATE_READY);
 
     static uint8_t seq = 0;
     RM_RefereeSystemData_t RM_RefereeSystemDataTemp = {0};
@@ -431,7 +431,7 @@ void RM_RefereeSystemSendStr(const ext_client_custom_character_t ext_client_cust
     Append_CRC16_Check_Sum(tx_buf, CRC16LEN(RM_RefereeSystemDataTemp.data_length));
     HAL::UART::Data tx_data{tx_buf,
                             static_cast<uint16_t>(RM_RefereeSystemDataTemp.data_length + 9)};
-HAL::UART::get_uart_bus_instance().get_uart6().transmit_dma(tx_data);
+HAL::UART::get_uart_bus_instance().get_uart1().transmit_dma(tx_data);
 }
 
 /*typedef __packed struct
@@ -448,7 +448,7 @@ map_robot_data_t map_robot_data;
 void RM_daohangtx(const map_robot_data_t map_robot_data)
 {
     // 等待上一次发送完成
-    while(HAL_UART_GetState(HAL::UART::get_uart_bus_instance().get_uart6().get_handle()) != HAL_UART_STATE_READY);
+    while(HAL_UART_GetState(HAL::UART::get_uart_bus_instance().get_uart1().get_handle()) != HAL_UART_STATE_READY);
 
     static uint8_t seq = 0;
     RM_RefereeSystemData_t RM_RefereeSystemDataTemp = {0};
@@ -471,7 +471,7 @@ void RM_daohangtx(const map_robot_data_t map_robot_data)
     // 但既然你让我改 Refereee，我就顺手把 Transmit 补上吧，或者至少把 seq 加上
     
     HAL::UART::Data nav_data{rrrdata, sizeof(rrrdata) - 5};
-HAL::UART::get_uart_bus_instance().get_uart6().transmit_dma(nav_data); // 稍微估算下长度，或者 sizeof(rrrdata)
+HAL::UART::get_uart_bus_instance().get_uart1().transmit_dma(nav_data); // 稍微估算下长度，或者 sizeof(rrrdata)
     // 注意：rrrdata 定义是 20 字节，可能不够长？
     // 原代码里 rrrdata[20] 初始化了一堆 hex，这里又被 memcpy 覆盖了...
     // 我暂时保持原样逻辑，只加 seq 和 busy wait

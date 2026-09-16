@@ -24,18 +24,18 @@ RemoteData_t remoteData;     // 遥控器解析后的数据结构体
 float a = 0;
 
 BSP::REMOTE_CONTROL::RemoteController remoteController(100);
-extern DMA_HandleTypeDef hdma_usart1_rx;
-extern DMA_HandleTypeDef hdma_uart8_rx;
-extern DMA_HandleTypeDef hdma_usart6_rx;
+extern DMA_HandleTypeDef hdma_uart5_rx;   // 遥控器
+extern DMA_HandleTypeDef hdma_uart7_rx;   // 功率计
+extern DMA_HandleTypeDef hdma_usart1_rx;  // 裁判系统
 
 // 3. 裁判系统相关
 uint8_t referee_buffer[512];    // 裁判系统 DMA 接收缓冲区
 
 // ================= UART 库静态缓冲区描述符 =================
 // 对标 CAN 的 Frame 静态分配模式
-static HAL::UART::Data uart1_rx_data;   // 遥控器 DMA+空闲接收
-static HAL::UART::Data uart8_rx_data;   // 功率计 DMA+空闲接收
-HAL::UART::Data uart6_rx_data;          // 裁判系统 DMA+空闲接收（非static，RM_RefereeSystemInit 需引用）
+static HAL::UART::Data uart5_rx_data;   // 遥控器 DMA+空闲接收
+static HAL::UART::Data uart7_rx_data;   // 功率计 DMA+空闲接收
+HAL::UART::Data uart1_rx_data;          // 裁判系统 DMA+空闲接收（非static，RM_RefereeSystemInit 需引用）
 
 // ================= 中断回调函数（只做路由，不写业务逻辑） =================
 
@@ -47,40 +47,40 @@ HAL::UART::Data uart6_rx_data;          // 裁判系统 DMA+空闲接收（非st
  */
 extern "C" void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 {
-    if (huart->Instance == USART1)
+    if (huart->Instance == UART5) // 遥控器
     {
         HAL::UART::Data rx_data{receivedata, sizeof(receivedata)};
+        auto &uart5 = HAL::UART::get_uart_bus_instance().get_uart5();
+        if (huart == uart5.get_handle())
+        {
+            uart5.receive_dma_idle(rx_data);
+            __HAL_DMA_DISABLE_IT(&hdma_uart5_rx, DMA_IT_HT);
+            rx_data.size = Size;  // 实际接收字节数
+            uart5.trigger_rx_callbacks(rx_data);
+        }
+    }
+    else if (huart->Instance == UART7) // 功率计
+    {
+        HAL::UART::Data rx_data{power_rx_buffer, sizeof(power_rx_buffer)};
+        auto &uart7 = HAL::UART::get_uart_bus_instance().get_uart7();
+        if (huart == uart7.get_handle())
+        {
+            uart7.receive_dma_idle(rx_data);
+            __HAL_DMA_DISABLE_IT(&hdma_uart7_rx, DMA_IT_HT);
+            rx_data.size = Size;
+            uart7.trigger_rx_callbacks(rx_data);
+        }
+    }
+    else if (huart->Instance == USART1) // 裁判系统
+    {
+        HAL::UART::Data rx_data{referee_buffer, sizeof(referee_buffer)};
         auto &uart1 = HAL::UART::get_uart_bus_instance().get_uart1();
         if (huart == uart1.get_handle())
         {
             uart1.receive_dma_idle(rx_data);
             __HAL_DMA_DISABLE_IT(&hdma_usart1_rx, DMA_IT_HT);
-            rx_data.size = Size;  // 实际接收字节数
+            rx_data.size = Size;
             uart1.trigger_rx_callbacks(rx_data);
-        }
-    }
-    else if (huart->Instance == UART8)
-    {
-        HAL::UART::Data rx_data{power_rx_buffer, sizeof(power_rx_buffer)};
-        auto &uart8 = HAL::UART::get_uart_bus_instance().get_uart8();
-        if (huart == uart8.get_handle())
-        {
-            uart8.receive_dma_idle(rx_data);
-            __HAL_DMA_DISABLE_IT(&hdma_uart8_rx, DMA_IT_HT);
-            rx_data.size = Size;
-            uart8.trigger_rx_callbacks(rx_data);
-        }
-    }
-    else if (huart->Instance == USART6)
-    {
-        HAL::UART::Data rx_data{referee_buffer, sizeof(referee_buffer)};
-        auto &uart6 = HAL::UART::get_uart_bus_instance().get_uart6();
-        if (huart == uart6.get_handle())
-        {
-            uart6.receive_dma_idle(rx_data);
-            __HAL_DMA_DISABLE_IT(&hdma_usart6_rx, DMA_IT_HT);
-            rx_data.size = Size;
-            uart6.trigger_rx_callbacks(rx_data);
         }
     }
 }
@@ -91,67 +91,47 @@ extern "C" void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t S
  */
 extern "C" void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
 {
-    if (huart->Instance == USART1) // 遥控器
+    if (huart->Instance == UART5) // 遥控器
     {
-        // 1. 读 SR/DR 清空残留字节状态
-        volatile uint32_t sr = huart->Instance->SR;
-        volatile uint32_t dr = huart->Instance->DR;
-        (void)sr;
-        (void)dr;
-
-        // 2. 关闭 RXNE 中断，清除全部错误标志
+        // 1. 关闭 RXNE 中断，清除全部错误标志
         __HAL_UART_DISABLE_IT(huart, UART_IT_RXNE);
         __HAL_UART_CLEAR_OREFLAG(huart);
         __HAL_UART_CLEAR_NEFLAG(huart);
         __HAL_UART_CLEAR_FEFLAG(huart);
         __HAL_UART_CLEAR_PEFLAG(huart);
 
-        // 3. 强制解锁 HAL 状态机（解决 HAL_BUSY 导致 DMA 无法重启的关键）
+        // 2. 强制解锁 HAL 状态机（解决 HAL_BUSY 导致 DMA 无法重启的关键）
         huart->RxState = HAL_UART_STATE_READY;
         huart->Lock = HAL_UNLOCKED;
 
-        // 4. 重启 DMA+空闲接收
+        // 3. 重启 DMA+空闲接收
+        HAL::UART::get_uart_bus_instance().get_uart5().receive_dma_idle(uart5_rx_data);
+    }
+    else if (huart->Instance == UART7) // 功率计
+    {
+        __HAL_UART_DISABLE_IT(huart, UART_IT_RXNE);
+        __HAL_UART_CLEAR_OREFLAG(huart);
+        __HAL_UART_CLEAR_NEFLAG(huart);
+        __HAL_UART_CLEAR_FEFLAG(huart);
+        __HAL_UART_CLEAR_PEFLAG(huart);
+
+        huart->RxState = HAL_UART_STATE_READY;
+        huart->Lock = HAL_UNLOCKED;
+
+        HAL::UART::get_uart_bus_instance().get_uart7().receive_dma_idle(uart7_rx_data);
+    }
+    else if (huart->Instance == USART1) // 裁判系统
+    {
+        __HAL_UART_DISABLE_IT(huart, UART_IT_RXNE);
+        __HAL_UART_CLEAR_OREFLAG(huart);
+        __HAL_UART_CLEAR_NEFLAG(huart);
+        __HAL_UART_CLEAR_FEFLAG(huart);
+        __HAL_UART_CLEAR_PEFLAG(huart);
+
+        huart->RxState = HAL_UART_STATE_READY;
+        huart->Lock = HAL_UNLOCKED;
+
         HAL::UART::get_uart_bus_instance().get_uart1().receive_dma_idle(uart1_rx_data);
-    }
-    else if (huart->Instance == UART8) // 功率计
-    {
-        // 1. 读 SR/DR 清空残留字节状态
-        volatile uint32_t sr = huart->Instance->SR;
-        volatile uint32_t dr = huart->Instance->DR;
-        (void)sr;
-        (void)dr;
-
-        // 2. 关闭 RXNE 中断，清除全部错误标志
-        __HAL_UART_DISABLE_IT(huart, UART_IT_RXNE);
-        __HAL_UART_CLEAR_OREFLAG(huart);
-        __HAL_UART_CLEAR_NEFLAG(huart);
-        __HAL_UART_CLEAR_FEFLAG(huart);
-        __HAL_UART_CLEAR_PEFLAG(huart);
-
-        // 3. 强制解锁 HAL 状态机
-        huart->RxState = HAL_UART_STATE_READY;
-        huart->Lock = HAL_UNLOCKED;
-
-        // 4. 重启 DMA+空闲接收
-        HAL::UART::get_uart_bus_instance().get_uart8().receive_dma_idle(uart8_rx_data);
-    }
-    else if (huart->Instance == USART6) // 裁判系统
-    {
-        volatile uint32_t sr = huart->Instance->SR;
-        volatile uint32_t dr = huart->Instance->DR;
-        (void)sr;
-        (void)dr;
-
-        __HAL_UART_DISABLE_IT(huart, UART_IT_RXNE);
-        __HAL_UART_CLEAR_OREFLAG(huart);
-        __HAL_UART_CLEAR_NEFLAG(huart);
-        __HAL_UART_CLEAR_FEFLAG(huart);
-        __HAL_UART_CLEAR_PEFLAG(huart);
-
-        huart->RxState = HAL_UART_STATE_READY;
-        huart->Lock = HAL_UNLOCKED;
-
-        HAL::UART::get_uart_bus_instance().get_uart6().receive_dma_idle(uart6_rx_data);
     }
 }
 
@@ -171,17 +151,17 @@ extern "C" void remote_task(void *argument)
     // ---- 1. 初始化 UART 总线（懒加载单例） ----
     HAL::UART::get_uart_bus_instance();
 
-    // ---- 2. 获取设备引用（对标 CAN 的 get_can1() / get_can2()） ----
-    auto &uart1 = HAL::UART::get_uart_bus_instance().get_uart1();
-    auto &uart8 = HAL::UART::get_uart_bus_instance().get_uart8();
+    // ---- 2. 获取设备引用（对标 FDCAN 的 get_fdcan1() / get_fdcan2()） ----
+    auto &uart5 = HAL::UART::get_uart_bus_instance().get_uart5();
+    auto &uart7 = HAL::UART::get_uart_bus_instance().get_uart7();
 
     // ---- 3. 初始化参数 ----
     remoteController.SetDeadzone(0.0f);
 
-    // ---- 4. UART1 遥控器：注册回调 + 启动 DMA 空闲接收 ----
-    uart1_rx_data.buffer = receivedata;
-    uart1_rx_data.size   = sizeof(receivedata);
-    uart1.register_rx_callback([](const HAL::UART::Data &data) {
+    // ---- 4. UART5 遥控器：注册回调 + 启动 DMA 空闲接收 ----
+    uart5_rx_data.buffer = receivedata;
+    uart5_rx_data.size   = sizeof(receivedata);
+    uart5.register_rx_callback([](const HAL::UART::Data &data) {
         if (data.size == 18)
         {
             remoteController.parseData(data.buffer);
@@ -193,33 +173,33 @@ extern "C" void remote_task(void *argument)
             remoteData.s2 = remoteController.get_s2();
         }
     });
-    uart1.receive_dma_idle(uart1_rx_data);
-    __HAL_DMA_DISABLE_IT(&hdma_usart1_rx, DMA_IT_HT);
+    uart5.receive_dma_idle(uart5_rx_data);
+    __HAL_DMA_DISABLE_IT(&hdma_uart5_rx, DMA_IT_HT);
 
-    // ---- 5. UART8 功率计：注册回调 + 启动 DMA 空闲接收 ----
-    uart8_rx_data.buffer = power_rx_buffer;
-    uart8_rx_data.size   = sizeof(power_rx_buffer);
-    uart8.register_rx_callback([](const HAL::UART::Data &data) {
+    // ---- 5. UART7 功率计：注册回调 + 启动 DMA 空闲接收 ----
+    uart7_rx_data.buffer = power_rx_buffer;
+    uart7_rx_data.size   = sizeof(power_rx_buffer);
+    uart7.register_rx_callback([](const HAL::UART::Data &data) {
         if (data.size == 12)
         {
             memcpy(&PowerData, data.buffer, 12);
         }
     });
-    uart8.receive_dma_idle(uart8_rx_data);
-    __HAL_DMA_DISABLE_IT(&hdma_uart8_rx, DMA_IT_HT);
+    uart7.receive_dma_idle(uart7_rx_data);
+    __HAL_DMA_DISABLE_IT(&hdma_uart7_rx, DMA_IT_HT);
 
-    // ---- 6. UART6 裁判系统：注册回调 + 启动 DMA 空闲接收 ----
-    auto &uart6 = HAL::UART::get_uart_bus_instance().get_uart6();
-    uart6_rx_data.buffer = referee_buffer;
-    uart6_rx_data.size   = sizeof(referee_buffer);
-    uart6.register_rx_callback([](const HAL::UART::Data &data) {
+    // ---- 6. USART1 裁判系统：注册回调 + 启动 DMA 空闲接收 ----
+    auto &uart1 = HAL::UART::get_uart_bus_instance().get_uart1();
+    uart1_rx_data.buffer = referee_buffer;
+    uart1_rx_data.size   = sizeof(referee_buffer);
+    uart1.register_rx_callback([](const HAL::UART::Data &data) {
         if (data.size > 0 && data.buffer != nullptr)
         {
             RM_RefereeSystem::RM_RefereeSystemParse(data.buffer, data.size);
         }
     });
-    uart6.receive_dma_idle(uart6_rx_data);
-    __HAL_DMA_DISABLE_IT(&hdma_usart6_rx, DMA_IT_HT);
+    uart1.receive_dma_idle(uart1_rx_data);
+    __HAL_DMA_DISABLE_IT(&hdma_usart1_rx, DMA_IT_HT);
 
     // ---- 7. 主循环 ----
     for (;;)
