@@ -1,9 +1,9 @@
 #include "can_send_task.hpp"
 #include "remote_task.hpp"
+#include "up_stair.hpp"
 #include "FreeRTOS.h"
 #include "queue.h"
 #include "cmsis_os.h"
-#include "chassis_task.hpp"
 #include "Alg/PID/pid.hpp"
 #include "usart.h"
 #include "Alg/Filter/Filter.hpp"
@@ -24,6 +24,10 @@
 #include "../user/core/APP/Referee/RM_RefereeSystem.h"
 #include "../user/core/Alg/UtilityFunction/SlopePlanning.hpp"
 #include "../fsm/chassis_keyboard_fsm.hpp"
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846f
+#endif
 
 #define Gain 4.7
 
@@ -117,7 +121,6 @@ static inline void ChassisMotorSendCANChecked()
 }
 
 void ControlTask();
-void vofa_sendN(const float *data, uint8_t count);
 
 
 RemoteData_t ChassisData;
@@ -240,6 +243,7 @@ extern "C" void can_send_task(void *argument)
 
     auto &fdcan1 = HAL::FDCAN::get_fdcan_bus_instance().get_device(HAL::FDCAN::FdcanDeviceId::HAL_Fdcan1);
     auto &fdcan2 = HAL::FDCAN::get_fdcan_bus_instance().get_device(HAL::FDCAN::FdcanDeviceId::HAL_Fdcan2);
+    auto &fdcan3 = HAL::FDCAN::get_fdcan_bus_instance().get_device(HAL::FDCAN::FdcanDeviceId::HAL_Fdcan3);
 /************************************************************************************** */
 /************************************************************************************** */
     fdcan1.register_rx_callback([](const HAL::FDCAN::Frame &frame) {
@@ -255,8 +259,10 @@ extern "C" void can_send_task(void *argument)
     });
 /************************************************************************************** */
    fdcan2.register_rx_callback([](const HAL::FDCAN::Frame &frame) {
-   // 直接把逻辑写在这里
-    if (frame.id == 0x301 ) {
+    if (frame.id >= 0x01 && frame.id <= 0x02) {
+       front_4340.Parse(frame);
+   }
+    else if (frame.id == 0x301 ) {
        memcpy(&gimbalChassis_communicate.yaw_offset_deg, frame.data, sizeof(float));
        yaw_offset_updated = true;
        yaw_offset_timeout_cnt = 0; // 收到数据，清零计数器
@@ -280,6 +286,16 @@ extern "C" void can_send_task(void *argument)
 
 });
 /************************************************************************************** */
+   fdcan3.register_rx_callback([](const HAL::FDCAN::Frame &frame) {
+       if (frame.id >= 0x03 && frame.id <= 0x04) {
+           rear_6248.Parse(frame);
+       }
+   });
+/************************************************************************************** */
+    // Signal that FDCAN callbacks are ready; the control task owns motor commands.
+    dm_motor_control_ready = true;
+    front_4340.On(1, BSP::Motor::DM::Model::MIT);
+
     MotorCurrentData_t MotorCurrentData[4];
     
     
@@ -619,39 +635,14 @@ if (chassis_fsm.Get_Mode() == CHASSIS_STOP)
  ChassisMotorSendCANChecked();  //就是将chassis_motor.sendCAN()打包成可以检查返回值的函数
 
            
-       //4. VOFA 实车对比 (10通道): I0=功率计实测, I1=模型预测, I2~I9=4电机(ω,I)
-       //   下地跑时看 I0 vs I1 是否贴合
-       //   需要重新录制拟合数据时, 切回下方 vofa_send9 采集模式
-/*
-vofa_send10(
-    PowerData.power, post_power,
-    chassis_motor.getVelocityRads(1), motor_output[0] * (20.0f / 16384.0f),
-    chassis_motor.getVelocityRads(2), motor_output[1] * (20.0f / 16384.0f),
-    chassis_motor.getVelocityRads(3), motor_output[2] * (20.0f / 16384.0f),
-    chassis_motor.getVelocityRads(4), motor_output[3] * (20.0f / 16384.0f)
-);       // vofa_send9(PowerData.power,   // 9通道采集模式 (用于 power_predict.py 拟合)
-       //            chassis_motor.getVelocityRads(1), chassis_motor.getCurrent(1),
-       //            chassis_motor.getVelocityRads(2), chassis_motor.getCurrent(2),
-       //            chassis_motor.getVelocityRads(3), chassis_motor.getCurrent(3),
-       //            chassis_motor.getVelocityRads(4), chassis_motor.getCurrent(4));
-// 修复后：加上了取地址符 &
-*/
-       float vofa_speed[4] = {
-           fk.GetChassisVx(),
-           fk.GetChassisVy(),
-           chassis_vx_fb,
-           chassis_vy_fb
-       };
-       vofa_sendN(vofa_speed, 4);
- //HAL_UART_Transmit_DMA(&huart10, (const uint8_t*)&yaw_offset_rad, sizeof(yaw_offset_rad));
-
-    }
  }
         
 
 
 
        
+    }
+
         // 转发裁判系统枪管热量数据给云台 (英雄机器人: 仅42mm)
         gimbal_refree.send(
             ext_power_heat_data_0x0201.shooter_barrel_cooling_value,   // 枪管冷却值
@@ -673,75 +664,7 @@ osDelay(1);
     }
 }
 
-//开vofa软件的justfloat模式
-uint8_t send_str2[sizeof(float) * 11]; // 分配11个float空间（44字节，10数据+1帧尾）
-void vofa_sendN(const float *data, uint8_t count)
-{
-    if (data == nullptr || count == 0)
-    {
-        return;
-    }
 
-    if (count > 10)
-    {
-        count = 10;
-    }
-
-    memcpy(send_str2, data, sizeof(float) * count);
-    *((uint32_t*)&send_str2[sizeof(float) * count]) = 0x7F800000;
-
-    HAL::UART::Data tx_data{send_str2, static_cast<uint16_t>(sizeof(float) * (count + 1))};
-    HAL::UART::get_uart_bus_instance().get_uart10().transmit_dma(tx_data);
-}
-
-#if 0
-void vofa_send9(float x1, float x2, float x3, float x4, float x5, float x6, float x7, float x8, float x9)
-{
-    const uint8_t sendSize = sizeof(float); // 单浮点数占4字节
-
-    // 将9个浮点数据写入缓冲区（小端模式）
-    *((float*)&send_str2[sendSize * 0]) = x1;
-    *((float*)&send_str2[sendSize * 1]) = x2;
-    *((float*)&send_str2[sendSize * 2]) = x3;
-    *((float*)&send_str2[sendSize * 3]) = x4;
-    *((float*)&send_str2[sendSize * 4]) = x5;
-    *((float*)&send_str2[sendSize * 5]) = x6;
-    *((float*)&send_str2[sendSize * 6]) = x7;
-    *((float*)&send_str2[sendSize * 7]) = x8;
-    *((float*)&send_str2[sendSize * 8]) = x9;
-
-    // 写入帧尾（协议要求 0x00 0x00 0x80 0x7F）
-    *((uint32_t*)&send_str2[sizeof(float) * 9]) = 0x7F800000; // 小端存储为 00 00 80 7F
-
-    // 通过 UART 库发送（使用 UART10，留给 VOFA 上位机）
-    HAL::UART::Data tx_data{send_str2, static_cast<uint16_t>(sizeof(float) * 10)};
-    HAL::UART::get_uart_bus_instance().get_uart10().transmit_dma(tx_data);
-}
-
-// 10通道版: 前两通道 = 功率计实测 vs 模型预测, 后面是4电机 (w, I)
-// 用于实车下地实时对比预测准不准
-void vofa_send10(float x1, float x2, float x3, float x4, float x5, float x6, float x7, float x8, float x9, float x10)
-{
-    const uint8_t sendSize = sizeof(float); // 单浮点数占4字节
-
-    *((float*)&send_str2[sendSize * 0])  = x1;
-    *((float*)&send_str2[sendSize * 1])  = x2;
-    *((float*)&send_str2[sendSize * 2])  = x3;
-    *((float*)&send_str2[sendSize * 3])  = x4;
-    *((float*)&send_str2[sendSize * 4])  = x5;
-    *((float*)&send_str2[sendSize * 5])  = x6;
-    *((float*)&send_str2[sendSize * 6])  = x7;
-    *((float*)&send_str2[sendSize * 7])  = x8;
-    *((float*)&send_str2[sendSize * 8])  = x9;
-    *((float*)&send_str2[sendSize * 9])  = x10;
-
-    // 写入帧尾
-    *((uint32_t*)&send_str2[sizeof(float) * 10]) = 0x7F800000;
-
-    HAL::UART::Data tx_data{send_str2, static_cast<uint16_t>(sizeof(float) * 11)};
-    HAL::UART::get_uart_bus_instance().get_uart10().transmit_dma(tx_data);
-}
-#endif
 
 
 

@@ -806,15 +806,16 @@ tank_chassis/can_send_task.o: ..\RtosTask\can_send_task.cpp \
   ..\RtosTask\..\user\core\BSP\RemoteControl\DT7.hpp \
   ..\communication\..\user\core\BSP\Common\StateWatch\state_watch.hpp \
   ..\communication\..\user\core\BSP\Common\StateWatch\buzzer_manager.hpp \
-  ..\Core\Inc\tim.h ..\RtosTask\chassis_task.hpp \
-  ..\RtosTask\..\user\core\BSP\Motor\Dji\DjiMotor.hpp \
+  ..\Core\Inc\tim.h ..\RtosTask\up_stair.hpp \
+  ..\RtosTask\..\user\core\BSP\Motor\DM\DmMotor.hpp \
   ..\communication\..\user\core\BSP\Motor\MotorBase.hpp \
   ..\communication\..\user\core\HAL\FDCAN\fdcan_hal.hpp \
+  ..\user\core\Alg\PID\pid.hpp ..\Core\Inc\usart.h \
+  ..\user\core\Alg\Filter\Filter.hpp \
   ..\RtosTask\..\user\core\Alg\ChassisCalculation\OmniCalculation.hpp \
   ..\communication\..\user\core\Alg\ChassisCalculation\CalculationBase.hpp \
-  ..\user\core\Alg\PID\pid.hpp ..\Core\Inc\usart.h \
-  ..\user\core\Alg\Filter\Filter.hpp ..\RtosTask\..\fsm\chassis_fsm.hpp \
-  ..\user\core\Alg\FSM\alg_fsm.hpp \
+  ..\RtosTask\..\user\core\BSP\Motor\Dji\DjiMotor.hpp \
+  ..\RtosTask\..\fsm\chassis_fsm.hpp ..\user\core\Alg\FSM\alg_fsm.hpp \
   ..\RtosTask\..\user\core\Alg\PowerControl-TestVersion\PowerControlTestVersion.hpp \
   ..\RtosTask\..\user\core\Alg\PowerControl\PowerControl.hpp \
   ..\communication\..\User\core\Alg\PowerControl\PowerControlBase.hpp \

@@ -1,5 +1,5 @@
-tank_chassis/up_stair.o: ..\RtosTask\up_stair.cpp \
-  ..\RtosTask\up_stair.hpp \
+tank_chassis/imu_task.o: ..\RtosTask\imu_task.cpp \
+  ..\RtosTask\imu_task.hpp \
   ..\Middlewares\Third_Party\FreeRTOS\Source\CMSIS_RTOS_V2\cmsis_os.h \
   ..\Middlewares\Third_Party\FreeRTOS\Source\include\FreeRTOS.h \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\stddef.h \
@@ -16,12 +16,9 @@ tank_chassis/up_stair.o: ..\RtosTask\up_stair.cpp \
   ..\Middlewares\Third_Party\FreeRTOS\Source\include\task.h \
   ..\Middlewares\Third_Party\FreeRTOS\Source\include\list.h \
   ..\Middlewares\Third_Party\FreeRTOS\Source\CMSIS_RTOS_V2\cmsis_os2.h \
-  ..\RtosTask\..\user\core\BSP\Motor\DM\DmMotor.hpp \
-  D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\string.h \
-  D:\Keil5\Core\ARM\ARMCLANG\include\string.h \
-  ..\communication\..\user\core\BSP\Motor\MotorBase.hpp \
-  ..\communication\..\user\core\BSP\Common\StateWatch\state_watch.hpp \
-  ..\Core\Inc\main.h ..\Drivers\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal.h \
+  ..\RtosTask\..\user\core\BSP\simple_bmi088\simple_bmi088.hpp \
+  ..\RtosTask\..\user\core\BSP\simple_bmi088\simple_bmi088.h \
+  ..\Drivers\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal.h \
   ..\Core\Inc\stm32h7xx_hal_conf.h \
   ..\Drivers\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal_rcc.h \
   ..\Drivers\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal_def.h \
@@ -221,12 +218,13 @@ tank_chassis/up_stair.o: ..\RtosTask\up_stair.cpp \
   ..\Drivers\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal_pcd.h \
   ..\Drivers\STM32H7xx_HAL_Driver\Inc\stm32h7xx_ll_usb.h \
   ..\Drivers\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal_pcd_ex.h \
-  ..\communication\..\user\core\BSP\Common\StateWatch\buzzer_manager.hpp \
-  ..\Core\Inc\tim.h \
-  ..\communication\..\user\core\HAL\FDCAN\fdcan_hal.hpp \
-  ..\communication\..\user\core\HAL\FDCAN\interface\fdcan_bus.hpp \
-  ..\communication\..\user\core\HAL\FDCAN\interface\fdcan_device.hpp \
-  ..\Core\Inc\fdcan.h \
+  ..\Core\Inc\spi.h ..\Core\Inc\main.h \
+  D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\string.h \
+  D:\Keil5\Core\ARM\ARMCLANG\include\string.h \
+  ..\RtosTask\..\user\core\HAL\UART\uart_hal.hpp \
+  ..\RtosTask\..\user\core\HAL\UART\interface\uart_bus.hpp \
+  ..\RtosTask\..\user\core\HAL\UART\interface\uart_device.hpp \
+  ..\Core\Inc\usart.h \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\functional \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__algorithm\search.h \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__algorithm\comp.h \
@@ -806,8 +804,4 @@ tank_chassis/up_stair.o: ..\RtosTask\up_stair.cpp \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__functional\not_fn.h \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__functional\pointer_to_binary_function.h \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__functional\pointer_to_unary_function.h \
-  D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__functional\unary_negate.h \
-  ..\RtosTask\imu_task.hpp \
-  ..\RtosTask\..\user\core\BSP\simple_bmi088\simple_bmi088.hpp \
-  ..\RtosTask\..\user\core\BSP\simple_bmi088\simple_bmi088.h \
-  ..\user\core\Alg\PID\pid.hpp
+  D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__functional\unary_negate.h

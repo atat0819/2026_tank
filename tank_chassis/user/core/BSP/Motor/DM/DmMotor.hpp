@@ -2,6 +2,7 @@
 #define Dm_Motor_hpp
 
 #pragma once
+#include <string.h>
 #include "../user/core/BSP/Motor/MotorBase.hpp"
 #include "../user/core/HAL/FDCAN/fdcan_hal.hpp"
 
@@ -62,8 +63,9 @@ namespace BSP::Motor::DM
         /**
          * @brief 构造函数
          */
-        DMMotorBase(uint16_t Init_id, const uint8_t (&recv_ids)[N], const uint32_t (&send_ids)[N], Parameters params)
-            : init_address(Init_id), params_(params)
+        DMMotorBase(uint16_t Init_id, const uint8_t (&recv_ids)[N], const uint32_t (&send_ids)[N],
+                    Parameters params, HAL::FDCAN::FdcanDeviceId fdcan_device_id)
+            : init_address(Init_id), params_(params), fdcan_device_id_(fdcan_device_id)
         {
             for (uint8_t i = 0; i < N; ++i)
             {
@@ -169,7 +171,7 @@ namespace BSP::Motor::DM
             frame.is_extended_id = false;
             frame.is_remote_frame = false;
             
-            HAL::FDCAN::get_fdcan_bus_instance().get_fdcan2().send(frame);
+            HAL::FDCAN::get_fdcan_bus_instance().get_device(fdcan_device_id_).send(frame);
         }
 
 
@@ -197,7 +199,7 @@ namespace BSP::Motor::DM
             frame.is_extended_id = false;
             frame.is_remote_frame = false;
             
-            HAL::FDCAN::get_fdcan_bus_instance().get_fdcan2().send(frame);
+            HAL::FDCAN::get_fdcan_bus_instance().get_device(fdcan_device_id_).send(frame);
         }
 
         /**
@@ -220,7 +222,7 @@ namespace BSP::Motor::DM
             frame.is_extended_id = false;
             frame.is_remote_frame = false;
             
-            HAL::FDCAN::get_fdcan_bus_instance().get_fdcan2().send(frame);
+            HAL::FDCAN::get_fdcan_bus_instance().get_device(fdcan_device_id_).send(frame);
         }
 
 
@@ -250,7 +252,7 @@ namespace BSP::Motor::DM
             frame.is_extended_id = false;
             frame.is_remote_frame = false;
             
-            HAL::FDCAN::get_fdcan_bus_instance().get_fdcan2().send(frame);
+            HAL::FDCAN::get_fdcan_bus_instance().get_device(fdcan_device_id_).send(frame);
         }
         
         /**
@@ -279,7 +281,7 @@ namespace BSP::Motor::DM
             frame.is_extended_id = false;
             frame.is_remote_frame = false;
             
-            HAL::FDCAN::get_fdcan_bus_instance().get_fdcan2().send(frame);
+            HAL::FDCAN::get_fdcan_bus_instance().get_device(fdcan_device_id_).send(frame);
         }
 
         /**
@@ -308,7 +310,7 @@ namespace BSP::Motor::DM
             frame.is_extended_id = false;
             frame.is_remote_frame = false;
             
-            HAL::FDCAN::get_fdcan_bus_instance().get_fdcan2().send(frame);
+            HAL::FDCAN::get_fdcan_bus_instance().get_device(fdcan_device_id_).send(frame);
         }
 
     protected:
@@ -317,6 +319,7 @@ namespace BSP::Motor::DM
         uint32_t send_idxs_[N];
         DMMotorfeedback feedback_[N];
         Parameters params_;
+        HAL::FDCAN::FdcanDeviceId fdcan_device_id_;
     };
 
     /**
@@ -326,9 +329,11 @@ namespace BSP::Motor::DM
     class J4310 : public DMMotorBase<N>
     {
     public:
-        J4310(uint16_t Init_id, const uint8_t (&ids)[N], const uint32_t (&send_idxs)[N])
+        J4310(uint16_t Init_id, const uint8_t (&ids)[N], const uint32_t (&send_idxs)[N],
+              HAL::FDCAN::FdcanDeviceId fdcan_device_id = HAL::FDCAN::FdcanDeviceId::HAL_Fdcan2)
             : DMMotorBase<N>(Init_id, ids, send_idxs, 
-                            Parameters(-12.56f, 12.56f, -30.0f, 30.0f, -3.0f, 3.0f, 0.0f, 500.0f, 0.0f, 5.0f))
+                            Parameters(0.0f, 6.283185307f, -45.0f, 45.0f, -10.0f, 10.0f, 0.0f, 500.0f, 0.0f, 5.0f),
+                            fdcan_device_id)
         {
         }
     };
@@ -340,9 +345,11 @@ namespace BSP::Motor::DM
     class S2325 : public DMMotorBase<N>
     {
     public:
-        S2325(uint16_t Init_id, const uint8_t (&ids)[N], const uint32_t (&send_idxs)[N])
+        S2325(uint16_t Init_id, const uint8_t (&ids)[N], const uint32_t (&send_idxs)[N],
+              HAL::FDCAN::FdcanDeviceId fdcan_device_id = HAL::FDCAN::FdcanDeviceId::HAL_Fdcan2)
             : DMMotorBase<N>(Init_id, ids, send_idxs,
-                            Parameters(-12.5f, 12.5f, -50.0f, 50.0f, -10.0f, 10.0f, 0.0f, 500.0f, 0.0f, 5.0f))
+                            Parameters(0.0f, 6.283185307f, -50.0f, 50.0f, -10.0f, 10.0f, 0.0f, 500.0f, 0.0f, 5.0f),
+                            fdcan_device_id)
         {
         }
     };
@@ -351,9 +358,25 @@ namespace BSP::Motor::DM
     class J4340 : public DMMotorBase<N>
     {
     public:
-        J4340(uint16_t Init_id, const uint8_t (&ids)[N], const uint32_t (&send_idxs)[N])
+        J4340(uint16_t Init_id, const uint8_t (&ids)[N], const uint32_t (&send_idxs)[N],
+              HAL::FDCAN::FdcanDeviceId fdcan_device_id = HAL::FDCAN::FdcanDeviceId::HAL_Fdcan2)
             : DMMotorBase<N>(Init_id, ids, send_idxs, 
-                            Parameters(-3.14, 3.14f, -50.0f, 50.0f, -9.0f, 9.0f, 0.0f, 500.0f, 0.0f, 5.0f))
+                            Parameters(0.0f, 6.283185307f, -50.0f, 50.0f, -9.0f, 9.0f, 0.0f, 500.0f, 0.0f, 5.0f),
+                            fdcan_device_id)
+        {
+        }
+    };
+
+    template <uint8_t N>
+    class J6248 : public DMMotorBase<N>
+    {
+    public:
+        J6248(uint16_t Init_id, const uint8_t (&ids)[N], const uint32_t (&send_idxs)[N],
+              HAL::FDCAN::FdcanDeviceId fdcan_device_id = HAL::FDCAN::FdcanDeviceId::HAL_Fdcan2)
+            : DMMotorBase<N>(Init_id, ids, send_idxs,
+                              Parameters(0.0f, 6.283185307f, -45.0f, 45.0f, -40.0f, 40.0f,
+                                         0.0f, 500.0f, 0.0f, 5.0f),
+                              fdcan_device_id)
         {
         }
     };

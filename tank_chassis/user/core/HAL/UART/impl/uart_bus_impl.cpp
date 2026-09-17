@@ -19,6 +19,8 @@ UartBus &UartBus::instance()
 UartBus::UartBus()
     // 初始化串口1（裁判系统）
     : uart1_(&huart1),
+      // 初始化串口2（RS485, VOFA 上位机）
+      uart2_(&huart2),
       // 初始化串口5（遥控器）
       uart5_(&huart5),
       // 初始化串口7（功率计）
@@ -28,6 +30,7 @@ UartBus::UartBus()
 {
     // 注册现有的设备
     register_device(UartDeviceId::HAL_Uart1, &uart1_);
+    register_device(UartDeviceId::HAL_Uart2, &uart2_);
     register_device(UartDeviceId::HAL_Uart5, &uart5_);
     register_device(UartDeviceId::HAL_Uart7, &uart7_);
     register_device(UartDeviceId::HAL_Uart10, &uart10_);

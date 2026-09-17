@@ -705,6 +705,7 @@ tank_chassis/remote_task.o: ..\RtosTask\remote_task.cpp \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__memory\uses_allocator_construction.h \
   ..\Core\Inc\usart.h ..\user\core\BSP\IMU\HI12_imu.hpp \
   ..\user\core\BSP\IMU\HI12Base.hpp \
+  ..\RtosTask\..\user\core\BSP\Hi14\HI14.hpp \
   ..\RtosTask\..\user\core\HAL\UART\uart_hal.hpp \
   ..\RtosTask\..\user\core\HAL\UART\interface\uart_bus.hpp \
   ..\RtosTask\..\user\core\HAL\UART\interface\uart_device.hpp \

@@ -52,6 +52,7 @@ class UartBus : public IUartBus
 
     // 实际设备实例
     UartDevice uart1_;
+    UartDevice uart2_;
     UartDevice uart5_;
     UartDevice uart7_;
     UartDevice uart10_;

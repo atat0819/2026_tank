@@ -12,6 +12,34 @@ void can_send_task(void *argument);
 
 typedef struct
 {
+    float motor_speeds_1;
+    float motor_speeds_2;
+    float motor_speeds_3;
+    float motor_speeds_4;
+} MotorSpeedTarget_t;
+
+typedef struct
+{
+    float vx;
+    float vy;
+    float wz;
+} chassisCurrentData_t;
+
+typedef struct
+{
+    float angle_deg;
+    float angle_rad;
+    float last_angle;
+    float delta_angle;
+    float speed_rpm;
+    float speed_rads;
+    float current;
+    float torque;
+    float temp;
+} MotorCurrentData_t;
+
+typedef struct
+{
     float yaw_offset_deg; // 云台偏移量
     float vx;
     float vy;

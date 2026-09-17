@@ -6,6 +6,7 @@
 #include "usart.h"
 #include <string.h>
 #include "BSP/IMU/HI12_imu.hpp"
+#include "../user/core/BSP/Hi14/HI14.hpp"
 #include "../user/core/HAL/UART/uart_hal.hpp"
 #include "../user/core/APP/Referee/RM_RefereeSystem.h"
 
@@ -22,6 +23,9 @@ uint8_t receivedata[18];     // 遥控器接收缓冲区
 QueueHandle_t remoteDataQueue; // 用于传递遥控器数据的队列
 RemoteData_t remoteData;     // 遥控器解析后的数据结构体
 float a = 0;
+uint8_t imu_rx_buffer[64];
+extern DMA_HandleTypeDef hdma_usart10_rx;
+static HAL::UART::Data uart10_rx_data;
 
 BSP::REMOTE_CONTROL::RemoteController remoteController(100);
 extern DMA_HandleTypeDef hdma_uart5_rx;   // 遥控器
@@ -83,6 +87,18 @@ extern "C" void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t S
             uart1.trigger_rx_callbacks(rx_data);
         }
     }
+    else if (huart->Instance == USART10)
+    {
+        HAL::UART::Data rx_data{imu_rx_buffer, sizeof(imu_rx_buffer)};
+        auto &uart10 = HAL::UART::get_uart_bus_instance().get_uart10();
+        if (huart == uart10.get_handle())
+        {
+            uart10.receive_dma_idle(rx_data);
+            __HAL_DMA_DISABLE_IT(&hdma_usart10_rx, DMA_IT_HT);
+            rx_data.size = Size;
+            uart10.trigger_rx_callbacks(rx_data);
+        }
+    }
 }
 
 /**
@@ -133,6 +149,19 @@ extern "C" void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
 
         HAL::UART::get_uart_bus_instance().get_uart1().receive_dma_idle(uart1_rx_data);
     }
+    else if (huart->Instance == USART10)
+    {
+        __HAL_UART_DISABLE_IT(huart, UART_IT_RXNE);
+        __HAL_UART_CLEAR_OREFLAG(huart);
+        __HAL_UART_CLEAR_NEFLAG(huart);
+        __HAL_UART_CLEAR_FEFLAG(huart);
+        __HAL_UART_CLEAR_PEFLAG(huart);
+
+        huart->RxState = HAL_UART_STATE_READY;
+        huart->Lock = HAL_UNLOCKED;
+
+        HAL::UART::get_uart_bus_instance().get_uart10().receive_dma_idle(uart10_rx_data);
+    }
 }
 
 //虚拟串口假回调 (见USB_DEVICE\App\usbd_cdc_if.c)
@@ -154,6 +183,7 @@ extern "C" void remote_task(void *argument)
     // ---- 2. 获取设备引用（对标 FDCAN 的 get_fdcan1() / get_fdcan2()） ----
     auto &uart5 = HAL::UART::get_uart_bus_instance().get_uart5();
     auto &uart7 = HAL::UART::get_uart_bus_instance().get_uart7();
+    auto &uart10 = HAL::UART::get_uart_bus_instance().get_uart10();
 
     // ---- 3. 初始化参数 ----
     remoteController.SetDeadzone(0.0f);
@@ -187,6 +217,23 @@ extern "C" void remote_task(void *argument)
     });
     uart7.receive_dma_idle(uart7_rx_data);
     __HAL_DMA_DISABLE_IT(&hdma_uart7_rx, DMA_IT_HT);
+
+    hi14.Init();
+    uart10_rx_data.buffer = imu_rx_buffer;
+    uart10_rx_data.size = sizeof(imu_rx_buffer);
+    uart10.register_rx_callback([](const HAL::UART::Data &data) {
+        if (data.buffer == nullptr)
+        {
+            return;
+        }
+
+        for (uint16_t i = 0; i < data.size; ++i)
+        {
+            hi14.UartRxCallBack(data.buffer[i]);
+        }
+    });
+    uart10.receive_dma_idle(uart10_rx_data);
+    __HAL_DMA_DISABLE_IT(&hdma_usart10_rx, DMA_IT_HT);
 
     // ---- 6. USART1 裁判系统：注册回调 + 启动 DMA 空闲接收 ----
     auto &uart1 = HAL::UART::get_uart_bus_instance().get_uart1();
