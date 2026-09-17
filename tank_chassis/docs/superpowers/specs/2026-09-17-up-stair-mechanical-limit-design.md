@@ -2,10 +2,11 @@
 
 ## Goal
 
-Control both front J4310 motors between fixed encoder angles of 10 and 178
-degrees. The normal home target is 34 degrees and the B-key target is 122
-degrees. The motors may rotate in either direction, but no command or target
-calculation may intentionally cross the mechanical limits.
+Control both front J4310 motors using independently configured encoder-angle
+limits and targets. Each motor has its own minimum and maximum valid encoder
+angle, home target, and B-key target. The motors may rotate in either
+direction, but no command or target calculation may intentionally cross the
+mechanical limits.
 
 ## Design
 
@@ -17,24 +18,29 @@ The FSM keeps three command states:
 - `UP_STAIR_TARGET`: position target is 122 degrees.
 
 The FSM uses the raw J4310 angle feedback in radians. It does not unwrap the
-angle across 0/2π because the valid mechanical interval is wholly inside that
-boundary. The position error is the direct difference:
+angle across 0/2π because each valid mechanical interval is a bounded segment
+inside that boundary. The position error for motor `i` is the direct
+difference:
 
 ```text
-target_angle_rad - current_angle_rad
+target_angle_rad[i] - current_angle_rad[i]
 ```
 
-Since both values are inside [10, 178] degrees, this is the shortest valid
-mechanical path and cannot select a wraparound path through 0/360 degrees.
+Since each motor's current and target values are inside its own mechanical
+interval, this is the shortest valid mechanical path and cannot select a
+wraparound path through 0/360 degrees.
 
 ## Safety behavior
 
-- Convert the mechanical limits to radians once as constants.
-- If either motor feedback is outside the mechanical interval, or motor
-  feedback is invalid, enter `UP_STAIR_DISABLED`.
+- Configure mechanical limits and targets as two-element radian arrays:
+  `LIMIT_MIN_RAD[2]`, `LIMIT_MAX_RAD[2]`, `HOME_ANGLE_RAD[2]`, and
+  `TARGET_ANGLE_RAD[2]`.
+- Validate every configured target against its corresponding limits.
+- If either motor feedback is outside its own mechanical interval, or motor
+  feedback is invalid, enter `UP_STAIR_DISABLED` for both motors.
 - While disabled, reset the position and velocity PID controllers and send
   zero torque to connected motors.
-- Clamp/validate fixed targets so they remain inside the mechanical interval.
+- Use each motor's own target when calling `Get_Target_Angle(id)`.
 - Do not use a circular-angle shortest-path calculation for this mechanism.
 
 ## Inputs and transitions
@@ -57,14 +63,13 @@ mechanical path and cannot select a wraparound path through 0/360 degrees.
 
 ## Verification cases
 
-1. Current 34 degrees, target 122 degrees: command positive error of 88
-   degrees.
-2. Current 122 degrees, target 34 degrees: command negative error of 88
-   degrees.
-3. Current 170 degrees, target 34 degrees: command negative error of 136
-   degrees without crossing below 10 degrees.
-4. Current 15 degrees, target 122 degrees: command positive error of 107
-   degrees without crossing above 178 degrees.
-5. Feedback at 9 degrees or 179 degrees: disable and command zero torque.
-6. Feedback transition near the encoder's 0/2π boundary: reject it as outside
-   the mechanical range rather than unwrap it into a valid motion command.
+1. Each motor's home and target values are independently returned in radians.
+2. Each motor can have a different encoder angle for the same physical pose.
+3. Current and target values inside one motor's configured interval use the
+   direct signed error without circular wrapping.
+4. Feedback outside either motor's configured interval disables both motors.
+5. A target outside its motor's configured interval is rejected during
+   initialization/configuration.
+6. Feedback near the encoder's 0/2π boundary is rejected when that boundary is
+   outside the configured mechanical range, rather than unwrapped into a
+   valid motion command.
