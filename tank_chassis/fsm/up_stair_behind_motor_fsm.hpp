@@ -92,6 +92,7 @@ private:
     float output_scale_;
     uint32_t recovery_start_tick_;
     bool feedback_degraded_;
+    bool feedback_valid_previous_[2];
 };
 
 #endif // UP_STAIR_BEHIND_MOTOR_FSM_HPP

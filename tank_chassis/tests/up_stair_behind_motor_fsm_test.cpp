@@ -142,7 +142,6 @@ int main()
     assert(near(fsm.Get_Output_Scale(), 1.0f));
     assert(near(fsm.Limit_Torque(1U, -3.0f), 0.0f));
     assert(near(fsm.Limit_Torque(1U, 3.0f), 3.0f));
-    assert(near(fsm.Limit_Torque(1U, 3.0f), 3.0f));
     fsm.Update(true, true, true, true, 4.5f, -3.5f, 12.0f, -7.0f,
                deg(168.0f), deg(350.0f), 2301U);
     assert(near(fsm.Limit_Torque(1U, 3.0f), 0.0f));
@@ -208,6 +207,62 @@ int main()
                         -7.0f, deg(90.0f), deg(350.0f), 7602U);
     assert(feedback_fsm.Get_State() == UP_STAIR_BEHIND_MOTOR_ATTITUDE_HOLD);
     assert(near(feedback_fsm.Get_Output_Scale(), 1.0f));
+
+    // Staggered return after both feedbacks are lost restarts recovery for
+    // each valid transition; no returning motor gets immediate torque.
+    Class_Up_Stair_Behind_Motor_FSM staggered_fsm(valid_config());
+    update_valid(staggered_fsm, 8000U);
+    staggered_fsm.Update(true, true, true, true, 4.5f, -3.5f, 12.0f,
+                         -7.0f, deg(90.0f), deg(350.0f), 8300U);
+    staggered_fsm.Update(true, true, false, false, 4.5f, -3.5f, 12.0f,
+                         -7.0f, deg(90.0f), deg(350.0f), 8301U);
+    assert(!staggered_fsm.Is_Motor_Controllable(1U));
+    assert(!staggered_fsm.Is_Motor_Controllable(2U));
+    staggered_fsm.Update(true, true, true, false, 4.5f, -3.5f, 12.0f,
+                         -7.0f, deg(90.0f), deg(350.0f), 8302U);
+    assert(staggered_fsm.Get_State() == UP_STAIR_BEHIND_MOTOR_RECOVERING);
+    assert(near(staggered_fsm.Get_Output_Scale(), 0.0f));
+    assert(staggered_fsm.Is_Motor_Controllable(1U));
+    assert(!staggered_fsm.Is_Motor_Controllable(2U));
+    assert(near(staggered_fsm.Limit_Torque(1U, 2.0f), 0.0f));
+    assert(near(staggered_fsm.Limit_Torque(2U, 2.0f), 0.0f));
+    staggered_fsm.Update(true, true, true, true, 4.5f, -3.5f, 12.0f,
+                         -7.0f, deg(90.0f), deg(350.0f), 8303U);
+    assert(staggered_fsm.Get_State() == UP_STAIR_BEHIND_MOTOR_RECOVERING);
+    assert(near(staggered_fsm.Get_Output_Scale(), 0.0f));
+    assert(near(staggered_fsm.Limit_Torque(1U, 2.0f), 0.0f));
+    assert(near(staggered_fsm.Limit_Torque(2U, 2.0f), 0.0f));
+    staggered_fsm.Update(true, true, true, true, 4.5f, -3.5f, 12.0f,
+                         -7.0f, deg(90.0f), deg(350.0f), 8453U);
+    assert(near(staggered_fsm.Get_Output_Scale(), 0.5f));
+    staggered_fsm.Update(true, true, true, true, 4.5f, -3.5f, 12.0f,
+                         -7.0f, deg(90.0f), deg(350.0f), 8603U);
+    assert(staggered_fsm.Get_State() == UP_STAIR_BEHIND_MOTOR_ATTITUDE_HOLD);
+    assert(near(staggered_fsm.Limit_Torque(1U, 2.0f), 2.0f));
+
+    // Finite raw data can still overflow during calibrated subtraction.
+    Class_Up_Stair_Behind_Motor_FSM::Config overflow_config = valid_config();
+    overflow_config.pitch_zero_deg = -std::numeric_limits<float>::max();
+    Class_Up_Stair_Behind_Motor_FSM overflow_fsm(overflow_config);
+    overflow_fsm.Update(true, true, true, true,
+                        std::numeric_limits<float>::max(), -3.5f, 12.0f,
+                        -7.0f, deg(90.0f), deg(350.0f), 9000U);
+    assert(overflow_fsm.Get_State() == UP_STAIR_BEHIND_MOTOR_DISABLED);
+    assert(near(overflow_fsm.Get_Feedback_Pitch_Deg(), 0.0f));
+    assert(near(overflow_fsm.Get_Output_Scale(), 0.0f));
+    assert(near(overflow_fsm.Limit_Torque(1U, 2.0f), 0.0f));
+
+    // Unsigned tick subtraction keeps recovery deterministic across wrap.
+    Class_Up_Stair_Behind_Motor_FSM wrap_fsm(valid_config());
+    update_valid(wrap_fsm, 0xFFFFFF00U);
+    wrap_fsm.Update(true, true, true, true, 4.5f, -3.5f, 12.0f, -7.0f,
+                    deg(90.0f), deg(350.0f), 0x00000000U);
+    assert(wrap_fsm.Get_State() == UP_STAIR_BEHIND_MOTOR_RECOVERING);
+    assert(near(wrap_fsm.Get_Output_Scale(), 256.0f / 300.0f));
+    wrap_fsm.Update(true, true, true, true, 4.5f, -3.5f, 12.0f, -7.0f,
+                    deg(90.0f), deg(350.0f), 44U);
+    assert(wrap_fsm.Get_State() == UP_STAIR_BEHIND_MOTOR_ATTITUDE_HOLD);
+    assert(near(wrap_fsm.Get_Output_Scale(), 1.0f));
 
     assert(fsm.Get_Motor_Direction(1U) == 1);
     assert(fsm.Get_Motor_Direction(2U) == -1);
