@@ -2,6 +2,7 @@
 #define UP_STAIR_BEHIND_MOTOR_FSM_HPP
 
 #include "../user/core/Alg/FSM/alg_fsm.hpp"
+#include "../user/core/Alg/UtilityFunction/SlopePlanning.hpp"
 #include <stdint.h>
 
 enum Enum_Up_Stair_Behind_Motor_Status
@@ -80,6 +81,8 @@ private:
     uint8_t To_Index(uint8_t id) const;
     float To_Unwrapped_Angle(uint8_t index, float raw_angle_rad) const;
     void Disable();
+    void Start_Recovery(uint32_t now_tick);
+    void Update_Recovery_Scale(uint32_t now_tick);
 
     Config config_;
     bool config_valid_;
@@ -91,6 +94,8 @@ private:
     float roll_rate_dps_;
     float output_scale_;
     uint32_t recovery_start_tick_;
+    uint32_t recovery_last_tick_;
+    Alg::Utility::SlopePlanning recovery_planner_;
     bool feedback_degraded_;
     bool feedback_valid_previous_[2];
 };

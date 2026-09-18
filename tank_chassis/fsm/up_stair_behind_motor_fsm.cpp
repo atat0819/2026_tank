@@ -27,6 +27,8 @@ Class_Up_Stair_Behind_Motor_FSM::Class_Up_Stair_Behind_Motor_FSM()
       roll_rate_dps_(0.0f),
       output_scale_(0.0f),
       recovery_start_tick_(0U),
+      recovery_last_tick_(0U),
+      recovery_planner_(0.0f, 0.0f),
       feedback_degraded_(false),
       feedback_valid_previous_{false, false}
 {
@@ -47,6 +49,8 @@ Class_Up_Stair_Behind_Motor_FSM::Class_Up_Stair_Behind_Motor_FSM(
       roll_rate_dps_(0.0f),
       output_scale_(0.0f),
       recovery_start_tick_(0U),
+      recovery_last_tick_(0U),
+      recovery_planner_(0.0f, 0.0f),
       feedback_degraded_(false),
       feedback_valid_previous_{false, false}
 {
@@ -61,6 +65,10 @@ void Class_Up_Stair_Behind_Motor_FSM::Reset()
                     UP_STAIR_BEHIND_MOTOR_DISABLED);
     output_scale_ = 0.0f;
     recovery_start_tick_ = 0U;
+    recovery_last_tick_ = 0U;
+    recovery_planner_.SetNowReal(0.0f);
+    recovery_planner_.SetTarget(0.0f);
+    recovery_planner_.TIM_Calculate_PeriodElapsedCallback(0.0f, 0.0f);
     motor_controllable_[0] = false;
     motor_controllable_[1] = false;
     feedback_degraded_ = false;
@@ -132,11 +140,50 @@ void Class_Up_Stair_Behind_Motor_FSM::Disable()
     Set_Status(UP_STAIR_BEHIND_MOTOR_DISABLED);
     output_scale_ = 0.0f;
     recovery_start_tick_ = 0U;
+    recovery_last_tick_ = 0U;
+    recovery_planner_.SetNowReal(0.0f);
+    recovery_planner_.SetTarget(0.0f);
+    recovery_planner_.TIM_Calculate_PeriodElapsedCallback(0.0f, 0.0f);
     motor_controllable_[0] = false;
     motor_controllable_[1] = false;
     feedback_degraded_ = false;
     feedback_valid_previous_[0] = false;
     feedback_valid_previous_[1] = false;
+}
+
+void Class_Up_Stair_Behind_Motor_FSM::Start_Recovery(uint32_t now_tick)
+{
+    Set_Status(UP_STAIR_BEHIND_MOTOR_RECOVERING);
+    recovery_start_tick_ = now_tick;
+    recovery_last_tick_ = now_tick;
+    output_scale_ = 0.0f;
+    recovery_planner_.SetNowReal(0.0f);
+    recovery_planner_.SetTarget(0.0f);
+    recovery_planner_.TIM_Calculate_PeriodElapsedCallback(0.0f, 0.0f);
+}
+
+void Class_Up_Stair_Behind_Motor_FSM::Update_Recovery_Scale(uint32_t now_tick)
+{
+    const uint32_t elapsed = now_tick - recovery_start_tick_;
+    const uint32_t delta_tick = now_tick - recovery_last_tick_;
+    recovery_last_tick_ = now_tick;
+
+    float step = static_cast<float>(delta_tick) /
+                 static_cast<float>(RECOVERY_TIME_MS);
+    if (step > 1.0f)
+    {
+        step = 1.0f;
+    }
+    recovery_planner_.SetIncreaseValue(step);
+    recovery_planner_.SetDecreaseValue(step);
+    recovery_planner_.TIM_Calculate_PeriodElapsedCallback(1.0f, 0.0f);
+    output_scale_ = recovery_planner_.GetOut();
+
+    if (elapsed >= RECOVERY_TIME_MS || output_scale_ >= 1.0f)
+    {
+        Set_Status(UP_STAIR_BEHIND_MOTOR_ATTITUDE_HOLD);
+        output_scale_ = 1.0f;
+    }
 }
 
 void Class_Up_Stair_Behind_Motor_FSM::Update(
@@ -212,34 +259,20 @@ void Class_Up_Stair_Behind_Motor_FSM::Update(
 
     if (Get_State() == UP_STAIR_BEHIND_MOTOR_DISABLED)
     {
-        Set_Status(UP_STAIR_BEHIND_MOTOR_RECOVERING);
-        recovery_start_tick_ = now_tick;
-        output_scale_ = 0.0f;
+        Start_Recovery(now_tick);
         return;
     }
 
     if (feedback_recovered)
     {
-        Set_Status(UP_STAIR_BEHIND_MOTOR_RECOVERING);
-        recovery_start_tick_ = now_tick;
-        output_scale_ = 0.0f;
+        Start_Recovery(now_tick);
         feedback_degraded_ = !both_feedback_valid;
         return;
     }
 
     if (Get_State() == UP_STAIR_BEHIND_MOTOR_RECOVERING)
     {
-        const uint32_t elapsed = now_tick - recovery_start_tick_;
-        if (elapsed >= RECOVERY_TIME_MS)
-        {
-            Set_Status(UP_STAIR_BEHIND_MOTOR_ATTITUDE_HOLD);
-            output_scale_ = 1.0f;
-        }
-        else
-        {
-            output_scale_ = static_cast<float>(elapsed) /
-                            static_cast<float>(RECOVERY_TIME_MS);
-        }
+        Update_Recovery_Scale(now_tick);
     }
     else
     {
