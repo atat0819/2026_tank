@@ -3,9 +3,8 @@
 
 #include <stdint.h>
 
-// Produces rate-limited MIT enable requests while a motor has no feedback.
-// Any online feedback ends the recovery cycle, so a healthy motor is never
-// repeatedly re-enabled.
+// 电机没有反馈时，按时间间隔产生受限的 MIT 使能请求。
+// 一旦收到在线反馈，就结束重试周期，避免健康电机被重复发送 On。
 class MotorRecoveryFSM
 {
 public:

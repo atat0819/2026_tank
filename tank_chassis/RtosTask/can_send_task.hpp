@@ -59,7 +59,7 @@ extern volatile uint16_t gimbal_keyboard;
 extern volatile uint32_t gimbal_keyboard_last_tick;
 extern volatile bool gimbal_keyboard_received;
 extern volatile uint32_t gimbal_switch_last_tick;
-extern volatile bool gimbal_switch_received;
+extern volatile bool gimbal_switch_received;  // 是否收到过合法档位帧
 
 
 #ifdef __cplusplus

@@ -6,19 +6,19 @@
 
 enum Enum_Up_Stair_Status
 {
-    UP_STAIR_DISABLED = 0,
-    UP_STAIR_HOME_HOLD,
-    UP_STAIR_MOVING_TO_TARGET,
-    UP_STAIR_TARGET_HOLD,
-    UP_STAIR_RETURNING_HOME,
+    UP_STAIR_DISABLED = 0,          // 未允许控制，输出应为零力矩
+    UP_STAIR_HOME_HOLD,              // 前连杆保持机械初始位置
+    UP_STAIR_MOVING_TO_TARGET,       // 前连杆受控运动到上台阶目标位置
+    UP_STAIR_TARGET_HOLD,             // 到达目标位置后保持，用于卡住台阶
+    UP_STAIR_RETURNING_HOME,          // 受控返回机械初始位置
     UP_STAIR_STATUS_COUNT
 };
 
 class Class_Up_Stair_FSM : public Class_FSM
 {
 public:
-    // Raw encoder configuration. Index 0 is motor 1, index 1 is motor 2.
-    // START > END means that the valid mechanical interval crosses 0 rad.
+    // 编码器和机械限位配置：下标 0 对应电机 1，下标 1 对应电机 2。
+    // 起始角大于终止角时，表示有效区间跨过 0 弧度。
     static constexpr float LIMIT_START_RAD[2] = {
         10.0f * 3.14159265359f / 180.0f,
         300.0f * 3.14159265359f / 180.0f};

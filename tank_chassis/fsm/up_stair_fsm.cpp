@@ -169,8 +169,8 @@ void Class_Up_Stair_FSM::Update(float current_left_angle,
         return;
     }
 
-    // Each debounced B press increments the action sequence and toggles the
-    // commanded position between home and target.
+    // 每次经过消抖的 B 按键都会递增动作序号，状态机据此在初始位置
+    // 和上台阶目标位置之间切换；任务只传递动作序号，不直接改状态。
     if (action_sequence != last_action_sequence_)
     {
         last_action_sequence_ = action_sequence;

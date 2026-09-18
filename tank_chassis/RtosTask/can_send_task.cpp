@@ -54,7 +54,7 @@ volatile uint16_t gimbal_keyboard = 0;
 volatile uint32_t gimbal_keyboard_last_tick = 0;
 volatile bool gimbal_keyboard_received = false;
 volatile uint32_t gimbal_switch_last_tick = 0U;
-volatile bool gimbal_switch_received = false;
+volatile bool gimbal_switch_received = false;  // 档位心跳是否已经建立
 volatile uint32_t stair_action_sequence = 0;
 
 ChassisKeyboardFSM keyboard_fsm;
@@ -277,6 +277,7 @@ extern "C" void can_send_task(void *argument)
        gimbalChassisSpeedUpdated = 1;
    }
    else if (frame.id == 0x303 && frame.dlc >= 2U) {
+       // 只有同时收到两个档位字节才更新档位和心跳时间戳。
        gimbalChassis_communicate.s1 = frame.data[0];
        gimbalChassis_communicate.s2 = frame.data[1];
        gimbal_switch_last_tick = HAL_GetTick();
@@ -298,7 +299,7 @@ extern "C" void can_send_task(void *argument)
        }
    });
 /************************************************************************************** */
-    // Signal that FDCAN callbacks are ready; the control task owns motor commands.
+    // 通知 FDCAN 接收回调已经准备好；机构电机命令统一由上台阶任务负责。
     dm_motor_control_ready = true;
 
     MotorCurrentData_t MotorCurrentData[4];
@@ -338,8 +339,7 @@ osDelay(500);
 
          if (!keyboard_mode)
          {
-             // Keyboard frames are only sent in keyboard mode. Do not reuse
-             // a previous mode's frame after returning to double-middle.
+             // 键盘帧只在键盘模式下有效；回到双中档后不能继续复用之前模式的旧帧。
              gimbal_keyboard_received = false;
          }
 

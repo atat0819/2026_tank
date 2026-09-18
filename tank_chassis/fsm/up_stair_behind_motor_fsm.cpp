@@ -4,6 +4,7 @@
 
 namespace
 {
+// 用于角度标定和调试显示的圆周常量。
 const float PI_RAD = 3.14159265358979323846f;
 }
 
@@ -61,6 +62,7 @@ Class_Up_Stair_Behind_Motor_FSM::Class_Up_Stair_Behind_Motor_FSM(
 
 void Class_Up_Stair_Behind_Motor_FSM::Reset()
 {
+    // 完整复位后部状态、反馈有效标志和恢复斜坡规划器。
     Class_FSM::Init(UP_STAIR_BEHIND_MOTOR_COUNT,
                     UP_STAIR_BEHIND_MOTOR_DISABLED);
     output_scale_ = 0.0f;
@@ -83,6 +85,7 @@ uint8_t Class_Up_Stair_Behind_Motor_FSM::To_Index(uint8_t id) const
 
 bool Class_Up_Stair_Behind_Motor_FSM::Validate_Config() const
 {
+    // 检查零位、机械安全区间和电机正负方向；无效配置必须禁止出力。
     for (uint8_t index = 0U; index < 2U; ++index)
     {
         const float start = config_.angle_start_rad[index];
@@ -118,6 +121,7 @@ float Class_Up_Stair_Behind_Motor_FSM::To_Unwrapped_Angle(
 bool Class_Up_Stair_Behind_Motor_FSM::Is_Angle_Valid(
     uint8_t id, float raw_angle_rad) const
 {
+    // 编码器原始角度必须在 [0, 2π] 内，并落在允许的普通区间或跨零区间内。
     const uint8_t index = To_Index(id);
     if (index > 1U || !config_valid_ || !std::isfinite(raw_angle_rad) ||
         raw_angle_rad < 0.0f || raw_angle_rad > TWO_PI_RAD)
@@ -137,6 +141,7 @@ bool Class_Up_Stair_Behind_Motor_FSM::Is_Angle_Valid(
 
 void Class_Up_Stair_Behind_Motor_FSM::Disable()
 {
+    // 任何控制链路、IMU 或配置故障都回到禁用态，并清零恢复规划器。
     Set_Status(UP_STAIR_BEHIND_MOTOR_DISABLED);
     output_scale_ = 0.0f;
     recovery_start_tick_ = 0U;
@@ -153,6 +158,7 @@ void Class_Up_Stair_Behind_Motor_FSM::Disable()
 
 void Class_Up_Stair_Behind_Motor_FSM::Start_Recovery(uint32_t now_tick)
 {
+    // 后部重新上线时从零比例开始，避免姿态力矩突然恢复。
     Set_Status(UP_STAIR_BEHIND_MOTOR_RECOVERING);
     recovery_start_tick_ = now_tick;
     recovery_last_tick_ = now_tick;
@@ -168,6 +174,7 @@ void Class_Up_Stair_Behind_Motor_FSM::Update_Recovery_Scale(uint32_t now_tick)
     const uint32_t delta_tick = now_tick - recovery_last_tick_;
     recovery_last_tick_ = now_tick;
 
+    // 根据真实经过时间设置本周期增量，SlopePlanning 输出约 300 ms 内从 0 到 1。
     float step = static_cast<float>(delta_tick) /
                  static_cast<float>(RECOVERY_TIME_MS);
     if (step > 1.0f)
@@ -202,6 +209,7 @@ void Class_Up_Stair_Behind_Motor_FSM::Update(
     if (!std::isfinite(pitch_deg) || !std::isfinite(roll_deg) ||
         !std::isfinite(pitch_rate_dps) || !std::isfinite(roll_rate_dps))
     {
+        // IMU 任一通道出现非有限值，整帧姿态数据作废并立即禁用后部输出。
         feedback_pitch_deg_ = 0.0f;
         feedback_roll_deg_ = 0.0f;
         pitch_rate_dps_ = 0.0f;
@@ -217,6 +225,7 @@ void Class_Up_Stair_Behind_Motor_FSM::Update(
     if (!std::isfinite(calibrated_pitch_deg) ||
         !std::isfinite(calibrated_roll_deg))
     {
+        // 零偏相减发生浮点溢出时同样不能继续使用该姿态数据。
         feedback_pitch_deg_ = 0.0f;
         feedback_roll_deg_ = 0.0f;
         pitch_rate_dps_ = 0.0f;
@@ -237,6 +246,7 @@ void Class_Up_Stair_Behind_Motor_FSM::Update(
                               Is_Angle_Valid(1U, left_angle_rad);
     motor_controllable_[1] = config_valid_ && right_feedback_valid &&
                               Is_Angle_Valid(2U, right_angle_rad);
+    // 每个电机独立判断反馈和机械角度；无效侧由 Limit_Torque 强制为零。
     const bool feedback_recovered =
         (!feedback_valid_previous_[0] && motor_controllable_[0]) ||
         (!feedback_valid_previous_[1] && motor_controllable_[1]);
@@ -245,6 +255,7 @@ void Class_Up_Stair_Behind_Motor_FSM::Update(
 
     if (!control_enabled || !imu_valid || !config_valid_)
     {
+        // 档位、IMU 或标定配置任意一项不满足，后部不允许姿态控制。
         Disable();
         return;
     }
@@ -265,6 +276,7 @@ void Class_Up_Stair_Behind_Motor_FSM::Update(
 
     if (feedback_recovered)
     {
+        // 任意一侧从无效恢复，都重新启动全局软启动，防止单侧突加力矩。
         Start_Recovery(now_tick);
         feedback_degraded_ = !both_feedback_valid;
         return;

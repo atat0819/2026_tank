@@ -25,6 +25,7 @@ void GetImuControlSnapshot(ImuControlSnapshot &snapshot)
 
 static void PublishImuControlSnapshot(bool valid)
 {
+    // 将完整的一帧姿态和角速度数据一次性发布给上台阶任务。
     const float pitch = bmi088.GetPitchAngleDeg();
     const float roll = bmi088.GetRollAngleDeg();
     const float pitch_rate = bmi088.GetGyroRateYDps();
@@ -44,7 +45,7 @@ static void PublishImuControlSnapshot(bool valid)
     }
     else
     {
-        // A failed or incomplete read must invalidate the complete frame.
+        // 读取失败或数据不完整时，整帧必须失效，不能继续使用旧数据。
         imu_control_snapshot.valid = false;
     }
     taskEXIT_CRITICAL();
@@ -115,7 +116,7 @@ extern "C" void imu_task(void *argument)
 {
     (void)argument;
 
-    /* Let the scheduler and the SPI peripheral settle before probing the IMU. */
+        /* 等待任务调度器和 SPI 外设稳定后，再开始读取 IMU。 */
     vTaskDelay(pdMS_TO_TICKS(100U));
 
     for (;;)

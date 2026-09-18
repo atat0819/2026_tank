@@ -9,8 +9,8 @@
 
 namespace BSP::Motor::DM
 {
-    // Final protocol-boundary guard. Every MIT field must be finite and fit
-    // the configured physical range before it is converted into a bit field.
+    // 达妙协议编码前的最终保护：所有 MIT 字段必须是有限值，且落在
+    // 当前电机型号定义的物理范围内，之后才能转换成协议位域。
     inline float ClampMitCommandValue(float value, float minimum, float maximum)
     {
         if (!std::isfinite(value))
@@ -104,6 +104,7 @@ namespace BSP::Motor::DM
 
         int float_to_uint(float x, float x_min, float x_max, int bits)
         {
+            // 统一保护位置、速度、KP、KD 和力矩，防止超范围数值破坏编码。
             x = ClampMitCommandValue(x, x_min, x_max);
             float span = x_max - x_min;
             float offset = x_min;

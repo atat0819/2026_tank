@@ -8,15 +8,16 @@ static constexpr uint8_t DOWN = 2;
 static constexpr uint8_t MIDDLE = 3;
 
 struct StairModePolicy {
-  bool zero_all_torque;
-  bool front_hold_enabled;
-  bool rear_attitude_enabled;
-  bool front_stair_command_enabled;
+  bool zero_all_torque;              // 双下、失联或非法档位：四电机零力矩
+  bool front_hold_enabled;           // 是否允许前 4310 保持初始/目标位置
+  bool rear_attitude_enabled;        // 是否允许后 6248 运行姿态控制
+  bool front_stair_command_enabled;  // 仅双中且键盘在线时允许 B 动作
 };
 
 inline StairModePolicy EvaluateStairModePolicy(uint8_t s1, uint8_t s2,
                                                bool control_link_online,
                                                bool keyboard_online) {
+  // 先统一判断档位和链路，再由任务执行安全分支，避免各处重复判断。
   const bool valid_switches = s1 >= UP && s1 <= MIDDLE && s2 >= UP &&
                               s2 <= MIDDLE;
   const bool unsafe = !control_link_online || !valid_switches ||

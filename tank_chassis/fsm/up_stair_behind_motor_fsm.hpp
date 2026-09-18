@@ -7,9 +7,9 @@
 
 enum Enum_Up_Stair_Behind_Motor_Status
 {
-    UP_STAIR_BEHIND_MOTOR_DISABLED = 0,
-    UP_STAIR_BEHIND_MOTOR_RECOVERING,
-    UP_STAIR_BEHIND_MOTOR_ATTITUDE_HOLD,
+    UP_STAIR_BEHIND_MOTOR_DISABLED = 0,       // 后连杆控制关闭，力矩为零
+    UP_STAIR_BEHIND_MOTOR_RECOVERING,         // 反馈恢复后，力矩比例软启动
+    UP_STAIR_BEHIND_MOTOR_ATTITUDE_HOLD,      // 正常进行 pitch/roll 姿态控制
     UP_STAIR_BEHIND_MOTOR_COUNT
 };
 
@@ -54,7 +54,7 @@ public:
     float Get_Pitch_Rate_Dps() const;
     float Get_Roll_Rate_Dps() const;
 
-    // Short aliases keep the attitude interface convenient for control code.
+    // 简短别名，方便任务读取姿态目标、角度反馈和角速度反馈。
     float Get_Target_Pitch() const { return Get_Target_Pitch_Deg(); }
     float Get_Target_Roll() const { return Get_Target_Roll_Deg(); }
     float Get_Feedback_Pitch() const { return Get_Feedback_Pitch_Deg(); }
@@ -64,14 +64,15 @@ public:
 
     int8_t Get_Motor_Direction(uint8_t id) const;
     bool Is_Angle_Valid(uint8_t id, float raw_angle_rad) const;
-    // Public motor IDs are 1-based (1=left, 2=right); private storage is
-    // 0-based. Limit_Torque receives raw actual motor torque after the task
-    // applies direction/mixing, then applies recovery scale and limits.
+    // 对外电机编号从 1 开始（1=左、2=右），内部数组从 0 开始。
+    // Limit_Torque 接收任务完成方向修正和左右混控后的原始力矩，
+    // 再执行单侧反馈、机械范围和恢复比例保护。
     bool Is_Motor_Controllable(uint8_t id) const;
     float Limit_Torque(uint8_t id, float raw_torque_nm) const;
     bool Is_Config_Valid() const;
 
 private:
+    // 后部控制重新上线时，力矩比例在 300 ms 内从 0 增加到 1。
     static const uint32_t RECOVERY_TIME_MS = 300U;
     static constexpr float TWO_PI_RAD = 6.28318530717958647692f;
     static constexpr float LIMIT_MARGIN_RAD = 0.05235987755982989f;
