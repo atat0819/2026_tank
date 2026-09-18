@@ -63,6 +63,9 @@ public:
 
     int8_t Get_Motor_Direction(uint8_t id) const;
     bool Is_Angle_Valid(uint8_t id, float raw_angle_rad) const;
+    // Public motor IDs are 1-based (1=left, 2=right); private storage is
+    // 0-based. Limit_Torque receives raw actual motor torque after the task
+    // applies direction/mixing, then applies recovery scale and limits.
     bool Is_Motor_Controllable(uint8_t id) const;
     float Limit_Torque(uint8_t id, float raw_torque_nm) const;
     bool Is_Config_Valid() const;
@@ -88,6 +91,7 @@ private:
     float roll_rate_dps_;
     float output_scale_;
     uint32_t recovery_start_tick_;
+    bool feedback_degraded_;
 };
 
 #endif // UP_STAIR_BEHIND_MOTOR_FSM_HPP

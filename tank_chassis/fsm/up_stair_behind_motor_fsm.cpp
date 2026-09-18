@@ -26,7 +26,8 @@ Class_Up_Stair_Behind_Motor_FSM::Class_Up_Stair_Behind_Motor_FSM()
       pitch_rate_dps_(0.0f),
       roll_rate_dps_(0.0f),
       output_scale_(0.0f),
-      recovery_start_tick_(0U)
+      recovery_start_tick_(0U),
+      feedback_degraded_(false)
 {
     Class_FSM::Init(UP_STAIR_BEHIND_MOTOR_COUNT,
                     UP_STAIR_BEHIND_MOTOR_DISABLED);
@@ -44,7 +45,8 @@ Class_Up_Stair_Behind_Motor_FSM::Class_Up_Stair_Behind_Motor_FSM(
       pitch_rate_dps_(0.0f),
       roll_rate_dps_(0.0f),
       output_scale_(0.0f),
-      recovery_start_tick_(0U)
+      recovery_start_tick_(0U),
+      feedback_degraded_(false)
 {
     Class_FSM::Init(UP_STAIR_BEHIND_MOTOR_COUNT,
                     UP_STAIR_BEHIND_MOTOR_DISABLED);
@@ -59,6 +61,7 @@ void Class_Up_Stair_Behind_Motor_FSM::Reset()
     recovery_start_tick_ = 0U;
     motor_controllable_[0] = false;
     motor_controllable_[1] = false;
+    feedback_degraded_ = false;
 }
 
 uint8_t Class_Up_Stair_Behind_Motor_FSM::To_Index(uint8_t id) const
@@ -77,6 +80,10 @@ bool Class_Up_Stair_Behind_Motor_FSM::Validate_Config() const
             end > TWO_PI_RAD || start == end ||
             (config_.motor_direction[index] != 1 &&
              config_.motor_direction[index] != -1))
+        {
+            return false;
+        }
+        if (start == TWO_PI_RAD && end == 0.0f)
         {
             return false;
         }
@@ -121,6 +128,9 @@ void Class_Up_Stair_Behind_Motor_FSM::Disable()
     Set_Status(UP_STAIR_BEHIND_MOTOR_DISABLED);
     output_scale_ = 0.0f;
     recovery_start_tick_ = 0U;
+    motor_controllable_[0] = false;
+    motor_controllable_[1] = false;
+    feedback_degraded_ = false;
 }
 
 void Class_Up_Stair_Behind_Motor_FSM::Update(
@@ -136,6 +146,19 @@ void Class_Up_Stair_Behind_Motor_FSM::Update(
     float right_angle_rad,
     uint32_t now_tick)
 {
+    if (!std::isfinite(pitch_deg) || !std::isfinite(roll_deg) ||
+        !std::isfinite(pitch_rate_dps) || !std::isfinite(roll_rate_dps))
+    {
+        feedback_pitch_deg_ = 0.0f;
+        feedback_roll_deg_ = 0.0f;
+        pitch_rate_dps_ = 0.0f;
+        roll_rate_dps_ = 0.0f;
+        motor_angle_rad_[0] = 0.0f;
+        motor_angle_rad_[1] = 0.0f;
+        Disable();
+        return;
+    }
+
     feedback_pitch_deg_ = pitch_deg - config_.pitch_zero_deg;
     feedback_roll_deg_ = roll_deg - config_.roll_zero_deg;
     pitch_rate_dps_ = pitch_rate_dps;
@@ -153,11 +176,28 @@ void Class_Up_Stair_Behind_Motor_FSM::Update(
         return;
     }
 
+    const bool both_feedback_valid = motor_controllable_[0] &&
+                                     motor_controllable_[1];
+    if (Get_State() != UP_STAIR_BEHIND_MOTOR_DISABLED &&
+        !both_feedback_valid)
+    {
+        feedback_degraded_ = true;
+    }
+
     if (Get_State() == UP_STAIR_BEHIND_MOTOR_DISABLED)
     {
         Set_Status(UP_STAIR_BEHIND_MOTOR_RECOVERING);
         recovery_start_tick_ = now_tick;
         output_scale_ = 0.0f;
+        return;
+    }
+
+    if (feedback_degraded_ && both_feedback_valid)
+    {
+        Set_Status(UP_STAIR_BEHIND_MOTOR_RECOVERING);
+        recovery_start_tick_ = now_tick;
+        output_scale_ = 0.0f;
+        feedback_degraded_ = false;
         return;
     }
 
@@ -230,7 +270,8 @@ int8_t Class_Up_Stair_Behind_Motor_FSM::Get_Motor_Direction(uint8_t id) const
 bool Class_Up_Stair_Behind_Motor_FSM::Is_Motor_Controllable(uint8_t id) const
 {
     const uint8_t index = To_Index(id);
-    return index <= 1U && motor_controllable_[index];
+    return index <= 1U && Get_State() != UP_STAIR_BEHIND_MOTOR_DISABLED &&
+           motor_controllable_[index];
 }
 
 float Class_Up_Stair_Behind_Motor_FSM::Limit_Torque(

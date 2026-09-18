@@ -1,6 +1,7 @@
 #include "../fsm/up_stair_behind_motor_fsm.hpp"
 #include <assert.h>
 #include <math.h>
+#include <limits>
 
 namespace
 {
@@ -48,6 +49,8 @@ int main()
     assert(near(default_fsm.Limit_Torque(1U, 2.0f), 0.0f));
 
     Class_Up_Stair_Behind_Motor_FSM fsm(valid_config());
+    assert(!fsm.Is_Motor_Controllable(1U));
+    assert(!fsm.Is_Motor_Controllable(2U));
 
     // A valid update enters recovery at the current tick and ramps for 300 ms.
     update_valid(fsm, 1000U);
@@ -81,6 +84,34 @@ int main()
                    deg(90.0f), deg(350.0f), 3010U);
     assert(imu_fsm.Get_State() == UP_STAIR_BEHIND_MOTOR_DISABLED);
     assert(near(imu_fsm.Get_Output_Scale(), 0.0f));
+
+    // Nonfinite attitude/rate samples disable safely and clear all stored
+    // feedback, so stale active data cannot leak to control or torque output.
+    const float nan_value = std::numeric_limits<float>::quiet_NaN();
+    const float inf_value = std::numeric_limits<float>::infinity();
+    Class_Up_Stair_Behind_Motor_FSM numerical_fsm(valid_config());
+    update_valid(numerical_fsm, 5000U);
+    numerical_fsm.Update(true, true, true, true, nan_value, -3.5f, 12.0f,
+                         -7.0f, deg(90.0f), deg(350.0f), 5300U);
+    assert(numerical_fsm.Get_State() == UP_STAIR_BEHIND_MOTOR_DISABLED);
+    assert(near(numerical_fsm.Get_Output_Scale(), 0.0f));
+    assert(near(numerical_fsm.Get_Feedback_Pitch_Deg(), 0.0f));
+    assert(near(numerical_fsm.Get_Feedback_Roll_Deg(), 0.0f));
+    assert(near(numerical_fsm.Get_Pitch_Rate_Dps(), 0.0f));
+    assert(near(numerical_fsm.Get_Roll_Rate_Dps(), 0.0f));
+    assert(near(numerical_fsm.Limit_Torque(1U, 2.0f), 0.0f));
+    update_valid(numerical_fsm, 6000U);
+    assert(numerical_fsm.Get_State() == UP_STAIR_BEHIND_MOTOR_RECOVERING);
+    assert(near(numerical_fsm.Get_Output_Scale(), 0.0f));
+    numerical_fsm.Update(true, true, true, true, 4.5f, inf_value, 12.0f,
+                         -7.0f, deg(90.0f), deg(350.0f), 6300U);
+    assert(numerical_fsm.Get_State() == UP_STAIR_BEHIND_MOTOR_DISABLED);
+    assert(near(numerical_fsm.Get_Output_Scale(), 0.0f));
+    assert(near(numerical_fsm.Get_Feedback_Pitch_Deg(), 0.0f));
+    assert(near(numerical_fsm.Get_Feedback_Roll_Deg(), 0.0f));
+    assert(near(numerical_fsm.Get_Pitch_Rate_Dps(), 0.0f));
+    assert(near(numerical_fsm.Get_Roll_Rate_Dps(), 0.0f));
+    assert(near(numerical_fsm.Limit_Torque(1U, 2.0f), 0.0f));
     assert(near(imu_fsm.Limit_Torque(1U, 2.0f), 0.0f));
     update_valid(imu_fsm, 4000U);
     assert(imu_fsm.Get_State() == UP_STAIR_BEHIND_MOTOR_RECOVERING);
@@ -107,7 +138,7 @@ int main()
     // Normal interval: lower margin blocks negative torque and upper blocks
     // positive torque, while escape torque remains available.
     fsm.Update(true, true, true, true, 4.5f, -3.5f, 12.0f, -7.0f,
-               deg(12.0f), deg(168.0f), 2300U);
+               deg(12.0f), deg(350.0f), 2300U);
     assert(near(fsm.Get_Output_Scale(), 1.0f));
     assert(near(fsm.Limit_Torque(1U, -3.0f), 0.0f));
     assert(near(fsm.Limit_Torque(1U, 3.0f), 3.0f));
@@ -146,6 +177,38 @@ int main()
     assert(!fsm.Is_Motor_Controllable(2U));
     assert(near(fsm.Limit_Torque(2U, 2.0f), 0.0f));
 
+    // Invalid torque requests and public IDs are always rejected.
+    assert(near(fsm.Limit_Torque(1U, nan_value), 0.0f));
+    assert(near(fsm.Limit_Torque(1U, inf_value), 0.0f));
+    assert(near(fsm.Limit_Torque(0U, 1.0f), 0.0f));
+    assert(near(fsm.Limit_Torque(3U, 1.0f), 0.0f));
+
+    // Losing one feedback suppresses only that motor. Once both feedbacks
+    // return, the shared FSM restarts its 300 ms recovery ramp.
+    Class_Up_Stair_Behind_Motor_FSM feedback_fsm(valid_config());
+    update_valid(feedback_fsm, 7000U);
+    feedback_fsm.Update(true, true, true, true, 4.5f, -3.5f, 12.0f,
+                        -7.0f, deg(90.0f), deg(350.0f), 7300U);
+    assert(feedback_fsm.Get_State() == UP_STAIR_BEHIND_MOTOR_ATTITUDE_HOLD);
+    feedback_fsm.Update(true, true, false, true, 4.5f, -3.5f, 12.0f,
+                        -7.0f, deg(90.0f), deg(350.0f), 7301U);
+    assert(feedback_fsm.Get_State() == UP_STAIR_BEHIND_MOTOR_ATTITUDE_HOLD);
+    assert(!feedback_fsm.Is_Motor_Controllable(1U));
+    assert(feedback_fsm.Is_Motor_Controllable(2U));
+    assert(near(feedback_fsm.Limit_Torque(2U, 2.0f), 2.0f));
+    feedback_fsm.Update(true, true, true, true, 4.5f, -3.5f, 12.0f,
+                        -7.0f, deg(90.0f), deg(350.0f), 7302U);
+    assert(feedback_fsm.Get_State() == UP_STAIR_BEHIND_MOTOR_RECOVERING);
+    assert(near(feedback_fsm.Get_Output_Scale(), 0.0f));
+    assert(near(feedback_fsm.Limit_Torque(1U, 2.0f), 0.0f));
+    feedback_fsm.Update(true, true, true, true, 4.5f, -3.5f, 12.0f,
+                        -7.0f, deg(90.0f), deg(350.0f), 7452U);
+    assert(near(feedback_fsm.Get_Output_Scale(), 0.5f));
+    feedback_fsm.Update(true, true, true, true, 4.5f, -3.5f, 12.0f,
+                        -7.0f, deg(90.0f), deg(350.0f), 7602U);
+    assert(feedback_fsm.Get_State() == UP_STAIR_BEHIND_MOTOR_ATTITUDE_HOLD);
+    assert(near(feedback_fsm.Get_Output_Scale(), 1.0f));
+
     assert(fsm.Get_Motor_Direction(1U) == 1);
     assert(fsm.Get_Motor_Direction(2U) == -1);
     assert(fsm.Get_Motor_Direction(0U) == 0);
@@ -161,5 +224,26 @@ int main()
     Class_Up_Stair_Behind_Motor_FSM bad_direction(bad);
     update_valid(bad_direction, 0U);
     assert(bad_direction.Get_State() == UP_STAIR_BEHIND_MOTOR_DISABLED);
+    bad = valid_config();
+    bad.pitch_zero_deg = nan_value;
+    Class_Up_Stair_Behind_Motor_FSM bad_offset(bad);
+    update_valid(bad_offset, 0U);
+    assert(bad_offset.Get_State() == UP_STAIR_BEHIND_MOTOR_DISABLED);
+    bad = valid_config();
+    bad.angle_start_rad[0] = -0.01f;
+    Class_Up_Stair_Behind_Motor_FSM bad_negative_limit(bad);
+    update_valid(bad_negative_limit, 0U);
+    assert(bad_negative_limit.Get_State() == UP_STAIR_BEHIND_MOTOR_DISABLED);
+    bad = valid_config();
+    bad.angle_end_rad[0] = 2.0f * PI + 0.01f;
+    Class_Up_Stair_Behind_Motor_FSM bad_large_limit(bad);
+    update_valid(bad_large_limit, 0U);
+    assert(bad_large_limit.Get_State() == UP_STAIR_BEHIND_MOTOR_DISABLED);
+    bad = valid_config();
+    bad.angle_start_rad[1] = 2.0f * PI;
+    bad.angle_end_rad[1] = 0.0f;
+    Class_Up_Stair_Behind_Motor_FSM bad_alias_limit(bad);
+    update_valid(bad_alias_limit, 0U);
+    assert(bad_alias_limit.Get_State() == UP_STAIR_BEHIND_MOTOR_DISABLED);
     return 0;
 }
