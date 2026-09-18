@@ -3,11 +3,31 @@
 
 #pragma once
 #include <string.h>
+#include <cmath>
 #include "../user/core/BSP/Motor/MotorBase.hpp"
 #include "../user/core/HAL/FDCAN/fdcan_hal.hpp"
 
 namespace BSP::Motor::DM
 {
+    // Final protocol-boundary guard. Every MIT field must be finite and fit
+    // the configured physical range before it is converted into a bit field.
+    inline float ClampMitCommandValue(float value, float minimum, float maximum)
+    {
+        if (!std::isfinite(value))
+        {
+            value = 0.0f;
+        }
+        if (value < minimum)
+        {
+            return minimum;
+        }
+        if (value > maximum)
+        {
+            return maximum;
+        }
+        return value;
+    }
+
     enum Model
     {
         MIT = 0,
@@ -84,6 +104,7 @@ namespace BSP::Motor::DM
 
         int float_to_uint(float x, float x_min, float x_max, int bits)
         {
+            x = ClampMitCommandValue(x, x_min, x_max);
             float span = x_max - x_min;
             float offset = x_min;
             return (int)((x - offset) * ((float)((1 << bits) - 1)) / span);
