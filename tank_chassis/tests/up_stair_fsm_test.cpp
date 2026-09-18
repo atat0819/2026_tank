@@ -198,5 +198,142 @@ int main()
            11U);
     assert(fsm.Get_State() == UP_STAIR_DISABLED);
     assert(!fsm.Is_Enabled());
+
+    // B reverses a genuine in-flight move in either direction before arrival.
+    Class_Up_Stair_FSM transition_fsm;
+    transition_fsm.Init(0U);
+    update(transition_fsm,
+           deg_to_rad(34.0f),
+           deg_to_rad(340.0f),
+           true,
+           true,
+           true,
+           false,
+           0U);
+    update(transition_fsm,
+           deg_to_rad(34.0f),
+           deg_to_rad(340.0f),
+           true,
+           true,
+           true,
+           true,
+           1U);
+    assert(transition_fsm.Get_State() == UP_STAIR_MOVING_TO_TARGET);
+    update(transition_fsm,
+           deg_to_rad(80.0f),
+           deg_to_rad(320.0f),
+           true,
+           true,
+           true,
+           true,
+           2U);
+    assert(transition_fsm.Get_State() == UP_STAIR_RETURNING_HOME);
+    assert(near(transition_fsm.Get_Target_Angle(1U),
+                Class_Up_Stair_FSM::HOME_ANGLE_RAD[0]));
+    update(transition_fsm,
+           deg_to_rad(80.0f),
+           deg_to_rad(320.0f),
+           true,
+           true,
+           true,
+           true,
+           3U);
+    assert(transition_fsm.Get_State() == UP_STAIR_MOVING_TO_TARGET);
+    assert(near(transition_fsm.Get_Target_Angle(1U),
+                Class_Up_Stair_FSM::TARGET_ANGLE_RAD[0]));
+
+    // Leaving command mode from a real target hold returns to home control.
+    update(transition_fsm,
+           deg_to_rad(122.0f),
+           deg_to_rad(60.0f),
+           true,
+           true,
+           true,
+           true,
+           3U);
+    assert(transition_fsm.Get_State() == UP_STAIR_TARGET_HOLD);
+    update(transition_fsm,
+           deg_to_rad(122.0f),
+           deg_to_rad(60.0f),
+           true,
+           true,
+           true,
+           false,
+           3U);
+    assert(transition_fsm.Get_State() == UP_STAIR_RETURNING_HOME);
+    assert(transition_fsm.Is_Enabled());
+    assert(near(transition_fsm.Get_Target_Angle(1U),
+                Class_Up_Stair_FSM::HOME_ANGLE_RAD[0]));
+    assert(near(transition_fsm.Get_Target_Angle(2U),
+                Class_Up_Stair_FSM::HOME_ANGLE_RAD[1]));
+
+    // Cached target feedback must not claim TARGET_HOLD when one motor is
+    // offline, even if the other motor reaches its target.
+    Class_Up_Stair_FSM feedback_fsm;
+    feedback_fsm.Init(0U);
+    update(feedback_fsm,
+           deg_to_rad(34.0f),
+           deg_to_rad(340.0f),
+           true,
+           true,
+           true,
+           false,
+           0U);
+    update(feedback_fsm,
+           deg_to_rad(34.0f),
+           deg_to_rad(340.0f),
+           true,
+           true,
+           true,
+           true,
+           1U);
+    assert(feedback_fsm.Get_State() == UP_STAIR_MOVING_TO_TARGET);
+    update(feedback_fsm,
+           deg_to_rad(122.0f),
+           deg_to_rad(60.0f),
+           true,
+           true,
+           true,
+           true,
+           1U);
+    assert(feedback_fsm.Get_State() == UP_STAIR_TARGET_HOLD);
+    update(feedback_fsm,
+           deg_to_rad(122.0f),
+           deg_to_rad(60.0f),
+           false,
+           true,
+           true,
+           true,
+           2U);
+    assert(feedback_fsm.Get_State() == UP_STAIR_RETURNING_HOME);
+    update(feedback_fsm,
+           0.0f,
+           deg_to_rad(60.0f),
+           false,
+           true,
+           true,
+           true,
+           3U);
+    assert(feedback_fsm.Get_State() == UP_STAIR_MOVING_TO_TARGET);
+    assert(feedback_fsm.Is_Enabled());
+    update(feedback_fsm,
+           0.0f,
+           deg_to_rad(60.0f),
+           false,
+           true,
+           true,
+           true,
+           4U);
+    assert(feedback_fsm.Get_State() == UP_STAIR_RETURNING_HOME);
+    update(feedback_fsm,
+           0.0f,
+           deg_to_rad(340.0f),
+           false,
+           true,
+           true,
+           true,
+           4U);
+    assert(feedback_fsm.Get_State() == UP_STAIR_RETURNING_HOME);
+    assert(feedback_fsm.Is_Enabled());
     return 0;
 }
