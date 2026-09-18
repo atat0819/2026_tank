@@ -317,14 +317,28 @@ int main()
     assert(feedback_fsm.Get_State() == UP_STAIR_MOVING_TO_TARGET);
     assert(feedback_fsm.Is_Enabled());
     update(feedback_fsm,
-           0.0f,
+           deg_to_rad(122.0f),
            deg_to_rad(60.0f),
-           false,
+           true,
            true,
            true,
            true,
            4U);
     assert(feedback_fsm.Get_State() == UP_STAIR_RETURNING_HOME);
+
+    // The left feedback reaches home while the right feedback is still away.
+    update(feedback_fsm,
+           deg_to_rad(34.0f),
+           deg_to_rad(60.0f),
+           true,
+           true,
+           true,
+           true,
+           4U);
+    assert(feedback_fsm.Get_State() == UP_STAIR_RETURNING_HOME);
+
+    // Losing that left feedback must prevent a false HOME_HOLD when the
+    // remaining right feedback reaches home.
     update(feedback_fsm,
            0.0f,
            deg_to_rad(340.0f),
