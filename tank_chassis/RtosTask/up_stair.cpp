@@ -10,15 +10,19 @@
 
 #include <math.h>
 
+// 前部两台 J4310：负责卡住台阶、返回初始位置以及正常姿态保持。
 BSP::Motor::DM::J4310<2> front_4340(
     0x00, {0x01, 0x02}, {0x01, 0x02}, HAL::FDCAN::FdcanDeviceId::HAL_Fdcan1);
+// 后部两台 J6248：通过连杆支撑车尾，并执行 pitch/roll 姿态控制。
 BSP::Motor::DM::J6248<2> rear_6248(
     0x00, {0x03, 0x04}, {0x03, 0x04}, HAL::FDCAN::FdcanDeviceId::HAL_Fdcan3);
 
+// 前左 4310 的位置环和速度环 PID，数组下标 0=位置环、1=速度环。
 ALG::PID::PID front_4340_left_pid[2] = {
     {15.0f, 0.0f, 0.0f, 45.0f, 0.0f, 0.0f},
     {3.0f, 0.0f, 0.0f, 10.0f, 0.0f, 0.0f},
 };
+// 前右 4310 的位置环和速度环 PID，左右使用独立参数。
 ALG::PID::PID front_4340_right_pid[2] = {
     {8.0f, 0.0f, 0.0f, 45.0f, 0.0f, 0.0f},
     {0.8f, 0.0f, 0.0f, 10.0f, 0.0f, 0.0f},
@@ -26,10 +30,12 @@ ALG::PID::PID front_4340_right_pid[2] = {
 
 // 后 6248 不使用积分项，采用“姿态角环 → 角速度环 → 力矩”的串级控制。
 // 具体增益需要结合整车负载、连杆方向和实车响应继续标定。
+// 后部 pitch 轴的角度环和角速度环 PID。
 ALG::PID::PID rear_6248_pitch_pid[2] = {
     {1.5f, 0.0f, 0.0f, 30.0f, 0.0f, 0.0f},
     {0.8f, 0.0f, 0.0f, 40.0f, 0.0f, 0.0f},
 };
+// 后部 roll 轴的角度环和角速度环 PID。
 ALG::PID::PID rear_6248_roll_pid[2] = {
     {1.5f, 0.0f, 0.0f, 30.0f, 0.0f, 0.0f},
     {0.8f, 0.0f, 0.0f, 40.0f, 0.0f, 0.0f},
@@ -37,6 +43,7 @@ ALG::PID::PID rear_6248_roll_pid[2] = {
 
 namespace
 {
+// 构造后部机械配置；在完成实测标定前使用无效安全默认值。
 Class_Up_Stair_Behind_Motor_FSM::Config BuildRear6248Config()
 {
     Class_Up_Stair_Behind_Motor_FSM::Config config;
@@ -53,11 +60,13 @@ Class_Up_Stair_Behind_Motor_FSM::Config BuildRear6248Config()
     return config;
 }
 
+// 对电机反馈角度做有限值保护，避免 NaN 进入 MIT 位置字段。
 float SafeMotorAngle(float angle)
 {
     return std::isfinite(angle) ? angle : 0.0f;
 }
 
+// 清除前后所有位置、速度和姿态 PID 的内部历史状态。
 void ResetAllStairPid()
 {
     // 进入双下、失联或其他禁用状态时清除四组 PID 的历史误差和积分量。
@@ -71,6 +80,7 @@ void ResetAllStairPid()
     rear_6248_roll_pid[1].reset();
 }
 
+// 向前后四个机构电机发送当前位置加零力矩命令。
 void SendAllStairMotorsZero(float front_left_angle, float front_right_angle,
                             float rear_left_angle, float rear_right_angle)
 {
@@ -86,13 +96,13 @@ void SendAllStairMotorsZero(float front_left_angle, float front_right_angle,
 }
 }  // namespace
 
-float front_left_target_velocity = 0.0f;
-float front_left_target_torque = 0.0f;
-Class_Up_Stair_FSM up_stair_fsm;
-Class_Up_Stair_Behind_Motor_FSM up_stair_behind_motor_fsm(BuildRear6248Config());
-MotorRecoveryFSM front_recovery_fsm[2];
-MotorRecoveryFSM rear_recovery_fsm[2];
-volatile bool dm_motor_control_ready = false;
+float front_left_target_velocity = 0.0f; // 前左位置环输出的目标角速度
+float front_left_target_torque = 0.0f;   // 前左速度环输出的目标力矩
+Class_Up_Stair_FSM up_stair_fsm;          // 前 4310 上台阶状态机
+Class_Up_Stair_Behind_Motor_FSM up_stair_behind_motor_fsm(BuildRear6248Config()); // 后 6248 状态机
+MotorRecoveryFSM front_recovery_fsm[2];  // 前左右电机通信恢复状态机
+MotorRecoveryFSM rear_recovery_fsm[2];   // 后左右电机通信恢复状态机
+volatile bool dm_motor_control_ready = false; // CAN 回调和电机对象是否已准备好
 
 extern "C" void up_stair_task(void *argument)
 {

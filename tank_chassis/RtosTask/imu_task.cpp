@@ -8,14 +8,15 @@
 #include "../user/core/HAL/UART/uart_hal.hpp"
 
 extern "C" TaskHandle_t xImuHandle;
-auto &bmi088 = BSP::simplebmi088::GetOnboardBMI088();
-volatile HAL_StatusTypeDef bmi088_init_status = HAL_ERROR;
+auto &bmi088 = BSP::simplebmi088::GetOnboardBMI088(); // 板载 BMI088 实例
+volatile HAL_StatusTypeDef bmi088_init_status = HAL_ERROR; // BMI088 初始化结果
 
 /* VOFA+ JustFloat 帧: 9 个通道 + 1 个帧尾, 用 float 数组保证 4 字节对齐 */
-static float vofa_frame[10];
+static float vofa_frame[10]; // VOFA+ 发送缓冲区
 static ImuControlSnapshot imu_control_snapshot = {0.0f, 0.0f, 0.0f, 0.0f,
-                                                  0U, false};
+                                                  0U, false}; // 姿态控制快照
 
+// 在临界区复制最近一帧完整 IMU 控制数据，供上台阶任务安全读取。
 void GetImuControlSnapshot(ImuControlSnapshot &snapshot)
 {
     taskENTER_CRITICAL();
@@ -23,6 +24,7 @@ void GetImuControlSnapshot(ImuControlSnapshot &snapshot)
     taskEXIT_CRITICAL();
 }
 
+// 将本周期读取到的 IMU 数据整体发布；失败时只更新 valid=false。
 static void PublishImuControlSnapshot(bool valid)
 {
     // 将完整的一帧姿态和角速度数据一次性发布给上台阶任务。

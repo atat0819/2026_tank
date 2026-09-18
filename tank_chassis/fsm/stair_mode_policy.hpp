@@ -17,6 +17,8 @@ struct StairModePolicy {
 inline StairModePolicy EvaluateStairModePolicy(uint8_t s1, uint8_t s2,
                                                bool control_link_online,
                                                bool keyboard_online) {
+  // 将遥控档位和通信状态转换为上台阶任务使用的统一策略。
+  // 返回值不直接发送电机命令，只决定哪些控制模块可以运行。
   // 先统一判断档位和链路，再由任务执行安全分支，避免各处重复判断。
   const bool valid_switches = s1 >= UP && s1 <= MIDDLE && s2 >= UP &&
                               s2 <= MIDDLE;

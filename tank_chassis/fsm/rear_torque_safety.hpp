@@ -9,6 +9,7 @@ static constexpr float J6248_TORQUE_LIMIT_NM = 40.0f;
 
 inline float ClampJ6248Torque(float torque_nm)
 {
+    // 对 pitch/roll 混控后的总力矩执行 J6248 的应用层饱和。
     if (torque_nm > J6248_TORQUE_LIMIT_NM)
     {
         return J6248_TORQUE_LIMIT_NM;

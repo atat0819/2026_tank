@@ -56,9 +56,9 @@ extern uint8_t gimbalChassisSpeedUpdated;
 
 // 云台发送的键盘位掩码，供底盘控制任务按位判断按键状态
 extern volatile uint16_t gimbal_keyboard;
-extern volatile uint32_t gimbal_keyboard_last_tick;
-extern volatile bool gimbal_keyboard_received;
-extern volatile uint32_t gimbal_switch_last_tick;
+extern volatile uint32_t gimbal_keyboard_last_tick; // 最近一次合法键盘帧时间
+extern volatile bool gimbal_keyboard_received;      // 是否收到过合法键盘帧
+extern volatile uint32_t gimbal_switch_last_tick;   // 最近一次合法档位帧时间
 extern volatile bool gimbal_switch_received;  // 是否收到过合法档位帧
 
 

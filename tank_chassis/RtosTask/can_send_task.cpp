@@ -50,12 +50,12 @@ Gimbal_Chassis_communicate_t gimbalChassis_communicate;
 uint8_t gimbalChassisSpeedUpdated = 0;
 
 // 云台 CAN2 -> 底盘的键盘位掩码
-volatile uint16_t gimbal_keyboard = 0;
-volatile uint32_t gimbal_keyboard_last_tick = 0;
-volatile bool gimbal_keyboard_received = false;
-volatile uint32_t gimbal_switch_last_tick = 0U;
+volatile uint16_t gimbal_keyboard = 0;              // 当前键盘按键位掩码
+volatile uint32_t gimbal_keyboard_last_tick = 0;   // 最近一次合法键盘帧时间
+volatile bool gimbal_keyboard_received = false;    // 键盘通信是否已经建立
+volatile uint32_t gimbal_switch_last_tick = 0U;    // 最近一次合法档位帧时间
 volatile bool gimbal_switch_received = false;  // 档位心跳是否已经建立
-volatile uint32_t stair_action_sequence = 0;
+volatile uint32_t stair_action_sequence = 0;       // B 键动作序号，供前部 FSM 消费
 
 ChassisKeyboardFSM keyboard_fsm;
 
