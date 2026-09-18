@@ -15,6 +15,7 @@ void ChassisKeyboardFSM::Reset()
     last_ctrl_pressed_ = false;
     gyro_enabled_ = false;
     last_z_pressed_ = false;
+    last_b_pressed_ = false;
     follow_enabled_ = false;
     command_ = {};
 
@@ -36,6 +37,7 @@ void ChassisKeyboardFSM::Update(uint16_t raw_key_mask,
     }
 
     command_.valid = true;
+    command_.stair_toggle = false;
 
     // Initialize only after the first raw mask has remained stable. This
     // prevents a key held while entering keyboard mode from toggling CTRL.
@@ -68,6 +70,7 @@ void ChassisKeyboardFSM::Update(uint16_t raw_key_mask,
             stable_mask_initialized_ = true;
             last_ctrl_pressed_ = (stable_key_mask_ & KEY_CTRL) != 0U;
             last_z_pressed_ = (stable_key_mask_ & KEY_Z) != 0U;
+            last_b_pressed_ = (stable_key_mask_ & KEY_B) != 0U;
             UpdateCommand();
             return;
         }
@@ -123,6 +126,13 @@ void ChassisKeyboardFSM::Update(uint16_t raw_key_mask,
         follow_enabled_ = !follow_enabled_;
     }
     last_z_pressed_ = z_pressed;
+
+    const bool b_pressed = (stable_key_mask_ & KEY_B) != 0U;
+    if (b_pressed && !last_b_pressed_)
+    {
+        command_.stair_toggle = true;
+    }
+    last_b_pressed_ = b_pressed;
 
     UpdateCommand();
 }

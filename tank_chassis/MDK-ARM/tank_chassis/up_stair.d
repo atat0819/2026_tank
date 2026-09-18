@@ -807,7 +807,8 @@ tank_chassis/up_stair.o: ..\RtosTask\up_stair.cpp \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__functional\pointer_to_binary_function.h \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__functional\pointer_to_unary_function.h \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__functional\unary_negate.h \
-  ..\RtosTask\imu_task.hpp \
-  ..\RtosTask\..\user\core\BSP\simple_bmi088\simple_bmi088.hpp \
-  ..\RtosTask\..\user\core\BSP\simple_bmi088\simple_bmi088.h \
-  ..\user\core\Alg\PID\pid.hpp
+  ..\RtosTask\..\user\core\Alg\PID\pid.hpp \
+  ..\RtosTask\..\fsm\up_stair_fsm.hpp \
+  ..\RtosTask\..\fsm\..\user\core\Alg\FSM\alg_fsm.hpp \
+  ..\RtosTask\..\fsm\motor_recovery_fsm.hpp \
+  ..\RtosTask\can_send_task.hpp ..\user\core\HAL\FDCAN\fdcan_hal.hpp

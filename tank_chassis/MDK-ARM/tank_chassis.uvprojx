@@ -3039,6 +3039,21 @@
               <FileType>5</FileType>
               <FilePath>..\fsm\chassis_keyboard_fsm.hpp</FilePath>
             </File>
+            <File>
+              <FileName>up_stair_fsm.cpp</FileName>
+              <FileType>8</FileType>
+              <FilePath>..\fsm\up_stair_fsm.cpp</FilePath>
+            </File>
+            <File>
+              <FileName>up_stair_fsm.hpp</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\fsm\up_stair_fsm.hpp</FilePath>
+            </File>
+            <File>
+              <FileName>motor_recovery_fsm.hpp</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\fsm\motor_recovery_fsm.hpp</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>

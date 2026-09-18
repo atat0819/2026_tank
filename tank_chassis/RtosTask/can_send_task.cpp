@@ -53,6 +53,7 @@ uint8_t gimbalChassisSpeedUpdated = 0;
 volatile uint16_t gimbal_keyboard = 0;
 volatile uint32_t gimbal_keyboard_last_tick = 0;
 volatile bool gimbal_keyboard_received = false;
+volatile uint32_t stair_action_sequence = 0;
 
 ChassisKeyboardFSM keyboard_fsm;
 
@@ -247,29 +248,30 @@ extern "C" void can_send_task(void *argument)
 /************************************************************************************** */
 /************************************************************************************** */
     fdcan1.register_rx_callback([](const HAL::FDCAN::Frame &frame) {
-        if (frame.id >= 0x201 && frame.id <= 0x204)
-    {
-        // 这是底盘电机的数据，交给 chassis_motor 解析
-        chassis_motor.Parse(frame);
-    }
-    else if (frame.id == 0x777) {
-       supercap.parse(frame); // 超级电容数据
+        if (frame.id >= 0x01 && frame.id <= 0x02) {
+       front_4340.Parse(frame);
    }
+        else if (frame.id >= 0x201 && frame.id <= 0x204)
+        {
+        // 这是底盘电机的数据，交给 chassis_motor 解析
+            chassis_motor.Parse(frame);
+        }
+        else if (frame.id == 0x777)
+        {
+       supercap.parse(frame); // 超级电容数据
+        }
 
     });
 /************************************************************************************** */
    fdcan2.register_rx_callback([](const HAL::FDCAN::Frame &frame) {
-    if (frame.id >= 0x01 && frame.id <= 0x02) {
-       front_4340.Parse(frame);
-   }
-    else if (frame.id == 0x301 ) {
+    if (frame.id == 0x301 ) {
        memcpy(&gimbalChassis_communicate.yaw_offset_deg, frame.data, sizeof(float));
        yaw_offset_updated = true;
        yaw_offset_timeout_cnt = 0; // 收到数据，清零计数器
    }
    else if (frame.id == 0x302) {
-       memcpy(&gimbalChassis_communicate.vx, &frame.data[0], sizeof(float));
-       memcpy(&gimbalChassis_communicate.vy, &frame.data[4], sizeof(float));
+        memcpy(&gimbalChassis_communicate.vx, &frame.data[0], sizeof(float));
+        memcpy(&gimbalChassis_communicate.vy, &frame.data[4], sizeof(float));
        gimbalChassisSpeedUpdated = 1;
    }
     else if (frame.id == 0x303 ) {
@@ -343,8 +345,13 @@ osDelay(500);
              keyboard_mode,
              keyboard_online,
              now_tick);
-         const KeyboardMotionCommand& keyboard_cmd =
-             keyboard_fsm.GetCommand();
+        const KeyboardMotionCommand& keyboard_cmd =
+            keyboard_fsm.GetCommand();
+
+         if (keyboard_cmd.stair_toggle)
+         {
+             ++stair_action_sequence;
+         }
 
          //获取底盘旋转速度
          ChassisData.vx = remoteController.get_left_y()*Gain;

@@ -83,6 +83,7 @@
 "tank_chassis\up_stair.o"
 "tank_chassis\chassis_fsm.o"
 "tank_chassis\chassis_keyboard_fsm.o"
+"tank_chassis\up_stair_fsm.o"
 "tank_chassis\gimbal_refree.o"
 "tank_chassis\super_cupacitor.o"
 --library_type=microlib --strict --scatter "tank_chassis\tank_chassis.sct"

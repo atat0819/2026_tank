@@ -22,21 +22,34 @@ Dialog DLL:      TCM.DLL V1.56.4.0
  
 <h2>Project:</h2>
 C:\Users\hp\Desktop\2026_tank\tank_chassis\MDK-ARM\tank_chassis.uvprojx
-Project File Date:  09/17/2026
+Project File Date:  09/18/2026
 
 <h2>Output:</h2>
 *** Using Compiler 'V6.21', folder: 'D:\Keil5\Core\ARM\ARMCLANG\Bin'
 *** Warning: You are compiling one or more files of source type C++ and have selected 'use MicroLIB'. MicroLIB does not support C++!
   
 Build target 'tank_chassis'
-compiling uart_bus.cpp...
+compiling fdcan_bus.cpp...
 compiling gimbal_refree.cpp...
 compiling super_cupacitor.cpp...
-compiling fdcan_bus.cpp...
+compiling uart_bus.cpp...
+../RtosTask/can_send_task.cpp(2): warning: In file included from...
+../RtosTask/remote_task.hpp(13): warning: anonymous non-C-compatible type given name for linkage purposes by typedef declaration; add a tag name here [-Wnon-c-typedef-for-linkage]
+   13 | typedef struct
+      |               ^
+      |                RemoteData_t
+../RtosTask/remote_task.hpp(15): note: type is not C-compatible due to this default member initializer
+   15 |     float vx = 0.0f; // 前后速度，单位 m/s
+      |                ^~~~
+../RtosTask/remote_task.hpp(20): note: type is given name 'RemoteData_t' for linkage purposes by this typedef declaration
+   20 | } RemoteData_t;
+      |   ^
+1 warning generated.
+compiling can_send_task.cpp...
 linking...
-Program Size: Code=146492 RO-data=3056 RW-data=208 ZI-data=242912  
+Program Size: Code=149260 RO-data=3088 RW-data=212 ZI-data=242804  
 FromELF: creating hex file...
-"tank_chassis\tank_chassis.axf" - 0 Error(s), 0 Warning(s).
+"tank_chassis\tank_chassis.axf" - 0 Error(s), 1 Warning(s).
 
 <h2>Software Packages used:</h2>
 

@@ -10,6 +10,7 @@ struct KeyboardMotionCommand
     bool shift_pressed;
     bool gyro_enabled;
     bool follow_enabled;
+    bool stair_toggle;
     bool valid;
 };
 
@@ -24,7 +25,8 @@ public:
         KEY_D     = (1U << 3),
         KEY_SHIFT = (1U << 4),
         KEY_CTRL  = (1U << 5),
-        KEY_Z     = (1U << 11)
+        KEY_Z     = (1U << 11),
+        KEY_B     = (1U << 15)
     };
 
     static constexpr uint32_t KEY_DEBOUNCE_MS = 20U;
@@ -52,6 +54,7 @@ private:
     bool last_ctrl_pressed_ = false;
     bool gyro_enabled_ = false;
     bool last_z_pressed_ = false;
+    bool last_b_pressed_ = false;
     // Keyboard mode defaults to follow; Reset() clears it until mode entry.
     bool follow_enabled_ = false;
 
