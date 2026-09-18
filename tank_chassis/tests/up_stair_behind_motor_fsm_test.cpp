@@ -53,14 +53,17 @@ int main()
     update_valid(fsm, 1000U);
     assert(fsm.Get_State() == UP_STAIR_BEHIND_MOTOR_RECOVERING);
     assert(near(fsm.Get_Output_Scale(), 0.0f));
+    assert(near(fsm.Limit_Torque(1U, 2.0f), 0.0f));
     fsm.Update(true, true, true, true, 4.5f, -3.5f, 12.0f, -7.0f,
                deg(90.0f), deg(350.0f), 1150U);
     assert(near(fsm.Get_Output_Scale(), 0.5f));
     assert(fsm.Get_State() == UP_STAIR_BEHIND_MOTOR_RECOVERING);
+    assert(near(fsm.Limit_Torque(1U, 2.0f), 1.0f));
     fsm.Update(true, true, true, true, 4.5f, -3.5f, 12.0f, -7.0f,
                deg(90.0f), deg(350.0f), 1300U);
     assert(fsm.Get_State() == UP_STAIR_BEHIND_MOTOR_ATTITUDE_HOLD);
     assert(near(fsm.Get_Output_Scale(), 1.0f));
+    assert(near(fsm.Limit_Torque(1U, 2.0f), 2.0f));
 
     // Calibration is applied by the FSM; rates are passed through unchanged.
     assert(near(fsm.Get_Target_Pitch_Deg(), 0.0f));
@@ -69,6 +72,19 @@ int main()
     assert(near(fsm.Get_Feedback_Roll_Deg(), -2.0f));
     assert(near(fsm.Get_Pitch_Rate_Dps(), 12.0f));
     assert(near(fsm.Get_Roll_Rate_Dps(), -7.0f));
+
+    // Invalid IMU data disables output and a later valid sample restarts
+    // recovery from zero at its new tick.
+    Class_Up_Stair_Behind_Motor_FSM imu_fsm(valid_config());
+    update_valid(imu_fsm, 3000U);
+    imu_fsm.Update(true, false, true, true, 4.5f, -3.5f, 12.0f, -7.0f,
+                   deg(90.0f), deg(350.0f), 3010U);
+    assert(imu_fsm.Get_State() == UP_STAIR_BEHIND_MOTOR_DISABLED);
+    assert(near(imu_fsm.Get_Output_Scale(), 0.0f));
+    assert(near(imu_fsm.Limit_Torque(1U, 2.0f), 0.0f));
+    update_valid(imu_fsm, 4000U);
+    assert(imu_fsm.Get_State() == UP_STAIR_BEHIND_MOTOR_RECOVERING);
+    assert(near(imu_fsm.Get_Output_Scale(), 0.0f));
 
     // One feedback channel failing only removes that motor's permission.
     fsm.Update(true, true, false, true, 4.5f, -3.5f, 12.0f, -7.0f,
@@ -114,6 +130,21 @@ int main()
                deg(90.0f), deg(58.0f), 2303U);
     assert(near(fsm.Limit_Torque(2U, 4.0f), 0.0f));
     assert(near(fsm.Limit_Torque(2U, -4.0f), -4.0f));
+
+    // Both interval types reject angles outside the encoder's raw domain.
+    const float above_raw_domain = 2.0f * PI + deg(1.0f);
+    assert(!fsm.Is_Angle_Valid(1U, deg(-1.0f)));
+    assert(!fsm.Is_Angle_Valid(1U, above_raw_domain));
+    assert(!fsm.Is_Angle_Valid(2U, deg(-1.0f)));
+    assert(!fsm.Is_Angle_Valid(2U, above_raw_domain));
+    fsm.Update(true, true, true, true, 4.5f, -3.5f, 12.0f, -7.0f,
+               deg(-1.0f), deg(350.0f), 2304U);
+    assert(!fsm.Is_Motor_Controllable(1U));
+    assert(near(fsm.Limit_Torque(1U, 2.0f), 0.0f));
+    fsm.Update(true, true, true, true, 4.5f, -3.5f, 12.0f, -7.0f,
+               deg(90.0f), above_raw_domain, 2305U);
+    assert(!fsm.Is_Motor_Controllable(2U));
+    assert(near(fsm.Limit_Torque(2U, 2.0f), 0.0f));
 
     assert(fsm.Get_Motor_Direction(1U) == 1);
     assert(fsm.Get_Motor_Direction(2U) == -1);

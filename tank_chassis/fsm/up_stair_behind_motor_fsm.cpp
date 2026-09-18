@@ -100,7 +100,8 @@ bool Class_Up_Stair_Behind_Motor_FSM::Is_Angle_Valid(
     uint8_t id, float raw_angle_rad) const
 {
     const uint8_t index = To_Index(id);
-    if (index > 1U || !config_valid_ || !std::isfinite(raw_angle_rad))
+    if (index > 1U || !config_valid_ || !std::isfinite(raw_angle_rad) ||
+        raw_angle_rad < 0.0f || raw_angle_rad > TWO_PI_RAD)
     {
         return false;
     }
