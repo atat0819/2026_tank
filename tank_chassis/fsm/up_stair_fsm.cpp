@@ -1,4 +1,5 @@
 #include "up_stair_fsm.hpp"
+#include <math.h>
 
 constexpr float Class_Up_Stair_FSM::LIMIT_START_RAD[2];
 constexpr float Class_Up_Stair_FSM::LIMIT_END_RAD[2];
@@ -8,6 +9,7 @@ constexpr float Class_Up_Stair_FSM::TARGET_ANGLE_RAD[2];
 namespace
 {
 constexpr float TWO_PI_RAD = 2.0f * 3.14159265359f;
+constexpr float POSITION_TOLERANCE_RAD = 2.0f * 3.14159265359f / 180.0f;
 }
 
 void Class_Up_Stair_FSM::Init(uint32_t action_sequence)
@@ -79,18 +81,40 @@ void Class_Up_Stair_FSM::Refresh_Target()
 {
     for (uint8_t i = 0U; i < 2U; ++i)
     {
-        const float raw_target = (Get_Now_Status_Serial() == UP_STAIR_TARGET)
+        const float raw_target = (Get_Now_Status_Serial() == UP_STAIR_MOVING_TO_TARGET ||
+                                  Get_Now_Status_Serial() == UP_STAIR_TARGET_HOLD)
                                       ? TARGET_ANGLE_RAD[i]
                                       : HOME_ANGLE_RAD[i];
         target_angle_[i] = To_Control_Angle(i, raw_target);
     }
 }
 
+bool Class_Up_Stair_FSM::Both_Motors_At_Home(bool left_valid,
+                                             bool right_valid) const
+{
+    return left_valid && right_valid &&
+           fabsf(control_angle_[0] - To_Control_Angle(0U, HOME_ANGLE_RAD[0])) <=
+               POSITION_TOLERANCE_RAD &&
+           fabsf(control_angle_[1] - To_Control_Angle(1U, HOME_ANGLE_RAD[1])) <=
+               POSITION_TOLERANCE_RAD;
+}
+
+bool Class_Up_Stair_FSM::Both_Motors_At_Target(bool left_valid,
+                                               bool right_valid) const
+{
+    return left_valid && right_valid &&
+           fabsf(control_angle_[0] - To_Control_Angle(0U, TARGET_ANGLE_RAD[0])) <=
+               POSITION_TOLERANCE_RAD &&
+           fabsf(control_angle_[1] - To_Control_Angle(1U, TARGET_ANGLE_RAD[1])) <=
+               POSITION_TOLERANCE_RAD;
+}
+
 void Class_Up_Stair_FSM::Update(float current_left_angle,
                                 float current_right_angle,
                                 bool left_feedback_valid,
                                 bool right_feedback_valid,
-                                bool enabled,
+                                bool mechanism_enabled,
+                                bool stair_command_enabled,
                                 uint32_t action_sequence)
 {
     const bool left_valid = left_feedback_valid &&
@@ -98,12 +122,11 @@ void Class_Up_Stair_FSM::Update(float current_left_angle,
     const bool right_valid = right_feedback_valid &&
                              Is_Angle_Valid(2U, current_right_angle);
 
-    if (!enabled || !config_valid_ || (!left_valid && !right_valid))
+    if (!mechanism_enabled || !config_valid_ || (!left_valid && !right_valid))
     {
         Set_Status(UP_STAIR_DISABLED);
         last_action_sequence_ = action_sequence;
-        target_angle_[0] = To_Control_Angle(0U, HOME_ANGLE_RAD[0]);
-        target_angle_[1] = To_Control_Angle(1U, HOME_ANGLE_RAD[1]);
+        Refresh_Target();
         return;
     }
 
@@ -120,8 +143,30 @@ void Class_Up_Stair_FSM::Update(float current_left_angle,
 
     if (Get_Now_Status_Serial() == UP_STAIR_DISABLED)
     {
-        Set_Status(UP_STAIR_HOME);
+        Set_Status(UP_STAIR_RETURNING_HOME);
         Refresh_Target();
+        last_action_sequence_ = action_sequence;
+        if (Both_Motors_At_Home(left_valid, right_valid))
+        {
+            Set_Status(UP_STAIR_HOME_HOLD);
+        }
+        return;
+    }
+
+    if (!stair_command_enabled)
+    {
+        if (Get_Now_Status_Serial() != UP_STAIR_HOME_HOLD ||
+            !Both_Motors_At_Home(left_valid, right_valid))
+        {
+            Set_Status(UP_STAIR_RETURNING_HOME);
+            Refresh_Target();
+        }
+        if (Both_Motors_At_Home(left_valid, right_valid))
+        {
+            Set_Status(UP_STAIR_HOME_HOLD);
+        }
+        last_action_sequence_ = action_sequence;
+        return;
     }
 
     // Each debounced B press increments the action sequence and toggles the
@@ -129,10 +174,28 @@ void Class_Up_Stair_FSM::Update(float current_left_angle,
     if (action_sequence != last_action_sequence_)
     {
         last_action_sequence_ = action_sequence;
-        Set_Status(Get_Now_Status_Serial() == UP_STAIR_TARGET
-                       ? UP_STAIR_HOME
-                       : UP_STAIR_TARGET);
+        if (Get_Now_Status_Serial() == UP_STAIR_HOME_HOLD ||
+            Get_Now_Status_Serial() == UP_STAIR_RETURNING_HOME)
+        {
+            Set_Status(UP_STAIR_MOVING_TO_TARGET);
+        }
+        else
+        {
+            Set_Status(UP_STAIR_RETURNING_HOME);
+        }
         Refresh_Target();
+    }
+
+    if (Get_Now_Status_Serial() == UP_STAIR_MOVING_TO_TARGET &&
+        Both_Motors_At_Target(left_valid, right_valid))
+    {
+        Set_Status(UP_STAIR_TARGET_HOLD);
+    }
+    else if ((Get_Now_Status_Serial() == UP_STAIR_RETURNING_HOME ||
+              Get_Now_Status_Serial() == UP_STAIR_HOME_HOLD) &&
+             Both_Motors_At_Home(left_valid, right_valid))
+    {
+        Set_Status(UP_STAIR_HOME_HOLD);
     }
 }
 

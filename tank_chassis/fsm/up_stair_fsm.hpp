@@ -7,8 +7,10 @@
 enum Enum_Up_Stair_Status
 {
     UP_STAIR_DISABLED = 0,
-    UP_STAIR_HOME,
-    UP_STAIR_TARGET,
+    UP_STAIR_HOME_HOLD,
+    UP_STAIR_MOVING_TO_TARGET,
+    UP_STAIR_TARGET_HOLD,
+    UP_STAIR_RETURNING_HOME,
     UP_STAIR_STATUS_COUNT
 };
 
@@ -36,7 +38,8 @@ public:
                 float current_right_angle,
                 bool left_feedback_valid,
                 bool right_feedback_valid,
-                bool enabled,
+                bool mechanism_enabled,
+                bool stair_command_enabled,
                 uint32_t action_sequence);
 
     float Get_Target_Angle(uint8_t id) const;
@@ -51,6 +54,8 @@ private:
     void Reset_Feedback();
     void Refresh_Target();
     bool Validate_Configuration() const;
+    bool Both_Motors_At_Home(bool left_valid, bool right_valid) const;
+    bool Both_Motors_At_Target(bool left_valid, bool right_valid) const;
     float To_Control_Angle(uint8_t index, float raw_angle) const;
 
 private:
