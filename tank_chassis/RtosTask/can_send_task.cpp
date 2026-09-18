@@ -53,6 +53,8 @@ uint8_t gimbalChassisSpeedUpdated = 0;
 volatile uint16_t gimbal_keyboard = 0;
 volatile uint32_t gimbal_keyboard_last_tick = 0;
 volatile bool gimbal_keyboard_received = false;
+volatile uint32_t gimbal_switch_last_tick = 0U;
+volatile bool gimbal_switch_received = false;
 volatile uint32_t stair_action_sequence = 0;
 
 ChassisKeyboardFSM keyboard_fsm;
@@ -274,9 +276,11 @@ extern "C" void can_send_task(void *argument)
         memcpy(&gimbalChassis_communicate.vy, &frame.data[4], sizeof(float));
        gimbalChassisSpeedUpdated = 1;
    }
-    else if (frame.id == 0x303 ) {
+   else if (frame.id == 0x303 && frame.dlc >= 2U) {
        gimbalChassis_communicate.s1 = frame.data[0];
        gimbalChassis_communicate.s2 = frame.data[1];
+       gimbal_switch_last_tick = HAL_GetTick();
+       gimbal_switch_received = true;
    }
    else if (frame.id == 0x305 && frame.dlc == sizeof(gimbal_keyboard)) {
        uint16_t keyboard_value = 0;

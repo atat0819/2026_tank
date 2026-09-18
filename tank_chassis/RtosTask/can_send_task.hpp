@@ -58,6 +58,8 @@ extern uint8_t gimbalChassisSpeedUpdated;
 extern volatile uint16_t gimbal_keyboard;
 extern volatile uint32_t gimbal_keyboard_last_tick;
 extern volatile bool gimbal_keyboard_received;
+extern volatile uint32_t gimbal_switch_last_tick;
+extern volatile bool gimbal_switch_received;
 
 
 #ifdef __cplusplus
