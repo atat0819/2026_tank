@@ -1,11 +1,11 @@
 $ErrorActionPreference = 'Stop'
 
 $source = Get-Content -Raw (Join-Path $PSScriptRoot '..\RtosTask\up_stair.cpp')
-$enableIndex = $source.IndexOf('if (left_enable_requested)')
-$controlIndex = $source.IndexOf('if (left_feedback_valid && up_stair_fsm.Is_Enabled())')
+$enableIndex = $source.IndexOf('front_recovery_fsm[0].Should_Enable')
+$controlIndex = $source.IndexOf('if (front_left_feedback_valid && up_stair_fsm.Is_Enabled())')
 
 if ($enableIndex -lt 0) {
-    throw 'ID1 enable dispatch is missing.'
+    throw 'front motor 1 recovery dispatch is missing.'
 }
 
 if ($controlIndex -lt 0) {

@@ -300,7 +300,6 @@ extern "C" void can_send_task(void *argument)
 /************************************************************************************** */
     // Signal that FDCAN callbacks are ready; the control task owns motor commands.
     dm_motor_control_ready = true;
-    front_4340.On(1, BSP::Motor::DM::Model::MIT);
 
     MotorCurrentData_t MotorCurrentData[4];
     
