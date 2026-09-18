@@ -50,6 +50,25 @@ void test_invalid_switch_forces_zero_torque() {
   assert(!policy.front_stair_command_enabled);
 }
 
+void test_invalid_switch_values_force_zero_torque() {
+  const uint8_t invalid_values[] = {0, 4};
+  for (uint8_t invalid : invalid_values) {
+    const StairModePolicy invalid_s1 =
+        EvaluateStairModePolicy(invalid, UP, true, true);
+    assert(invalid_s1.zero_all_torque);
+    assert(!invalid_s1.front_hold_enabled);
+    assert(!invalid_s1.rear_attitude_enabled);
+    assert(!invalid_s1.front_stair_command_enabled);
+
+    const StairModePolicy invalid_s2 =
+        EvaluateStairModePolicy(UP, invalid, true, true);
+    assert(invalid_s2.zero_all_torque);
+    assert(!invalid_s2.front_hold_enabled);
+    assert(!invalid_s2.rear_attitude_enabled);
+    assert(!invalid_s2.front_stair_command_enabled);
+  }
+}
+
 }  // namespace
 
 int main() {
@@ -57,5 +76,6 @@ int main() {
   test_offline_link_forces_zero_torque();
   test_keyboard_offline_disables_double_middle_command();
   test_invalid_switch_forces_zero_torque();
+  test_invalid_switch_values_force_zero_torque();
   return 0;
 }
