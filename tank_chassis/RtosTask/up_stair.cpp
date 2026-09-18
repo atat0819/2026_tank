@@ -3,6 +3,7 @@
 #include "../fsm/up_stair_fsm.hpp"
 #include "../fsm/up_stair_behind_motor_fsm.hpp"
 #include "../fsm/motor_recovery_fsm.hpp"
+#include "../fsm/rear_torque_safety.hpp"
 #include "can_send_task.hpp"
 #include "imu_task.hpp"
 #include "FreeRTOS.h"
@@ -108,7 +109,6 @@ extern "C" void up_stair_task(void *argument)
 
     for (;;)
     {
-        const uint32_t now_tick = HAL_GetTick();
         const float front_left_angle = front_4340.getAngleRad(1);
         const float front_right_angle = front_4340.getAngleRad(2);
         const float front_left_velocity = front_4340.getVelocityRads(1);
@@ -117,8 +117,8 @@ extern "C" void up_stair_task(void *argument)
         const float rear_right_angle = rear_6248.getAngleRad(2);
         const bool front_left_online = front_4340.isConnected(1, 1);
         const bool front_right_online = front_4340.isConnected(2, 2);
-        const bool rear_left_online = rear_6248.isConnected(1, 1);
-        const bool rear_right_online = rear_6248.isConnected(2, 2);
+        const bool rear_left_online = rear_6248.isConnected(1, 3);
+        const bool rear_right_online = rear_6248.isConnected(2, 4);
 
         uint8_t switch_s1;
         uint8_t switch_s2;
@@ -126,6 +126,7 @@ extern "C" void up_stair_task(void *argument)
         bool switch_received;
         uint32_t keyboard_last_tick;
         bool keyboard_received;
+        uint32_t now_tick;
         taskENTER_CRITICAL();
         switch_s1 = static_cast<uint8_t>(gimbalChassis_communicate.s1);
         switch_s2 = static_cast<uint8_t>(gimbalChassis_communicate.s2);
@@ -133,7 +134,11 @@ extern "C" void up_stair_task(void *argument)
         switch_received = gimbal_switch_received;
         keyboard_last_tick = gimbal_keyboard_last_tick;
         keyboard_received = gimbal_keyboard_received;
+        now_tick = HAL_GetTick();
         taskEXIT_CRITICAL();
+
+        ImuControlSnapshot imu_snapshot;
+        GetImuControlSnapshot(imu_snapshot);
 
         const bool control_link_online =
             switch_received && (now_tick - switch_last_tick < 100U);
@@ -167,12 +172,13 @@ extern "C" void up_stair_task(void *argument)
             front_right_feedback_valid, policy.front_hold_enabled,
             policy.front_stair_command_enabled, stair_action_sequence);
 
-        const bool imu_valid = bmi088.IsReady();
+        const bool imu_valid = imu_snapshot.valid &&
+                               (now_tick - imu_snapshot.tick < 20U);
         up_stair_behind_motor_fsm.Update(
             policy.rear_attitude_enabled, imu_valid, rear_left_online,
-            rear_right_online, bmi088.GetPitchAngleDeg(), bmi088.GetRollAngleDeg(),
-            bmi088.GetGyroRateYDps(), bmi088.GetGyroRateXDps(), rear_left_angle,
-            rear_right_angle, now_tick);
+            rear_right_online, imu_snapshot.pitch_deg, imu_snapshot.roll_deg,
+            imu_snapshot.pitch_rate_dps, imu_snapshot.roll_rate_dps,
+            rear_left_angle, rear_right_angle, now_tick);
 
         if (front_recovery_fsm[0].Should_Enable(front_left_online, now_tick))
             front_4340.On(1, BSP::Motor::DM::Model::MIT);
@@ -251,10 +257,12 @@ extern "C" void up_stair_task(void *argument)
                 (pitch_torque - roll_torque);
             rear_6248.ctrl_Mit(
                 1, SafeMotorAngle(rear_left_angle), 0.0f, 0.0f, 0.0f,
-                up_stair_behind_motor_fsm.Limit_Torque(1, left_mixed_torque));
+                up_stair_behind_motor_fsm.Limit_Torque(
+                    1, StairTorqueSafety::ClampJ6248Torque(left_mixed_torque)));
             rear_6248.ctrl_Mit(
                 2, SafeMotorAngle(rear_right_angle), 0.0f, 0.0f, 0.0f,
-                up_stair_behind_motor_fsm.Limit_Torque(2, right_mixed_torque));
+                up_stair_behind_motor_fsm.Limit_Torque(
+                    2, StairTorqueSafety::ClampJ6248Torque(right_mixed_torque)));
         }
 
         osDelay(1U);

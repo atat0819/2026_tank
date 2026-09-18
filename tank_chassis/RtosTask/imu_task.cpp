@@ -3,6 +3,7 @@
 #include "task.h"
 #include "spi.h"
 #include <string.h>
+#include <math.h>
 #include "../user/core/BSP/simple_bmi088/simple_bmi088.hpp"
 #include "../user/core/HAL/UART/uart_hal.hpp"
 
@@ -12,6 +13,42 @@ volatile HAL_StatusTypeDef bmi088_init_status = HAL_ERROR;
 
 /* VOFA+ JustFloat 帧: 9 个通道 + 1 个帧尾, 用 float 数组保证 4 字节对齐 */
 static float vofa_frame[10];
+static ImuControlSnapshot imu_control_snapshot = {0.0f, 0.0f, 0.0f, 0.0f,
+                                                  0U, false};
+
+void GetImuControlSnapshot(ImuControlSnapshot &snapshot)
+{
+    taskENTER_CRITICAL();
+    snapshot = imu_control_snapshot;
+    taskEXIT_CRITICAL();
+}
+
+static void PublishImuControlSnapshot(bool valid)
+{
+    const float pitch = bmi088.GetPitchAngleDeg();
+    const float roll = bmi088.GetRollAngleDeg();
+    const float pitch_rate = bmi088.GetGyroRateYDps();
+    const float roll_rate = bmi088.GetGyroRateXDps();
+    const bool finite = std::isfinite(pitch) && std::isfinite(roll) &&
+                        std::isfinite(pitch_rate) && std::isfinite(roll_rate);
+
+    taskENTER_CRITICAL();
+    if (valid && finite)
+    {
+        imu_control_snapshot.pitch_deg = pitch;
+        imu_control_snapshot.roll_deg = roll;
+        imu_control_snapshot.pitch_rate_dps = pitch_rate;
+        imu_control_snapshot.roll_rate_dps = roll_rate;
+        imu_control_snapshot.tick = HAL_GetTick();
+        imu_control_snapshot.valid = true;
+    }
+    else
+    {
+        // A failed or incomplete read must invalidate the complete frame.
+        imu_control_snapshot.valid = false;
+    }
+    taskEXIT_CRITICAL();
+}
 
 /**
  * @brief 按 VOFA+ JustFloat 协议经 UART10 (TTL, 115200) 上报 9 个通道
@@ -90,6 +127,7 @@ extern "C" void imu_task(void *argument)
 
             if (bmi088_init_status != HAL_OK)
             {
+                PublishImuControlSnapshot(false);
                 vTaskDelay(pdMS_TO_TICKS(1000U));
                 continue;
             }
@@ -97,6 +135,8 @@ extern "C" void imu_task(void *argument)
 
         (void)ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(100U));
         bmi088_init_status = bmi088.Read();
+        PublishImuControlSnapshot(bmi088_init_status == HAL_OK &&
+                                  bmi088.IsReady());
 
         /* VOFA 通道顺序:
          *   [0..2] roll / pitch / yaw (deg) —— 上台阶主要看 pitch
