@@ -25,6 +25,9 @@ public:
         int8_t motor_direction[2];  // 电机正方向，取 +1 或 -1
 
         // 使用安全默认值构造配置；起止角相等时配置会被判定为无效。
+        // 左右最终力矩独立校准增益，必须为正的有限值；默认均为 1.0。
+        float motor_torque_gain[2];
+
         Config();
     };
 
@@ -78,10 +81,10 @@ public:
     bool Is_Angle_Valid(uint8_t id, float raw_angle_rad) const;
     // 对外电机编号从 1 开始（1=左、2=右），内部数组从 0 开始。
     // Limit_Torque 接收任务完成方向修正和左右混控后的原始力矩，
-    // 再执行单侧反馈、机械范围和恢复比例保护。
+    // 再执行单侧反馈、机械范围、恢复比例和左右独立最终增益保护。
     // 判断指定电机当前是否可以输出姿态控制力矩。
     bool Is_Motor_Controllable(uint8_t id) const;
-    // 应用反馈状态、机械边界、恢复比例和有限值检查，返回最终允许力矩。
+    // 应用反馈状态、机械边界、恢复比例、左右增益和有限值检查，返回最终允许力矩。
     float Limit_Torque(uint8_t id, float raw_torque_nm) const;
     // 返回机械配置是否通过校验。
     bool Is_Config_Valid() const;

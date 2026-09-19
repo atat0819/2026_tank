@@ -57,6 +57,9 @@ Class_Up_Stair_Behind_Motor_FSM::Config BuildRear6248Config()
     config.angle_end_rad[1] = 0.0f;
     config.motor_direction[0] = 1;
     config.motor_direction[1] = 1;
+    // 左右后部电机的最终力矩独立校准；1.0f 表示不改变姿态 PID 混控力矩。
+    config.motor_torque_gain[0] = 1.0f;
+    config.motor_torque_gain[1] = 1.0f;
     return config;
 }
 
@@ -113,8 +116,10 @@ extern "C" void up_stair_task(void *argument)
         osDelay(1U);
     }
 
+    // 初始化前部上台阶状态机，并同步当前已经产生的 B 动作序号。
     up_stair_fsm.Init(stair_action_sequence);
     const uint32_t init_tick = HAL_GetTick();
+    // 初始化四个电机通信恢复状态机的时间基准。
     front_recovery_fsm[0].Init(init_tick);
     front_recovery_fsm[1].Init(init_tick);
     rear_recovery_fsm[0].Init(init_tick);
@@ -163,49 +168,104 @@ extern "C" void up_stair_task(void *argument)
         const StairModePolicy policy = EvaluateStairModePolicy(
             switch_s1, switch_s2, control_link_online, keyboard_online);
 
-        // 绝对安全分支：双下、档位非法或链路超时都让四个电机输出零力矩。
-        // 该分支必须早于状态机、PID 和任何电机 On/恢复请求。
+        // 双下是操作者主动停车；档位非法或链路超时是异常停车。
+        // 两类情况都先让四个电机输出零力矩，但只有异常停车提前进入下一周期。
         if (policy.zero_all_torque)
         {
-            up_stair_fsm.Update(front_left_angle, front_right_angle, false,
-                                false, false, false, stair_action_sequence);
+            // 禁用前部状态机，避免安全分支继续执行位置控制。
+            up_stair_fsm.Update(
+                front_left_angle,
+                front_right_angle,
+                false,
+                false,
+                false,
+                false,
+                stair_action_sequence);
+
+            // 禁用后部姿态状态机，清除 IMU 和左右反馈的控制权限。
             up_stair_behind_motor_fsm.Update(
-                false, false, false, false, 0.0f, 0.0f, 0.0f, 0.0f,
-                rear_left_angle, rear_right_angle, now_tick);
+                false,
+                false,
+                false,
+                false,
+                0.0f,
+                0.0f,
+                0.0f,
+                0.0f,
+                rear_left_angle,
+                rear_right_angle,
+                now_tick);
             ResetAllStairPid();
             SendAllStairMotorsZero(front_left_angle, front_right_angle,
                                    rear_left_angle, rear_right_angle);
-            osDelay(1U);
-            continue;
-        }
 
+            // 遥控器掉线或档位非法属于异常状态：本周期不再执行任何后续逻辑。
+            if (policy.control_fault)
+            {
+                osDelay(1U);
+                continue;
+            }
+        }
+        else
+        {
+        // 非双下且控制链路正常时，执行前后状态机、恢复逻辑和 PID 控制。
         // 前 4310 的编码器必须同时满足在线和机械角度有效，才允许位置闭环。
         const bool front_left_feedback_valid =
             front_left_online && up_stair_fsm.Is_Angle_Valid(1U, front_left_angle);
         const bool front_right_feedback_valid =
             front_right_online && up_stair_fsm.Is_Angle_Valid(2U, front_right_angle);
+
+        // 更新前部 4310 状态机：根据反馈、控制权限和 B 动作序号决定目标位置。
         up_stair_fsm.Update(
-            front_left_angle, front_right_angle, front_left_feedback_valid,
-            front_right_feedback_valid, policy.front_hold_enabled,
-            policy.front_stair_command_enabled, stair_action_sequence);
+            front_left_angle,
+            front_right_angle,
+            front_left_feedback_valid,
+            front_right_feedback_valid,
+            policy.front_hold_enabled,
+            policy.front_stair_command_enabled,
+            stair_action_sequence);
 
         // 后 6248 只接受完整且不超过 20 ms 的 IMU 快照。
         const bool imu_valid = imu_snapshot.valid &&
                                (now_tick - imu_snapshot.tick < 20U);
+
+        // 更新后部 6248 状态机：校验 IMU/编码器，并管理姿态力矩软启动和限幅。
         up_stair_behind_motor_fsm.Update(
-            policy.rear_attitude_enabled, imu_valid, rear_left_online,
-            rear_right_online, imu_snapshot.pitch_deg, imu_snapshot.roll_deg,
-            imu_snapshot.pitch_rate_dps, imu_snapshot.roll_rate_dps,
-            rear_left_angle, rear_right_angle, now_tick);
+            policy.rear_attitude_enabled,
+            imu_valid,
+            rear_left_online,
+            rear_right_online,
+            imu_snapshot.pitch_deg,
+            imu_snapshot.roll_deg,
+            imu_snapshot.pitch_rate_dps,
+            imu_snapshot.roll_rate_dps,
+            rear_left_angle,
+            rear_right_angle,
+            now_tick);
 
         // 电机恢复状态机只负责重新发送 On；实际力矩仍由下面的状态机和 PID 决定。
-        if (front_recovery_fsm[0].Should_Enable(front_left_online, now_tick))
+        // 前左 4310：逻辑通道 1，对应前部电机 CAN ID 1。
+        if (front_recovery_fsm[0].Should_Enable(
+                front_left_online,
+                now_tick))
             front_4340.On(1, BSP::Motor::DM::Model::MIT);
-        if (front_recovery_fsm[1].Should_Enable(front_right_online, now_tick))
+
+        // 前右 4310：逻辑通道 2，对应前部电机 CAN ID 2。
+        if (front_recovery_fsm[1].Should_Enable(
+                front_right_online,
+                now_tick))
             front_4340.On(2, BSP::Motor::DM::Model::MIT);
-        if (rear_recovery_fsm[0].Should_Enable(rear_left_online, now_tick))
+
+        // 后左 6248：逻辑通道 1，对应后部电机 CAN ID 3。
+        if (rear_recovery_fsm[0].Should_Enable(
+                rear_left_online,
+                now_tick))
             rear_6248.On(1, BSP::Motor::DM::Model::MIT);
-        if (rear_recovery_fsm[1].Should_Enable(rear_right_online, now_tick))
+
+        // 后右 6248：逻辑通道 2，对应后部电机 CAN ID 4。
+        if (rear_recovery_fsm[1].Should_Enable(
+                rear_right_online,
+                now_tick))
             rear_6248.On(2, BSP::Motor::DM::Model::MIT);
 
         // 前左 4310：位置环生成目标速度，速度环生成最终力矩。
@@ -278,16 +338,18 @@ extern "C" void up_stair_task(void *argument)
             const float right_mixed_torque =
                 static_cast<float>(up_stair_behind_motor_fsm.Get_Motor_Direction(2)) *
                 (pitch_torque - roll_torque);
-            // pitch 对左右同向，roll 对左右反向；先做 J6248 应用层限幅，
-            // 再由后部状态机执行反馈、机械角度和恢复比例保护。
+            // pitch 对左右同向，roll 对左右反向。后部 FSM 先执行反馈、机械角度、
+            // 恢复比例和左右独立增益保护，再做 J6248 ±40 Nm 应用层最终硬限幅。
             rear_6248.ctrl_Mit(
                 1, SafeMotorAngle(rear_left_angle), 0.0f, 0.0f, 0.0f,
-                up_stair_behind_motor_fsm.Limit_Torque(
-                    1, StairTorqueSafety::ClampJ6248Torque(left_mixed_torque)));
+                StairTorqueSafety::ClampJ6248Torque(
+                    up_stair_behind_motor_fsm.Limit_Torque(1, left_mixed_torque)));
             rear_6248.ctrl_Mit(
                 2, SafeMotorAngle(rear_right_angle), 0.0f, 0.0f, 0.0f,
-                up_stair_behind_motor_fsm.Limit_Torque(
-                    2, StairTorqueSafety::ClampJ6248Torque(right_mixed_torque)));
+                StairTorqueSafety::ClampJ6248Torque(
+                    up_stair_behind_motor_fsm.Limit_Torque(2, right_mixed_torque)));
+        }
+
         }
 
         osDelay(1U);

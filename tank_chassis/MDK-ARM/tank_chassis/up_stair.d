@@ -19,42 +19,23 @@ tank_chassis/up_stair.o: ..\RtosTask\up_stair.cpp \
   ..\RtosTask\..\user\core\BSP\Motor\DM\DmMotor.hpp \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\string.h \
   D:\Keil5\Core\ARM\ARMCLANG\include\string.h \
-  ..\communication\..\user\core\BSP\Motor\MotorBase.hpp \
-  ..\communication\..\user\core\BSP\Common\StateWatch\state_watch.hpp \
-  ..\Core\Inc\main.h ..\Drivers\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal.h \
-  ..\Core\Inc\stm32h7xx_hal_conf.h \
-  ..\Drivers\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal_rcc.h \
-  ..\Drivers\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal_def.h \
-  ..\Drivers\CMSIS\Device\ST\STM32H7xx\Include\stm32h7xx.h \
-  ..\Drivers\CMSIS\Device\ST\STM32H7xx\Include\stm32h723xx.h \
-  ..\Drivers\CMSIS\Include\core_cm7.h \
-  C:\Users\hp\Desktop\2026_tank\tank_chassis\Drivers\CMSIS\Include\cmsis_version.h \
-  C:\Users\hp\Desktop\2026_tank\tank_chassis\Drivers\CMSIS\Include\cmsis_compiler.h \
-  C:\Users\hp\Desktop\2026_tank\tank_chassis\Drivers\CMSIS\Include\cmsis_armclang.h \
-  D:\Keil5\Core\ARM\ARMCLANG\include\arm_compat.h \
-  D:\Keil5\Core\ARM\ARMCLANG\include\arm_acle.h \
-  C:\Users\hp\Desktop\2026_tank\tank_chassis\Drivers\CMSIS\Include\mpu_armv7.h \
-  ..\Drivers\CMSIS\Device\ST\STM32H7xx\Include\system_stm32h7xx.h \
-  ..\Drivers\STM32H7xx_HAL_Driver\Inc\Legacy\stm32_hal_legacy.h \
-  D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\math.h \
-  D:\Keil5\Core\ARM\ARMCLANG\include\math.h \
-  D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__math\abs.h \
-  D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__type_traits\enable_if.h \
-  D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__type_traits\is_integral.h \
-  D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__type_traits\integral_constant.h \
-  D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__type_traits\remove_cv.h \
-  D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__type_traits\remove_const.h \
-  D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__type_traits\remove_volatile.h \
-  D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__math\copysign.h \
-  D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__type_traits\is_arithmetic.h \
-  D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__type_traits\is_floating_point.h \
-  D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__type_traits\promote.h \
-  D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__type_traits\is_same.h \
-  D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__utility\declval.h \
-  D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\limits \
+  D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\cmath \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__assert \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__verbose_abort \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__availability \
+  D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__type_traits\enable_if.h \
+  D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__type_traits\is_arithmetic.h \
+  D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__type_traits\integral_constant.h \
+  D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__type_traits\is_floating_point.h \
+  D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__type_traits\remove_cv.h \
+  D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__type_traits\remove_const.h \
+  D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__type_traits\remove_volatile.h \
+  D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__type_traits\is_integral.h \
+  D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__type_traits\is_constant_evaluated.h \
+  D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__type_traits\is_same.h \
+  D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__type_traits\promote.h \
+  D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__utility\declval.h \
+  D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\limits \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__type_traits\is_signed.h \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__undef_macros \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\version \
@@ -120,7 +101,6 @@ tank_chassis/up_stair.o: ..\RtosTask\up_stair.cpp \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__type_traits\is_compound.h \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__type_traits\is_fundamental.h \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__type_traits\is_null_pointer.h \
-  D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__type_traits\is_constant_evaluated.h \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__type_traits\is_constructible.h \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__type_traits\is_copy_assignable.h \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__type_traits\is_copy_constructible.h \
@@ -177,6 +157,10 @@ tank_chassis/up_stair.o: ..\RtosTask\up_stair.cpp \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__functional\invoke.h \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__type_traits\type_identity.h \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__type_traits\unwrap_ref.h \
+  D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\math.h \
+  D:\Keil5\Core\ARM\ARMCLANG\include\math.h \
+  D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__math\abs.h \
+  D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__math\copysign.h \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__math\error_functions.h \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__math\exponential_functions.h \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__math\fdim.h \
@@ -196,6 +180,23 @@ tank_chassis/up_stair.o: ..\RtosTask\up_stair.cpp \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__math\trigonometric_functions.h \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\stdlib.h \
   D:\Keil5\Core\ARM\ARMCLANG\include\stdlib.h \
+  ..\communication\..\user\core\BSP\Motor\MotorBase.hpp \
+  ..\communication\..\user\core\BSP\Common\StateWatch\state_watch.hpp \
+  ..\Core\Inc\main.h ..\Drivers\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal.h \
+  ..\Core\Inc\stm32h7xx_hal_conf.h \
+  ..\Drivers\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal_rcc.h \
+  ..\Drivers\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal_def.h \
+  ..\Drivers\CMSIS\Device\ST\STM32H7xx\Include\stm32h7xx.h \
+  ..\Drivers\CMSIS\Device\ST\STM32H7xx\Include\stm32h723xx.h \
+  ..\Drivers\CMSIS\Include\core_cm7.h \
+  C:\Users\hp\Desktop\2026_tank\tank_chassis\Drivers\CMSIS\Include\cmsis_version.h \
+  C:\Users\hp\Desktop\2026_tank\tank_chassis\Drivers\CMSIS\Include\cmsis_compiler.h \
+  C:\Users\hp\Desktop\2026_tank\tank_chassis\Drivers\CMSIS\Include\cmsis_armclang.h \
+  D:\Keil5\Core\ARM\ARMCLANG\include\arm_compat.h \
+  D:\Keil5\Core\ARM\ARMCLANG\include\arm_acle.h \
+  C:\Users\hp\Desktop\2026_tank\tank_chassis\Drivers\CMSIS\Include\mpu_armv7.h \
+  ..\Drivers\CMSIS\Device\ST\STM32H7xx\Include\system_stm32h7xx.h \
+  ..\Drivers\STM32H7xx_HAL_Driver\Inc\Legacy\stm32_hal_legacy.h \
   ..\Drivers\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal_rcc_ex.h \
   ..\Drivers\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal_gpio.h \
   ..\Drivers\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal_gpio_ex.h \
@@ -321,7 +322,6 @@ tank_chassis/up_stair.o: ..\RtosTask\up_stair.cpp \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__compare\strong_order.h \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__bit\bit_cast.h \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__utility\priority_tag.h \
-  D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\cmath \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__compare\compare_strong_order_fallback.h \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__compare\compare_three_way_result.h \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__compare\compare_weak_order_fallback.h \
@@ -808,7 +808,14 @@ tank_chassis/up_stair.o: ..\RtosTask\up_stair.cpp \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__functional\pointer_to_unary_function.h \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__functional\unary_negate.h \
   ..\RtosTask\..\user\core\Alg\PID\pid.hpp \
+  ..\RtosTask\..\fsm\stair_mode_policy.hpp \
   ..\RtosTask\..\fsm\up_stair_fsm.hpp \
   ..\RtosTask\..\fsm\..\user\core\Alg\FSM\alg_fsm.hpp \
+  ..\RtosTask\..\fsm\up_stair_behind_motor_fsm.hpp \
+  ..\RtosTask\..\fsm\..\user\core\Alg\UtilityFunction\SlopePlanning.hpp \
   ..\RtosTask\..\fsm\motor_recovery_fsm.hpp \
-  ..\RtosTask\can_send_task.hpp ..\user\core\HAL\FDCAN\fdcan_hal.hpp
+  ..\RtosTask\..\fsm\rear_torque_safety.hpp \
+  ..\RtosTask\can_send_task.hpp ..\user\core\HAL\FDCAN\fdcan_hal.hpp \
+  ..\RtosTask\imu_task.hpp \
+  ..\RtosTask\..\user\core\BSP\simple_bmi088\simple_bmi088.hpp \
+  ..\RtosTask\..\user\core\BSP\simple_bmi088\simple_bmi088.h

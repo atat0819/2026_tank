@@ -48,6 +48,18 @@ int main()
     assert(near(default_fsm.Get_Output_Scale(), 0.0f));
     assert(near(default_fsm.Limit_Torque(1U, 2.0f), 0.0f));
 
+    // 左右电机的最终力矩增益可独立校准，默认值 1.0 不改变原有输出。
+    Class_Up_Stair_Behind_Motor_FSM::Config gain_config = valid_config();
+    assert(near(gain_config.motor_torque_gain[0], 1.0f));
+    assert(near(gain_config.motor_torque_gain[1], 1.0f));
+    gain_config.motor_torque_gain[0] = 1.25f;
+    gain_config.motor_torque_gain[1] = 0.80f;
+    Class_Up_Stair_Behind_Motor_FSM gain_fsm(gain_config);
+    update_valid(gain_fsm, 10000U);
+    update_valid(gain_fsm, 10300U);
+    assert(near(gain_fsm.Limit_Torque(1U, 2.0f), 2.50f));
+    assert(near(gain_fsm.Limit_Torque(2U, 2.0f), 1.60f));
+
     Class_Up_Stair_Behind_Motor_FSM fsm(valid_config());
     assert(!fsm.Is_Motor_Controllable(1U));
     assert(!fsm.Is_Motor_Controllable(2U));
@@ -279,6 +291,17 @@ int main()
     Class_Up_Stair_Behind_Motor_FSM bad_direction(bad);
     update_valid(bad_direction, 0U);
     assert(bad_direction.Get_State() == UP_STAIR_BEHIND_MOTOR_DISABLED);
+    // 最终增益必须是正的有限数，保证不会反向或产生无效输出。
+    bad = valid_config();
+    bad.motor_torque_gain[0] = 0.0f;
+    Class_Up_Stair_Behind_Motor_FSM bad_zero_gain(bad);
+    update_valid(bad_zero_gain, 0U);
+    assert(bad_zero_gain.Get_State() == UP_STAIR_BEHIND_MOTOR_DISABLED);
+    bad = valid_config();
+    bad.motor_torque_gain[1] = nan_value;
+    Class_Up_Stair_Behind_Motor_FSM bad_nan_gain(bad);
+    update_valid(bad_nan_gain, 0U);
+    assert(bad_nan_gain.Get_State() == UP_STAIR_BEHIND_MOTOR_DISABLED);
     bad = valid_config();
     bad.pitch_zero_deg = nan_value;
     Class_Up_Stair_Behind_Motor_FSM bad_offset(bad);

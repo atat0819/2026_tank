@@ -1,8 +1,11 @@
-tank_chassis/up_stair_fsm.o: ..\fsm\up_stair_fsm.cpp \
-  ..\fsm\up_stair_fsm.hpp ..\fsm\..\user\core\Alg\FSM\alg_fsm.hpp \
+tank_chassis/up_stair_behind_motor_fsm.o: \
+  ..\fsm\up_stair_behind_motor_fsm.cpp \
+  ..\fsm\up_stair_behind_motor_fsm.hpp \
+  ..\fsm\..\user\core\Alg\FSM\alg_fsm.hpp \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\stdint.h \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__config \
   D:\Keil5\Core\ARM\ARMCLANG\include\stdint.h \
+  ..\fsm\..\user\core\Alg\UtilityFunction\SlopePlanning.hpp \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\math.h \
   D:\Keil5\Core\ARM\ARMCLANG\include\math.h \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__math\abs.h \
