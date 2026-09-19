@@ -4,8 +4,9 @@
 namespace
 {
 constexpr float INPUT_DEADBAND = 0.01f;
-constexpr float MOUSE_ANGLE_DEADBAND = 2.0f;
-constexpr float FULL_CIRCLE_DEG = 360.0f;
+constexpr float MOUSE_ANGLE_DEADBAND = 2.0f; // pixels
+constexpr float PI = 3.14159265358979323846f;
+constexpr float FULL_CIRCLE_RAD = 2.0f * PI;
 
 float Absolute_Value(float value)
 {
@@ -234,8 +235,8 @@ void Class_Gimbal_FSM::Update(const Struct_Gimbal_Input &input, float current_an
             if (config.normalize_angle != 0U)
             {
                 float diff_t = desired_angle - current_angle;
-                while (diff_t > 180.0f)  { desired_angle -= FULL_CIRCLE_DEG; diff_t -= FULL_CIRCLE_DEG; }
-                while (diff_t < -180.0f) { desired_angle += FULL_CIRCLE_DEG; diff_t += FULL_CIRCLE_DEG; }
+                while (diff_t > PI)  { desired_angle -= FULL_CIRCLE_RAD; diff_t -= FULL_CIRCLE_RAD; }
+                while (diff_t < -PI) { desired_angle += FULL_CIRCLE_RAD; diff_t += FULL_CIRCLE_RAD; }
             }
 
             target_angle = desired_angle;
@@ -338,13 +339,13 @@ float Class_Gimbal_FSM::Apply_Angle_Rule(float angle) const
 
     if (config.normalize_angle != 0U && config.continuous_angle == 0U)
     {
-        while (result >= 180.0f)
+        while (result >= PI)
         {
-            result -= FULL_CIRCLE_DEG;
+            result -= FULL_CIRCLE_RAD;
         }
-        while (result < -180.0f)
+        while (result < -PI)
         {
-            result += FULL_CIRCLE_DEG;
+            result += FULL_CIRCLE_RAD;
         }
     }
 

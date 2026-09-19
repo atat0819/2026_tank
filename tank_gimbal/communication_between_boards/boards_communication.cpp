@@ -5,7 +5,7 @@
 #include <string.h>
 
 // ===== 标定常数（只标定一次）=====
-// 把枪管对准底盘正前方时，Keil watch 读 mg4005_state[1].angle_deg 的值 X，
+// 把枪管对准底盘正前方时，Keil watch 读 dm4340_state[0].angle_deg 的值 X，
 // 常数 = -X。标定后无论下电再上电还是 Keil 烧录，对准正前方时输出都是 0。
 // 2026-08-16 标定：摆正时 angle_deg = 200.55
 #define YAW_FRONT_OFFSET_DEG (-20.363f)
@@ -16,7 +16,8 @@ float YawOffset_GetDeg(void)
 {
     // 直接用编码器绝对角度 + 标定常数，不需要上电调零：
     // 驱动板重启后角度字段即真实位置，写死常数跨上下电可重复
-    yaw_offset_deg = mg4005_state[1].angle_deg + YAW_FRONT_OFFSET_DEG;
+    // DM4340 mapping: motor ID 1 / state index 0 is Yaw.
+    yaw_offset_deg = dm4340_state[0].angle_deg + YAW_FRONT_OFFSET_DEG;
 
     while (yaw_offset_deg > 180.0f)  yaw_offset_deg -= 360.0f;
     while (yaw_offset_deg < -180.0f) yaw_offset_deg += 360.0f;

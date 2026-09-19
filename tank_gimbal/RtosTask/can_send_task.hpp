@@ -22,8 +22,8 @@ typedef struct {
     float delta_angle;    // 与上次读取的角度差值 (度)，用于多圈计算
     uint8_t temperature;  // 电机温度
 
-} MG4005_State_t;
-extern  MG4005_State_t mg4005_state[2]; // 存储两个电机的状态数据
+} DM4340_State_t;
+extern DM4340_State_t dm4340_state[2]; // index 0=Yaw(ID1), index 1=Pitch(ID2)
 
 typedef struct 
 {

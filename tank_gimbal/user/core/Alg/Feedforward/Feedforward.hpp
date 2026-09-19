@@ -295,7 +295,7 @@ namespace Alg::Feedforward
             /**
              * @brief 构造函数
              * @param k_gravity_ 重力补偿系数
-             * @param phi_ 相位补偿（单位 度）补偿到水平，水平为0点
+             * @param phi_ 相位补偿（单位 rad）补偿到水平，水平为0点
              */
             Gravity(float k_gravity_, float phi_)
             {
@@ -306,13 +306,13 @@ namespace Alg::Feedforward
 
             /**
              * @brief 计算重力前馈值
-             * @param theta 当前角度（单位 度）
+             * @param theta 当前角度（单位 rad）
              * 
              * 根据当前角度和相位补偿计算重力前馈值
              */
             void GravityFeedforward(float theta)
             {
-                feedforward = k_gravity * cosf((theta + phi) * 3.1415926f / 180.0f);
+                feedforward = k_gravity * cosf(theta + phi);
             }
 
             /**
@@ -326,7 +326,7 @@ namespace Alg::Feedforward
 
         private:
             float k_gravity;    // 重力系数
-            float phi;          // 相位补偿（单位 度） 补偿到水平，水平为0点
+            float phi;          // 相位补偿（单位 rad） 补偿到水平，水平为0点
             float feedforward;  // 前馈输出
     };
 
