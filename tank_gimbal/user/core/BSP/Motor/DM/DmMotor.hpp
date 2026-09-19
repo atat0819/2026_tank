@@ -3,13 +3,54 @@
 
 #pragma once
 #include <cstring>
+#include <cmath>
 #include "../user/core/BSP/Motor/MotorBase.hpp"
 #include "../user/core/HAL/FDCAN/fdcan_hal.hpp"
-#include "DmMotorMath.hpp"
 
 namespace BSP::Motor::DM
 {
-    enum Model
+inline float ClampMitCommandValue(float value, float minimum, float maximum)
+{
+    if (!std::isfinite(value))
+    {
+        value = 0.0f;
+    }
+    if (value < minimum)
+    {
+        return minimum;
+    }
+    if (value > maximum)
+    {
+        return maximum;
+    }
+    return value;
+}
+
+inline int EncodeMitField(float value, float minimum, float maximum, int bits)
+{
+    value = ClampMitCommandValue(value, minimum, maximum);
+    const float span = maximum - minimum;
+    const int max_int = (1 << bits) - 1;
+    return static_cast<int>((value - minimum) * static_cast<float>(max_int) / span);
+}
+
+inline float UnwrapNearestAngle(float bounded_angle, float reference_angle)
+{
+    constexpr float kPi = 3.14159265358979323846f;
+    constexpr float kTwoPi = 2.0f * kPi;
+
+    while ((bounded_angle - reference_angle) > kPi)
+    {
+        bounded_angle -= kTwoPi;
+    }
+    while ((bounded_angle - reference_angle) < -kPi)
+    {
+        bounded_angle += kTwoPi;
+    }
+    return bounded_angle;
+}
+
+enum Model
     {
         MIT = 0,
         ANGLEVELOCITY = 1,

@@ -1,4 +1,4 @@
-#include "../user/core/BSP/Motor/DM/DmMotorMath.hpp"
+#include "../user/core/BSP/Motor/DM/DmMotor.hpp"
 
 #include <cassert>
 #include <cmath>
