@@ -13,6 +13,7 @@ struct StairModePolicy {
   bool front_hold_enabled;           // 是否允许前 4310 保持初始/目标位置
   bool rear_attitude_enabled;        // 是否允许后 6248 运行姿态控制
   bool front_stair_command_enabled;  // 仅双中且键盘在线时允许 B 动作
+  bool rear_retract_command_enabled;
 };
 
 inline StairModePolicy EvaluateStairModePolicy(uint8_t s1, uint8_t s2,
@@ -25,16 +26,18 @@ inline StairModePolicy EvaluateStairModePolicy(uint8_t s1, uint8_t s2,
                               s2 <= MIDDLE;
   const bool control_fault = !control_link_online || !valid_switches;
   if (control_fault) {
-    return {true, true, false, false, false};
+    return {true, true, false, false, false, false};
   }
 
   // 双下是操作者主动请求的正常零力矩状态，不属于遥控器异常。
   if (s1 == DOWN && s2 == DOWN) {
-    return {true, false, false, false, false};
+    return {true, false, false, false, false, false};
   }
 
-  return {false, false, true, true,
-          s1 == MIDDLE && s2 == MIDDLE && keyboard_online};
+  const bool keyboard_command_enabled =
+      s1 == MIDDLE && s2 == MIDDLE && keyboard_online;
+  return {false, false, true, true, keyboard_command_enabled,
+          keyboard_command_enabled};
 }
 
 #endif  // STAIR_MODE_POLICY_HPP

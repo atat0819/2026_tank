@@ -14,6 +14,7 @@ void expect_safe_policy(uint8_t s1, uint8_t s2, bool keyboard_online,
   assert(policy.front_hold_enabled);
   assert(policy.rear_attitude_enabled);
   assert(policy.front_stair_command_enabled == expected_front_command);
+  assert(policy.rear_retract_command_enabled == expected_front_command);
 }
 
 void test_all_valid_switch_pairs() {
@@ -28,6 +29,7 @@ void test_all_valid_switch_pairs() {
       assert(policy.front_hold_enabled != is_double_down);
       assert(policy.rear_attitude_enabled != is_double_down);
       assert(policy.front_stair_command_enabled == is_double_middle);
+      assert(policy.rear_retract_command_enabled == is_double_middle);
     }
   }
 }
@@ -40,6 +42,7 @@ void test_double_down_is_intentional_zero_torque_not_control_fault() {
   assert(!policy.front_hold_enabled);
   assert(!policy.rear_attitude_enabled);
   assert(!policy.front_stair_command_enabled);
+  assert(!policy.rear_retract_command_enabled);
 }
 
 void test_offline_link_forces_zero_torque() {
@@ -49,6 +52,7 @@ void test_offline_link_forces_zero_torque() {
   assert(!policy.front_hold_enabled);
   assert(!policy.rear_attitude_enabled);
   assert(!policy.front_stair_command_enabled);
+  assert(!policy.rear_retract_command_enabled);
 }
 
 void test_keyboard_offline_disables_double_middle_command() {
@@ -62,6 +66,7 @@ void test_invalid_switch_forces_zero_torque() {
   assert(!policy.front_hold_enabled);
   assert(!policy.rear_attitude_enabled);
   assert(!policy.front_stair_command_enabled);
+  assert(!policy.rear_retract_command_enabled);
 }
 
 void test_invalid_switch_values_force_zero_torque() {
@@ -74,6 +79,7 @@ void test_invalid_switch_values_force_zero_torque() {
     assert(!invalid_s1.front_hold_enabled);
     assert(!invalid_s1.rear_attitude_enabled);
     assert(!invalid_s1.front_stair_command_enabled);
+    assert(!invalid_s1.rear_retract_command_enabled);
 
     const StairModePolicy invalid_s2 =
         EvaluateStairModePolicy(UP, invalid, true, true);
@@ -82,6 +88,7 @@ void test_invalid_switch_values_force_zero_torque() {
     assert(!invalid_s2.front_hold_enabled);
     assert(!invalid_s2.rear_attitude_enabled);
     assert(!invalid_s2.front_stair_command_enabled);
+    assert(!invalid_s2.rear_retract_command_enabled);
   }
 }
 
