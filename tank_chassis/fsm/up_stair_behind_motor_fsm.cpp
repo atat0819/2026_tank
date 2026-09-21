@@ -200,7 +200,7 @@ bool Class_Up_Stair_Behind_Motor_FSM::Validate_Retract_Config() const
     if (!config_valid_ || !std::isfinite(config_.retract_speed_rad_s) ||
         config_.retract_speed_rad_s <= 0.0f ||
         !std::isfinite(config_.retract_position_tolerance_rad) ||
-        config_.retract_position_tolerance_rad < 0.0f)
+        config_.retract_position_tolerance_rad <= 0.0f)
     {
         return false;
     }

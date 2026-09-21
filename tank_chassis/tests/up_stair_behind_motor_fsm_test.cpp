@@ -428,6 +428,16 @@ int main()
                           -7.0f, deg(90.0f), deg(350.0f), 16300U, true, 1U);
     assert(no_retract_fsm.Get_State() == UP_STAIR_BEHIND_MOTOR_ATTITUDE_HOLD);
 
+    Class_Up_Stair_Behind_Motor_FSM::Config zero_tolerance = valid_config();
+    zero_tolerance.retract_position_tolerance_rad = 0.0f;
+    Class_Up_Stair_Behind_Motor_FSM zero_tolerance_fsm(zero_tolerance);
+    enter_attitude_hold(zero_tolerance_fsm, 17000U);
+    zero_tolerance_fsm.Update(true, true, true, true, 4.5f, -3.5f,
+                              12.0f, -7.0f, deg(90.0f), deg(350.0f),
+                              17300U, true, 1U);
+    assert(zero_tolerance_fsm.Get_State() ==
+           UP_STAIR_BEHIND_MOTOR_ATTITUDE_HOLD);
+
     // A wrap-around safe interval accepts a raw retract target below its
     // start angle and exposes the equivalent continuous target.
     Class_Up_Stair_Behind_Motor_FSM::Config wrapped_target = valid_config();
