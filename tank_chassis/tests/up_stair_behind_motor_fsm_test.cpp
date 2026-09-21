@@ -427,5 +427,27 @@ int main()
     no_retract_fsm.Update(true, true, true, true, 4.5f, -3.5f, 12.0f,
                           -7.0f, deg(90.0f), deg(350.0f), 16300U, true, 1U);
     assert(no_retract_fsm.Get_State() == UP_STAIR_BEHIND_MOTOR_ATTITUDE_HOLD);
+
+    // A wrap-around safe interval accepts a raw retract target below its
+    // start angle and exposes the equivalent continuous target.
+    Class_Up_Stair_Behind_Motor_FSM::Config wrapped_target = valid_config();
+    wrapped_target.retract_target_rad[1] = deg(20.0f);
+    Class_Up_Stair_Behind_Motor_FSM wrapped_target_fsm(wrapped_target);
+    enter_attitude_hold(wrapped_target_fsm, 18000U);
+    wrapped_target_fsm.Update(true, true, true, true, 4.5f, -3.5f,
+                               12.0f, -7.0f, deg(90.0f), deg(350.0f),
+                               18300U, true, 1U);
+    assert(wrapped_target_fsm.Get_State() ==
+           UP_STAIR_BEHIND_MOTOR_RETRACTING);
+    assert(near(wrapped_target_fsm.Get_Retract_Target_Angle(2U),
+                deg(350.0f)));
+    wrapped_target_fsm.Update(true, false, true, true, nan_value, nan_value,
+                               nan_value, nan_value, 2.0f, deg(20.0f),
+                               19300U, true, 1U);
+    assert(wrapped_target_fsm.Get_State() ==
+           UP_STAIR_BEHIND_MOTOR_RETRACTED_HOLD);
+    assert(near(wrapped_target_fsm.Get_Retract_Target_Angle(2U),
+                deg(380.0f)));
+    assert(near(wrapped_target_fsm.Get_Position_Feedback(2U), deg(380.0f)));
     return 0;
 }

@@ -119,6 +119,7 @@ private:
     bool Validate_Retract_Config() const;
     uint8_t To_Index(uint8_t id) const;
     float To_Unwrapped_Angle(uint8_t index, float raw_angle_rad) const;
+    float To_Unwrapped_Retract_Target(uint8_t index) const;
     void Disable();
     void Start_Recovery(uint32_t now_tick);
     void Update_Recovery_Scale(uint32_t now_tick);

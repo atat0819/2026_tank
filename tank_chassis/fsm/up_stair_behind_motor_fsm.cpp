@@ -183,6 +183,18 @@ bool Class_Up_Stair_Behind_Motor_FSM::Validate_Config() const
  * 例如安全区间为 300°～60° 时，原始 30° 会转换为 390°，从而可以和连续
  * 区间 300°～420° 一起进行机械边界判断；非跨零区间保持原值。
  */
+float Class_Up_Stair_Behind_Motor_FSM::To_Unwrapped_Retract_Target(
+    uint8_t index) const
+{
+    float target = config_.retract_target_rad[index];
+    if (config_.angle_start_rad[index] > config_.angle_end_rad[index] &&
+        target < config_.angle_start_rad[index])
+    {
+        target += TWO_PI_RAD;
+    }
+    return target;
+}
+
 bool Class_Up_Stair_Behind_Motor_FSM::Validate_Retract_Config() const
 {
     if (!config_valid_ || !std::isfinite(config_.retract_speed_rad_s) ||
@@ -195,14 +207,13 @@ bool Class_Up_Stair_Behind_Motor_FSM::Validate_Retract_Config() const
 
     for (uint8_t index = 0U; index < 2U; ++index)
     {
-        const float target = config_.retract_target_rad[index];
+        const float target = To_Unwrapped_Retract_Target(index);
         const float lower = config_.angle_start_rad[index];
         const float upper = config_.angle_start_rad[index] <
                                     config_.angle_end_rad[index]
                                 ? config_.angle_end_rad[index]
                                 : config_.angle_end_rad[index] + TWO_PI_RAD;
-        if (!std::isfinite(target) || target == 0.0f || target < lower ||
-            target > upper)
+        if (!std::isfinite(target) || target < lower || target > upper)
         {
             return false;
         }
@@ -344,14 +355,15 @@ void Class_Up_Stair_Behind_Motor_FSM::Start_Retracting(uint32_t now_tick)
     pending_resume_ = false;
     for (uint8_t index = 0U; index < 2U; ++index)
     {
+        const float target = To_Unwrapped_Retract_Target(index);
         retract_planner_[index].SetNowReal(position_feedback_rad_[index]);
         retract_planner_[index].SetIncreaseValue(0.0f);
         retract_planner_[index].SetDecreaseValue(0.0f);
         retract_planner_[index].TIM_Calculate_PeriodElapsedCallback(
             position_feedback_rad_[index], position_feedback_rad_[index]);
-        retract_planner_[index].SetTarget(config_.retract_target_rad[index]);
+        retract_planner_[index].SetTarget(target);
         retract_planner_[index].TIM_Calculate_PeriodElapsedCallback(
-            config_.retract_target_rad[index], position_feedback_rad_[index]);
+            target, position_feedback_rad_[index]);
         retract_target_angle_rad_[index] = retract_planner_[index].GetOut();
     }
 }
@@ -370,10 +382,11 @@ void Class_Up_Stair_Behind_Motor_FSM::Update_Retract_Targets(
 
     for (uint8_t index = 0U; index < 2U; ++index)
     {
+        const float target = To_Unwrapped_Retract_Target(index);
         retract_planner_[index].SetIncreaseValue(step);
         retract_planner_[index].SetDecreaseValue(step);
         retract_planner_[index].TIM_Calculate_PeriodElapsedCallback(
-            config_.retract_target_rad[index], position_feedback_rad_[index]);
+            target, position_feedback_rad_[index]);
         retract_target_angle_rad_[index] = retract_planner_[index].GetOut();
     }
 }
@@ -382,9 +395,10 @@ bool Class_Up_Stair_Behind_Motor_FSM::Both_Retract_Targets_Reached() const
 {
     for (uint8_t index = 0U; index < 2U; ++index)
     {
+        const float target = To_Unwrapped_Retract_Target(index);
         if (!std::isfinite(position_feedback_rad_[index]) ||
             fabsf(position_feedback_rad_[index] -
-                  config_.retract_target_rad[index]) >
+                  target) >
                 config_.retract_position_tolerance_rad)
         {
             return false;
@@ -520,8 +534,10 @@ void Class_Up_Stair_Behind_Motor_FSM::Update(
         Update_Retract_Targets(now_tick);
         if (Both_Retract_Targets_Reached())
         {
-            retract_target_angle_rad_[0] = config_.retract_target_rad[0];
-            retract_target_angle_rad_[1] = config_.retract_target_rad[1];
+            retract_target_angle_rad_[0] =
+                To_Unwrapped_Retract_Target(0U);
+            retract_target_angle_rad_[1] =
+                To_Unwrapped_Retract_Target(1U);
             Set_Status(UP_STAIR_BEHIND_MOTOR_RETRACTED_HOLD);
         }
         return;
