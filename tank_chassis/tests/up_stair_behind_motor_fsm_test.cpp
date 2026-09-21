@@ -28,6 +28,10 @@ Class_Up_Stair_Behind_Motor_FSM::Config valid_config()
     config.angle_end_rad[1] = deg(60.0f);
     config.motor_direction[0] = 1;
     config.motor_direction[1] = -1;
+    config.retract_target_rad[0] = 2.0f;
+    config.retract_target_rad[1] = 5.8f;
+    config.retract_speed_rad_s = 1.0f;
+    config.retract_position_tolerance_rad = 0.02f;
     return config;
 }
 
@@ -35,6 +39,15 @@ void update_valid(Class_Up_Stair_Behind_Motor_FSM &fsm, uint32_t tick)
 {
     fsm.Update(true, true, true, true, 4.5f, -3.5f, 12.0f, -7.0f,
                deg(90.0f), deg(350.0f), tick);
+}
+
+void enter_attitude_hold(Class_Up_Stair_Behind_Motor_FSM &fsm,
+                         uint32_t tick)
+{
+    update_valid(fsm, tick);
+    fsm.Update(true, true, true, true, 4.5f, -3.5f, 12.0f, -7.0f,
+               deg(90.0f), deg(350.0f), tick + 300U);
+    assert(fsm.Get_State() == UP_STAIR_BEHIND_MOTOR_ATTITUDE_HOLD);
 }
 }
 
@@ -323,5 +336,96 @@ int main()
     Class_Up_Stair_Behind_Motor_FSM bad_alias_limit(bad);
     update_valid(bad_alias_limit, 0U);
     assert(bad_alias_limit.Get_State() == UP_STAIR_BEHIND_MOTOR_DISABLED);
+
+    // A calibrated V action switches from attitude control to encoder-only
+    // retract control and exposes continuous position targets/feedback.
+    Class_Up_Stair_Behind_Motor_FSM retract_fsm(valid_config());
+    enter_attitude_hold(retract_fsm, 10000U);
+    retract_fsm.Update(true, true, true, true, 4.5f, -3.5f, 12.0f, -7.0f,
+                       deg(90.0f), deg(350.0f), 10300U, true, 1U);
+    assert(retract_fsm.Get_State() == UP_STAIR_BEHIND_MOTOR_RETRACTING);
+    assert(!retract_fsm.Uses_Attitude_Control());
+    assert(retract_fsm.Uses_Retract_Position_Control());
+    assert(near(retract_fsm.Get_Retract_Target_Angle(1U), deg(90.0f)));
+    assert(near(retract_fsm.Get_Retract_Target_Angle(2U), deg(350.0f)));
+    assert(near(retract_fsm.Get_Position_Feedback(1U), deg(90.0f)));
+    assert(near(retract_fsm.Get_Position_Feedback(2U), deg(350.0f)));
+
+    // A second V event during retracting is consumed and cannot reverse it.
+    retract_fsm.Update(true, false, true, true, nan_value, nan_value,
+                       nan_value, nan_value, deg(90.0f), deg(350.0f),
+                       10350U, true, 2U);
+    assert(retract_fsm.Get_State() == UP_STAIR_BEHIND_MOTOR_RETRACTING);
+    retract_fsm.Update(true, false, true, true, nan_value, nan_value,
+                       nan_value, nan_value, 2.0f, 5.8f, 11350U, true, 2U);
+    assert(retract_fsm.Get_State() ==
+           UP_STAIR_BEHIND_MOTOR_RETRACTED_HOLD);
+    assert(retract_fsm.Uses_Retract_Position_Control());
+    assert(!retract_fsm.Uses_Attitude_Control());
+    assert(near(retract_fsm.Get_Position_Feedback(1U), 2.0f));
+    assert(near(retract_fsm.Get_Position_Feedback(2U), 5.8f));
+    assert(near(retract_fsm.Limit_Torque(1U, 2.0f), 2.0f));
+
+    // Retracted hold ignores IMU validity and continues holding both targets.
+    retract_fsm.Update(true, false, true, true, nan_value, nan_value,
+                       nan_value, nan_value, 2.0f, 5.8f, 11400U, true, 2U);
+    assert(retract_fsm.Get_State() ==
+           UP_STAIR_BEHIND_MOTOR_RETRACTED_HOLD);
+    assert(near(retract_fsm.Get_Retract_Target_Angle(1U), 2.0f));
+    assert(near(retract_fsm.Get_Retract_Target_Angle(2U), 5.8f));
+
+    // Resume with valid IMU enters the existing recovery ramp immediately.
+    retract_fsm.Update(true, true, true, true, 4.5f, -3.5f, 12.0f, -7.0f,
+                       2.0f, 5.8f, 11500U, true, 3U);
+    assert(retract_fsm.Get_State() == UP_STAIR_BEHIND_MOTOR_RECOVERING);
+    assert(near(retract_fsm.Get_Output_Scale(), 0.0f));
+    retract_fsm.Update(true, true, true, true, 4.5f, -3.5f, 12.0f, -7.0f,
+                       2.0f, 5.8f, 11800U, true, 3U);
+    assert(retract_fsm.Get_State() == UP_STAIR_BEHIND_MOTOR_ATTITUDE_HOLD);
+
+    // An invalid IMU on resume creates a pending request, which resumes on
+    // the first later fresh valid sample without another V event.
+    Class_Up_Stair_Behind_Motor_FSM pending_fsm(valid_config());
+    enter_attitude_hold(pending_fsm, 12000U);
+    pending_fsm.Update(true, true, true, true, 4.5f, -3.5f, 12.0f, -7.0f,
+                       deg(90.0f), deg(350.0f), 12300U, true, 1U);
+    pending_fsm.Update(true, false, true, true, nan_value, nan_value,
+                       nan_value, nan_value, 2.0f, 5.8f, 13300U, true, 1U);
+    assert(pending_fsm.Get_State() ==
+           UP_STAIR_BEHIND_MOTOR_RETRACTED_HOLD);
+    pending_fsm.Update(true, false, true, true, nan_value, nan_value,
+                       nan_value, nan_value, 2.0f, 5.8f, 13301U, true, 2U);
+    assert(pending_fsm.Get_State() ==
+           UP_STAIR_BEHIND_MOTOR_RETRACTED_HOLD);
+    pending_fsm.Update(true, true, true, true, 4.5f, -3.5f, 12.0f, -7.0f,
+                       2.0f, 5.8f, 13302U, true, 2U);
+    assert(pending_fsm.Get_State() == UP_STAIR_BEHIND_MOTOR_RECOVERING);
+
+    // Any invalid retract feedback disables both legs and zeros both torque
+    // paths instead of partially controlling the healthy side.
+    Class_Up_Stair_Behind_Motor_FSM fault_fsm(valid_config());
+    enter_attitude_hold(fault_fsm, 14000U);
+    fault_fsm.Update(true, true, true, true, 4.5f, -3.5f, 12.0f, -7.0f,
+                     deg(90.0f), deg(350.0f), 14300U, true, 1U);
+    fault_fsm.Update(true, false, true, false, nan_value, nan_value,
+                     nan_value, nan_value, 2.0f, 5.8f, 14301U, true, 1U);
+    assert(fault_fsm.Get_State() == UP_STAIR_BEHIND_MOTOR_DISABLED);
+    assert(!fault_fsm.Is_Motor_Controllable(1U));
+    assert(!fault_fsm.Is_Motor_Controllable(2U));
+    assert(near(fault_fsm.Limit_Torque(1U, 2.0f), 0.0f));
+    assert(near(fault_fsm.Limit_Torque(2U, 2.0f), 0.0f));
+
+    // Zero/un-calibrated retract fields remain fail-safe even with valid
+    // normal attitude calibration.
+    Class_Up_Stair_Behind_Motor_FSM::Config no_retract = valid_config();
+    no_retract.retract_target_rad[0] = 0.0f;
+    no_retract.retract_target_rad[1] = 0.0f;
+    no_retract.retract_speed_rad_s = 0.0f;
+    no_retract.retract_position_tolerance_rad = 0.0f;
+    Class_Up_Stair_Behind_Motor_FSM no_retract_fsm(no_retract);
+    enter_attitude_hold(no_retract_fsm, 16000U);
+    no_retract_fsm.Update(true, true, true, true, 4.5f, -3.5f, 12.0f,
+                          -7.0f, deg(90.0f), deg(350.0f), 16300U, true, 1U);
+    assert(no_retract_fsm.Get_State() == UP_STAIR_BEHIND_MOTOR_ATTITUDE_HOLD);
     return 0;
 }

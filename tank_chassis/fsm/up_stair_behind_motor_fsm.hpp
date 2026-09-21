@@ -10,6 +10,8 @@ enum Enum_Up_Stair_Behind_Motor_Status
     UP_STAIR_BEHIND_MOTOR_DISABLED = 0,       // 后连杆控制关闭，力矩为零
     UP_STAIR_BEHIND_MOTOR_RECOVERING,         // 反馈恢复后，力矩比例软启动
     UP_STAIR_BEHIND_MOTOR_ATTITUDE_HOLD,      // 正常进行 pitch/roll 姿态控制
+    UP_STAIR_BEHIND_MOTOR_RETRACTING,
+    UP_STAIR_BEHIND_MOTOR_RETRACTED_HOLD,
     UP_STAIR_BEHIND_MOTOR_COUNT
 };
 
@@ -27,6 +29,9 @@ public:
         // 使用安全默认值构造配置；起止角相等时配置会被判定为无效。
         // 左右最终力矩独立校准增益，必须为正的有限值；默认均为 1.0。
         float motor_torque_gain[2];
+        float retract_target_rad[2];
+        float retract_speed_rad_s;
+        float retract_position_tolerance_rad;
 
         Config();
     };
@@ -50,7 +55,9 @@ public:
                 float roll_rate_dps,
                 float left_angle_rad,
                 float right_angle_rad,
-                uint32_t now_tick);
+                uint32_t now_tick,
+                bool retract_command_enabled = false,
+                uint32_t retract_action_sequence = 0U);
 
     // 返回后部状态枚举值。
     uint8_t Get_State() const;
@@ -66,6 +73,10 @@ public:
     // 获取 pitch/roll 角速度反馈，单位：度/秒。
     float Get_Pitch_Rate_Dps() const;
     float Get_Roll_Rate_Dps() const;
+    bool Uses_Attitude_Control() const;
+    bool Uses_Retract_Position_Control() const;
+    float Get_Retract_Target_Angle(uint8_t id) const;
+    float Get_Position_Feedback(uint8_t id) const;
 
     // 简短别名，方便任务读取姿态目标、角度反馈和角速度反馈。
     float Get_Target_Pitch() const { return Get_Target_Pitch_Deg(); }
@@ -90,6 +101,14 @@ public:
     bool Is_Config_Valid() const;
 
 private:
+    bool retract_config_valid_;
+    float position_feedback_rad_[2];
+    float retract_target_angle_rad_[2];
+    Alg::Utility::SlopePlanning retract_planner_[2];
+    uint32_t retract_last_tick_;
+    uint32_t last_action_sequence_;
+    bool pending_resume_;
+
     // 后部控制重新上线时，力矩比例在 300 ms 内从 0 增加到 1。
     static const uint32_t RECOVERY_TIME_MS = 300U;
     static constexpr float TWO_PI_RAD = 6.28318530717958647692f;
@@ -97,11 +116,15 @@ private:
 
     void Reset();
     bool Validate_Config() const;
+    bool Validate_Retract_Config() const;
     uint8_t To_Index(uint8_t id) const;
     float To_Unwrapped_Angle(uint8_t index, float raw_angle_rad) const;
     void Disable();
     void Start_Recovery(uint32_t now_tick);
     void Update_Recovery_Scale(uint32_t now_tick);
+    void Start_Retracting(uint32_t now_tick);
+    void Update_Retract_Targets(uint32_t now_tick);
+    bool Both_Retract_Targets_Reached() const;
 
     Config config_;                         // 机械零位、限位和方向配置
     bool config_valid_;                     // 配置是否通过安全校验
