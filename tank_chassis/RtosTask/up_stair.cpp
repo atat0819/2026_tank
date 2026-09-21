@@ -40,6 +40,14 @@ ALG::PID::PID rear_6248_roll_pid[2] = {
     {1.5f, 0.0f, 0.0f, 30.0f, 0.0f, 0.0f},
     {0.8f, 0.0f, 0.0f, 40.0f, 0.0f, 0.0f},
 };
+ALG::PID::PID rear_6248_left_retract_pid[2] = {
+    {5.0f, 0.0f, 0.0f, 3.0f, 0.0f, 0.0f},
+    {1.0f, 0.02f, 0.0f, 8.0f, 1.0f, 1.0f},
+};
+ALG::PID::PID rear_6248_right_retract_pid[2] = {
+    {5.0f, 0.0f, 0.0f, 3.0f, 0.0f, 0.0f},
+    {1.0f, 0.02f, 0.0f, 8.0f, 1.0f, 1.0f},
+};
 
 namespace
 {
@@ -60,6 +68,10 @@ Class_Up_Stair_Behind_Motor_FSM::Config BuildRear6248Config()
     // 左右后部电机的最终力矩独立校准；1.0f 表示不改变姿态 PID 混控力矩。
     config.motor_torque_gain[0] = 1.0f;
     config.motor_torque_gain[1] = 1.0f;
+    config.retract_target_rad[0] = 0.0f;
+    config.retract_target_rad[1] = 0.0f;
+    config.retract_speed_rad_s = 0.0f;
+    config.retract_position_tolerance_rad = 0.0f;
     return config;
 }
 
@@ -81,6 +93,10 @@ void ResetAllStairPid()
     rear_6248_pitch_pid[1].reset();
     rear_6248_roll_pid[0].reset();
     rear_6248_roll_pid[1].reset();
+    rear_6248_left_retract_pid[0].reset();
+    rear_6248_left_retract_pid[1].reset();
+    rear_6248_right_retract_pid[0].reset();
+    rear_6248_right_retract_pid[1].reset();
 }
 
 // 向前后四个机构电机发送当前位置加零力矩命令。
@@ -135,6 +151,8 @@ extern "C" void up_stair_task(void *argument)
         const float front_right_velocity = front_4340.getVelocityRads(2);
         const float rear_left_angle = rear_6248.getAngleRad(1);
         const float rear_right_angle = rear_6248.getAngleRad(2);
+        const float rear_left_velocity = rear_6248.getVelocityRads(1);
+        const float rear_right_velocity = rear_6248.getVelocityRads(2);
         const bool front_left_online = front_4340.isConnected(1, 1);
         const bool front_right_online = front_4340.isConnected(2, 2);
         const bool rear_left_online = rear_6248.isConnected(1, 3);
@@ -147,6 +165,7 @@ extern "C" void up_stair_task(void *argument)
         uint32_t keyboard_last_tick;
         bool keyboard_received;
         uint32_t now_tick;
+        uint32_t rear_action_sequence;
         // 在临界区内一次性快照档位、键盘心跳和当前时间，避免回调更新一半时被读取。
         taskENTER_CRITICAL();
         switch_s1 = static_cast<uint8_t>(gimbalChassis_communicate.s1);
@@ -155,6 +174,7 @@ extern "C" void up_stair_task(void *argument)
         switch_received = gimbal_switch_received;
         keyboard_last_tick = gimbal_keyboard_last_tick;
         keyboard_received = gimbal_keyboard_received;
+        rear_action_sequence = rear_retract_action_sequence;
         now_tick = HAL_GetTick();
         taskEXIT_CRITICAL();
 
@@ -194,7 +214,9 @@ extern "C" void up_stair_task(void *argument)
                 0.0f,
                 rear_left_angle,
                 rear_right_angle,
-                now_tick);
+                now_tick,
+                false,
+                rear_action_sequence);
             ResetAllStairPid();
             SendAllStairMotorsZero(front_left_angle, front_right_angle,
                                    rear_left_angle, rear_right_angle);
@@ -241,7 +263,9 @@ extern "C" void up_stair_task(void *argument)
             imu_snapshot.roll_rate_dps,
             rear_left_angle,
             rear_right_angle,
-            now_tick);
+            now_tick,
+            policy.rear_retract_command_enabled,
+            rear_action_sequence);
 
         // 电机恢复状态机只负责重新发送 On；实际力矩仍由下面的状态机和 PID 决定。
         // 前左 4310：逻辑通道 1，对应前部电机 CAN ID 1。
@@ -306,22 +330,68 @@ extern "C" void up_stair_task(void *argument)
                                 0.0f, 0.0f, 0.0f);
         }
 
+        const bool rear_both_controllable =
+            up_stair_behind_motor_fsm.Is_Motor_Controllable(1U) &&
+            up_stair_behind_motor_fsm.Is_Motor_Controllable(2U);
         if (up_stair_behind_motor_fsm.Get_State() ==
-            UP_STAIR_BEHIND_MOTOR_DISABLED)
+                UP_STAIR_BEHIND_MOTOR_DISABLED ||
+            !rear_both_controllable)
         {
             // 后部状态机禁用时，清空姿态 PID 并明确发送零力矩。
             rear_6248_pitch_pid[0].reset();
             rear_6248_pitch_pid[1].reset();
             rear_6248_roll_pid[0].reset();
             rear_6248_roll_pid[1].reset();
+            rear_6248_left_retract_pid[0].reset();
+            rear_6248_left_retract_pid[1].reset();
+            rear_6248_right_retract_pid[0].reset();
+            rear_6248_right_retract_pid[1].reset();
             rear_6248.ctrl_Mit(1, SafeMotorAngle(rear_left_angle), 0.0f,
                                0.0f, 0.0f, 0.0f);
             rear_6248.ctrl_Mit(2, SafeMotorAngle(rear_right_angle), 0.0f,
                                0.0f, 0.0f, 0.0f);
         }
-        else
+        else if (up_stair_behind_motor_fsm.Uses_Retract_Position_Control())
         {
             // 后部姿态控制：pitch、roll 各自采用角度环和角速度环串级 PID。
+            rear_6248_pitch_pid[0].reset();
+            rear_6248_pitch_pid[1].reset();
+            rear_6248_roll_pid[0].reset();
+            rear_6248_roll_pid[1].reset();
+
+            const float left_target_velocity =
+                rear_6248_left_retract_pid[0].UpDate(
+                    up_stair_behind_motor_fsm.Get_Retract_Target_Angle(1U),
+                    up_stair_behind_motor_fsm.Get_Position_Feedback(1U));
+            const float left_retract_torque =
+                rear_6248_left_retract_pid[1].UpDate(
+                    left_target_velocity, rear_left_velocity);
+            const float right_target_velocity =
+                rear_6248_right_retract_pid[0].UpDate(
+                    up_stair_behind_motor_fsm.Get_Retract_Target_Angle(2U),
+                    up_stair_behind_motor_fsm.Get_Position_Feedback(2U));
+            const float right_retract_torque =
+                rear_6248_right_retract_pid[1].UpDate(
+                    right_target_velocity, rear_right_velocity);
+
+            rear_6248.ctrl_Mit(
+                1, SafeMotorAngle(rear_left_angle), 0.0f, 0.0f, 0.0f,
+                StairTorqueSafety::ClampJ6248Torque(
+                    up_stair_behind_motor_fsm.Limit_Torque(
+                        1U, left_retract_torque)));
+            rear_6248.ctrl_Mit(
+                2, SafeMotorAngle(rear_right_angle), 0.0f, 0.0f, 0.0f,
+                StairTorqueSafety::ClampJ6248Torque(
+                    up_stair_behind_motor_fsm.Limit_Torque(
+                        2U, right_retract_torque)));
+        }
+        else if (up_stair_behind_motor_fsm.Uses_Attitude_Control())
+        {
+            rear_6248_left_retract_pid[0].reset();
+            rear_6248_left_retract_pid[1].reset();
+            rear_6248_right_retract_pid[0].reset();
+            rear_6248_right_retract_pid[1].reset();
+
             const float pitch_target_rate = rear_6248_pitch_pid[0].UpDate(
                 up_stair_behind_motor_fsm.Get_Target_Pitch_Deg(),
                 up_stair_behind_motor_fsm.Get_Feedback_Pitch_Deg());
@@ -348,6 +418,22 @@ extern "C" void up_stair_task(void *argument)
                 2, SafeMotorAngle(rear_right_angle), 0.0f, 0.0f, 0.0f,
                 StairTorqueSafety::ClampJ6248Torque(
                     up_stair_behind_motor_fsm.Limit_Torque(2, right_mixed_torque)));
+        }
+
+        else
+        {
+            rear_6248_pitch_pid[0].reset();
+            rear_6248_pitch_pid[1].reset();
+            rear_6248_roll_pid[0].reset();
+            rear_6248_roll_pid[1].reset();
+            rear_6248_left_retract_pid[0].reset();
+            rear_6248_left_retract_pid[1].reset();
+            rear_6248_right_retract_pid[0].reset();
+            rear_6248_right_retract_pid[1].reset();
+            rear_6248.ctrl_Mit(1, SafeMotorAngle(rear_left_angle), 0.0f,
+                               0.0f, 0.0f, 0.0f);
+            rear_6248.ctrl_Mit(2, SafeMotorAngle(rear_right_angle), 0.0f,
+                               0.0f, 0.0f, 0.0f);
         }
 
         }

@@ -57,6 +57,8 @@ volatile uint32_t gimbal_switch_last_tick = 0U;    // 最近一次合法档位�
 volatile bool gimbal_switch_received = false;  // 档位心跳是否已经建立
 volatile uint32_t stair_action_sequence = 0;       // B 键动作序号，供前部 FSM 消费
 
+volatile uint32_t rear_retract_action_sequence = 0U;
+
 ChassisKeyboardFSM keyboard_fsm;
 
 // 超级电容通信实例
@@ -351,10 +353,19 @@ osDelay(500);
         const KeyboardMotionCommand& keyboard_cmd =
             keyboard_fsm.GetCommand();
 
-         if (keyboard_cmd.stair_toggle)
-         {
-             ++stair_action_sequence;
-         }
+          if (keyboard_cmd.stair_toggle)
+          {
+              ++stair_action_sequence;
+          }
+
+          if (keyboard_cmd.rear_retract_toggle)
+          {
+              ++rear_retract_action_sequence;
+              if (rear_retract_action_sequence == 0U)
+              {
+                  rear_retract_action_sequence = 1U;
+              }
+          }
 
          //获取底盘旋转速度
          ChassisData.vx = remoteController.get_left_y()*Gain;

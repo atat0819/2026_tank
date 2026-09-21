@@ -17,6 +17,7 @@ extern ALG::PID::PID front_4340_right_pid[2];
 extern volatile bool dm_motor_control_ready;
 // 键盘 B 每次有效按下后递增，供前部状态机检测动作边沿。
 extern volatile uint32_t stair_action_sequence;
+extern volatile uint32_t rear_retract_action_sequence;
 
 extern "C" {
 #endif
