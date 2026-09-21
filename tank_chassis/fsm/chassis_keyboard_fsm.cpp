@@ -6,7 +6,7 @@
  * 本文件只负责：
  * 1. 对 16 位原始按键掩码进行逐键去抖；
  * 2. 在键盘模式或键盘链路失效时清零控制状态；
- * 3. 将 CTRL、Z、B 按键的稳定按下沿转换为开关或一次性楼梯动作；
+ * 3. 将 CTRL、Z、V、B 按键的稳定按下沿转换为开关或一次性动作；
  * 4. 将 W/S/A/D、SHIFT 等稳定按键转换为底盘运动和控制选项。
  *
  * 本文件不直接控制底盘电机。任务层通过 GetCommand() 读取本文件生成的
@@ -29,7 +29,7 @@ void ChassisKeyboardFSM::Init()
  * Reset() 用于初始化，也用于退出键盘模式或键盘链路掉线时的安全复位：
  * - 清除原始掩码和稳定掩码；
  * - 清除每个按键的去抖计时；
- * - 清除 CTRL、Z、B 的边沿检测状态；
+ * - 清除 CTRL、Z、V、B 的边沿检测状态；
  * - 关闭陀螺和跟随选项；
  * - 将 command_ 恢复为全零无效命令。
  */
@@ -43,6 +43,7 @@ void ChassisKeyboardFSM::Reset()
     last_ctrl_pressed_ = false;
     gyro_enabled_ = false;
     last_z_pressed_ = false;
+    last_v_pressed_ = false;
     last_b_pressed_ = false;
     follow_enabled_ = false;
     command_ = {};
@@ -63,7 +64,7 @@ void ChassisKeyboardFSM::Reset()
  * - now_tick：当前系统 tick，用于 20 ms 去抖计时。
  *
  * 函数先检查键盘控制条件，然后完成首次进入同步、初始稳定掩码建立、
- * 各按键独立去抖、CTRL/Z/B 边沿处理，最后刷新运动命令。
+ * 各按键独立去抖、CTRL/Z/V/B 边沿处理，最后刷新运动命令。
  */
 void ChassisKeyboardFSM::Update(uint16_t raw_key_mask,
                                 bool keyboard_mode,
@@ -77,12 +78,13 @@ void ChassisKeyboardFSM::Update(uint16_t raw_key_mask,
         return;
     }
 
-    // 本次更新已经具备有效的键盘输入；楼梯动作默认每周期不触发。
+    // 本次更新已经具备有效的键盘输入；一次性动作默认每周期不触发。
     command_.valid = true;
     command_.stair_toggle = false;
+    command_.rear_retract_toggle = false;
 
     /*
-     * 第一次进入键盘模式只记录当前按键，不立即产生 CTRL/Z/B 的切换动作。
+     * 第一次进入键盘模式只记录当前按键，不立即产生 CTRL/Z/V/B 的切换动作。
      * 这样可以避免进入键盘模式时已经按住的按键被误认为“新按下”。
      */
     if (first_sample_pending_)
@@ -103,7 +105,7 @@ void ChassisKeyboardFSM::Update(uint16_t raw_key_mask,
 
     /*
      * 首次样本建立阶段：要求整帧原始掩码连续稳定 KEY_DEBOUNCE_MS 后，才把
-     * 它作为稳定掩码。期间不执行 CTRL/Z/B 边沿动作，避免进入模式时误触发。
+     * 它作为稳定掩码。期间不执行 CTRL/Z/V/B 边沿动作，避免进入模式时误触发。
      */
     if (!stable_mask_initialized_)
     {
@@ -120,6 +122,7 @@ void ChassisKeyboardFSM::Update(uint16_t raw_key_mask,
             stable_mask_initialized_ = true;
             last_ctrl_pressed_ = (stable_key_mask_ & KEY_CTRL) != 0U;
             last_z_pressed_ = (stable_key_mask_ & KEY_Z) != 0U;
+            last_v_pressed_ = (stable_key_mask_ & KEY_V) != 0U;
             last_b_pressed_ = (stable_key_mask_ & KEY_B) != 0U;
             UpdateCommand();
             return;
@@ -179,6 +182,14 @@ void ChassisKeyboardFSM::Update(uint16_t raw_key_mask,
         follow_enabled_ = !follow_enabled_;
     }
     last_z_pressed_ = z_pressed;
+
+    // V 的稳定按下沿只生成一个周期的后腿收回/恢复请求。
+    const bool v_pressed = (stable_key_mask_ & KEY_V) != 0U;
+    if (v_pressed && !last_v_pressed_)
+    {
+        command_.rear_retract_toggle = true;
+    }
+    last_v_pressed_ = v_pressed;
 
     // B 的稳定按下沿只生成一个周期的楼梯切换请求。
     const bool b_pressed = (stable_key_mask_ & KEY_B) != 0U;
