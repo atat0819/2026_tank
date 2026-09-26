@@ -21,7 +21,7 @@ constexpr float Class_Up_Stair_FSM::TARGET_ANGLE_RAD[2];
 
 namespace
 {
-// 一个完整圆周的弧度值，用于展开跨越 0 弧度的电机角度。
+// 一个完整圆周的弧度值，用于展开跨越 ±π 接缝的电机角度。
 constexpr float TWO_PI_RAD = 2.0f * 3.14159265359f;
 
 // 到位判定容差为 ±2°。
@@ -72,7 +72,7 @@ void Class_Up_Stair_FSM::Reset_Feedback()
         // 连续控制角度；初始化时尚未收到有效反馈，因此清零。
         control_angle_[i] = 0.0f;
 
-        // 初始目标需要经过 To_Control_Angle()，以兼容跨 0 弧度的电机。
+        // 初始目标需要经过 To_Control_Angle()，以兼容跨 ±π 接缝的机械区间。
         target_angle_[i] = To_Control_Angle(i, HOME_ANGLE_RAD[i]);
     }
 }
@@ -86,9 +86,9 @@ void Class_Up_Stair_FSM::Reset_Feedback()
  * 当 LIMIT_START_RAD 小于 LIMIT_END_RAD 时，安全区间是普通区间：
  *     start <= angle <= end
  *
- * 当 LIMIT_START_RAD 大于 LIMIT_END_RAD 时，说明安全区间跨过 0 弧度，
- * 例如电机 2 的安全区间是：
- *     [300°, 360°] 或 [0°, 70°]
+ * 当 LIMIT_START_RAD 大于 LIMIT_END_RAD 时，说明安全区间跨过 ±π 接缝，
+ * 例如安全区间为：
+ *     [150°, 180°] 或 [-180°, -150°]
  * 此时判断条件变为：
  *     angle >= start 或 angle <= end
  *
@@ -105,14 +105,14 @@ bool Class_Up_Stair_FSM::Is_Angle_Valid(uint8_t id, float angle) const
     // 转换成内部数组下标。
     const uint8_t index = id - 1U;
 
-    // 普通的不跨 0 弧度区间。
+    // 不跨 ±π 接缝的普通区间。
     if (LIMIT_START_RAD[index] < LIMIT_END_RAD[index])
     {
         return angle >= LIMIT_START_RAD[index] &&
                angle <= LIMIT_END_RAD[index];
     }
 
-    // 起点大于终点，表示有效区间跨越 0 弧度。
+    // 起点大于终点，表示有效区间跨越 ±π 接缝。
     if (LIMIT_START_RAD[index] > LIMIT_END_RAD[index])
     {
         return angle >= LIMIT_START_RAD[index] ||
@@ -126,20 +126,19 @@ bool Class_Up_Stair_FSM::Is_Angle_Valid(uint8_t id, float angle) const
 /*
  * 将原始角度转换为用于 PID 的连续角度。
  *
- * 对不跨越 0 弧度的电机，原始角度直接返回。
- * 对跨越 0 弧度的电机，如果原始角度落在区间的低段，则加 360°：
+ * 对不跨越 ±π 接缝的电机，原始角度直接返回。
+ * 对跨越 ±π 接缝的电机，如果原始角度落在区间的低段，则加 360°：
  *
- *     原始 340° -> 控制角度 340°
- *     原始  60° -> 控制角度 420°
+ *     原始  170° -> 控制角度 170°
+ *     原始 -170° -> 控制角度 190°
  *
- * 这样从 340°运动到 60°时，控制器看到的是从 340°连续运动到 420°，
- * 而不是突然从 340°跳到 60°。
+ * 这样从 170°运动到 -170°时，控制器看到的是从 170°连续运动到 190°。
  *
  * 注意：index 是内部数组下标，不是对外的电机 ID。
  */
 float Class_Up_Stair_FSM::To_Control_Angle(uint8_t index, float raw_angle) const
 {
-    // 只有安全区间跨越 0 弧度，且原始角度处于低角度段时才展开。
+    // 只有安全区间跨越 ±π 接缝，且原始角度处于低角度段时才展开。
     if (LIMIT_START_RAD[index] > LIMIT_END_RAD[index] &&
         raw_angle < LIMIT_START_RAD[index])
     {
@@ -200,7 +199,7 @@ void Class_Up_Stair_FSM::Refresh_Target()
                                       ? TARGET_ANGLE_RAD[i]
                                       : HOME_ANGLE_RAD[i];
 
-        // 目标角也要转换成连续控制角度，特别是电机 2 的 60° -> 420°。
+        // 目标角也经过机械区间展开；当前电机 2 的 -60°～70° 区间保持原值。
         target_angle_[i] = To_Control_Angle(i, raw_target);
     }
 }
@@ -377,8 +376,8 @@ void Class_Up_Stair_FSM::Update(float current_left_angle,
 /*
  * 获取指定电机的目标控制角度。
  *
- * 返回的是已经经过 To_Control_Angle() 展开的目标角度，例如电机 2 的
- * 原始目标 60°会返回 420°，方便位置 PID 进行连续角度控制。
+ * 返回的是经过 To_Control_Angle() 处理后的目标角度。
+ * 当前电机 2 的原始目标 60°仍返回 60°；跨 ±π 接缝时才展开。
  * 无效 ID 返回 0。
  */
 float Class_Up_Stair_FSM::Get_Target_Angle(uint8_t id) const
@@ -394,8 +393,8 @@ float Class_Up_Stair_FSM::Get_Target_Angle(uint8_t id) const
 /*
  * 获取指定电机最近一次有效的原始编码器角度。
  *
- * 该值不做跨 0 弧度展开。例如电机 2 的实际角度为 60°时，这里返回 60°，
- * 而不是控制用的 420°。如果最近一次反馈无效，返回的仍可能是之前缓存的
+ * 该值不做跨 ±π 接缝展开。例如电机 2 的实际角度为 60°时，这里返回 60°。
+ * 如果最近一次反馈无效，返回的仍可能是之前缓存的
  * 有效值；调用者应结合反馈有效标志判断该值当前是否可用。
  */
 float Class_Up_Stair_FSM::Get_Current_Angle(uint8_t id) const
@@ -411,8 +410,8 @@ float Class_Up_Stair_FSM::Get_Current_Angle(uint8_t id) const
 /*
  * 获取指定电机用于位置 PID 的连续反馈角度。
  *
- * 与 Get_Current_Angle() 的区别是：这里返回的是经过跨 0 弧度展开后的值。
- * 例如电机 2 原始反馈 60°，此函数返回 420°。
+ * 与 Get_Current_Angle() 的区别是：这里返回的是经过跨 ±π 接缝展开后的值。
+ * 当前电机 2 的机械区间不跨接缝，原始反馈 60°时此函数返回 60°。
  */
 float Class_Up_Stair_FSM::Get_Position_Feedback(uint8_t id) const
 {

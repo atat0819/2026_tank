@@ -10,22 +10,22 @@
 
 #include <math.h>
 
-// 前部两台 J4310：负责卡住台阶、返回初始位置以及正常姿态保持。
-BSP::Motor::DM::J4310<2> front_4340(
+// 前部两台 J4340：负责卡住台阶、返回初始位置以及正常姿态保持。
+BSP::Motor::DM::J4340<2> front_4340(
     0x00, {0x01, 0x02}, {0x01, 0x02}, HAL::FDCAN::FdcanDeviceId::HAL_Fdcan1);
 // 后部两台 J6248：通过连杆支撑车尾，并执行 pitch/roll 姿态控制。
 BSP::Motor::DM::J6248<2> rear_6248(
     0x00, {0x03, 0x04}, {0x03, 0x04}, HAL::FDCAN::FdcanDeviceId::HAL_Fdcan3);
 
-// 前左 4310 的位置环和速度环 PID，数组下标 0=位置环、1=速度环。
+// 前左 4340 的位置环和速度环 PID，数组下标 0=位置环、1=速度环。
 ALG::PID::PID front_4340_left_pid[2] = {
-    {15.0f, 0.0f, 0.0f, 45.0f, 0.0f, 0.0f},
-    {3.0f, 0.0f, 0.0f, 10.0f, 0.0f, 0.0f},
+    {15.0f, 0.0f, 0.0f, 10.0f, 0.0f, 0.0f},
+    {3.0f, 0.0f, 0.0f, 27.0f, 0.0f, 0.0f},
 };
-// 前右 4310 的位置环和速度环 PID，左右使用独立参数。
+// 前右 4340 的位置环和速度环 PID，左右使用独立参数。
 ALG::PID::PID front_4340_right_pid[2] = {
-    {8.0f, 0.0f, 0.0f, 45.0f, 0.0f, 0.0f},
-    {0.8f, 0.0f, 0.0f, 10.0f, 0.0f, 0.0f},
+    {8.0f, 0.0f, 0.0f, 10.0f, 0.0f, 0.0f},
+    {0.8f, 0.0f, 0.0f, 27.0f, 0.0f, 0.0f},
 };
 
 // 后 6248 不使用积分项，采用“姿态角环 → 角速度环 → 力矩”的串级控制。
@@ -51,18 +51,17 @@ ALG::PID::PID rear_6248_right_retract_pid[2] = {
 
 namespace
 {
-// 构造后部机械配置；在完成实测标定前使用无效安全默认值。
+// 构造后部机械配置；机械角度未标定时暂用全角度调试范围。
 Class_Up_Stair_Behind_Motor_FSM::Config BuildRear6248Config()
 {
     Class_Up_Stair_Behind_Motor_FSM::Config config;
-    // TODO（机械标定）：将下面的零位、起止角替换为实测安全参数。
-    // 起止角相等会使配置无效，标定完成前后 6248 因此保持零力矩。
+    // TODO（机械标定）：实测后恢复左右机械起止角；当前 -π～+π 不做角度限位。
     config.pitch_zero_deg = 0.0f;
     config.roll_zero_deg = 0.0f;
-    config.angle_start_rad[0] = 0.0f;
-    config.angle_end_rad[0] = 0.0f;
-    config.angle_start_rad[1] = 0.0f;
-    config.angle_end_rad[1] = 0.0f;
+    config.angle_start_rad[0] = -3.14159265358979323846f;
+    config.angle_end_rad[0] = 3.14159265358979323846f;
+    config.angle_start_rad[1] = -3.14159265358979323846f;
+    config.angle_end_rad[1] = 3.14159265358979323846f;
     config.motor_direction[0] = 1;
     config.motor_direction[1] = 1;
     // 左右后部电机的最终力矩独立校准；1.0f 表示不改变姿态 PID 混控力矩。
@@ -72,6 +71,10 @@ Class_Up_Stair_Behind_Motor_FSM::Config BuildRear6248Config()
     config.retract_target_rad[1] = 0.0f;
     config.retract_speed_rad_s = 0.0f;
     config.retract_position_tolerance_rad = 0.0f;
+    config.basic_target_rad[0] = 0.0f;
+    config.basic_target_rad[1] = 0.0f;
+    config.basic_speed_rad_s = 0.0f;
+    config.basic_position_tolerance_rad = 0.0f;
     return config;
 }
 
@@ -117,7 +120,7 @@ void SendAllStairMotorsZero(float front_left_angle, float front_right_angle,
 
 float front_left_target_velocity = 0.0f; // 前左位置环输出的目标角速度
 float front_left_target_torque = 0.0f;   // 前左速度环输出的目标力矩
-Class_Up_Stair_FSM up_stair_fsm;          // 前 4310 上台阶状态机
+Class_Up_Stair_FSM up_stair_fsm;          // 前 4340 上台阶状态机
 Class_Up_Stair_Behind_Motor_FSM up_stair_behind_motor_fsm(BuildRear6248Config()); // 后 6248 状态机
 MotorRecoveryFSM front_recovery_fsm[2];  // 前左右电机通信恢复状态机
 MotorRecoveryFSM rear_recovery_fsm[2];   // 后左右电机通信恢复状态机
@@ -141,6 +144,7 @@ extern "C" void up_stair_task(void *argument)
     rear_recovery_fsm[0].Init(init_tick);
     rear_recovery_fsm[1].Init(init_tick);
     ResetAllStairPid();
+    ControlInputSource last_input_source = ControlInputSource::NONE;
 
     for (;;)
     {
@@ -158,40 +162,37 @@ extern "C" void up_stair_task(void *argument)
         const bool rear_left_online = rear_6248.isConnected(1, 3);
         const bool rear_right_online = rear_6248.isConnected(2, 4);
 
-        uint8_t switch_s1;
-        uint8_t switch_s2;
-        uint32_t switch_last_tick;
-        bool switch_received;
-        uint32_t keyboard_last_tick;
-        bool keyboard_received;
         uint32_t now_tick;
         uint32_t rear_action_sequence;
-        // 在临界区内一次性快照档位、键盘心跳和当前时间，避免回调更新一半时被读取。
+        // 动作序号与时间在同一临界区采样；输入源快照由公共函数完成。
         taskENTER_CRITICAL();
-        switch_s1 = static_cast<uint8_t>(gimbalChassis_communicate.s1);
-        switch_s2 = static_cast<uint8_t>(gimbalChassis_communicate.s2);
-        switch_last_tick = gimbal_switch_last_tick;
-        switch_received = gimbal_switch_received;
-        keyboard_last_tick = gimbal_keyboard_last_tick;
-        keyboard_received = gimbal_keyboard_received;
         rear_action_sequence = rear_retract_action_sequence;
         now_tick = HAL_GetTick();
         taskEXIT_CRITICAL();
+        const ControlInputSnapshot input = GetControlInputSnapshot(now_tick);
+        const bool source_changed = input.source != last_input_source;
+        last_input_source = input.source;
 
         ImuControlSnapshot imu_snapshot;
         GetImuControlSnapshot(imu_snapshot);
 
         const bool control_link_online =
-            switch_received && (now_tick - switch_last_tick < 100U);
-        const bool keyboard_online =
-            keyboard_received && (now_tick - keyboard_last_tick < 100U);
+            input.source != ControlInputSource::NONE && !source_changed;
+        const bool keyboard_online = input.keyboard_online && !source_changed;
         const StairModePolicy policy = EvaluateStairModePolicy(
-            switch_s1, switch_s2, control_link_online, keyboard_online);
+            input.s1, input.s2, control_link_online, keyboard_online);
 
         // 双下是操作者主动停车；档位非法或链路超时是异常停车。
         // 两类情况都先让四个电机输出零力矩，但只有异常停车提前进入下一周期。
         if (policy.zero_all_torque)
         {
+            // 安全门生效期间不发送 On；重新预备四个恢复状态机，确保恢复后的
+            // 首个正常周期分别补发一次使能帧。
+            front_recovery_fsm[0].Force_Enable_On_Next_Check();
+            front_recovery_fsm[1].Force_Enable_On_Next_Check();
+            rear_recovery_fsm[0].Force_Enable_On_Next_Check();
+            rear_recovery_fsm[1].Force_Enable_On_Next_Check();
+
             // 禁用前部状态机，避免安全分支继续执行位置控制。
             up_stair_fsm.Update(
                 front_left_angle,
@@ -231,13 +232,13 @@ extern "C" void up_stair_task(void *argument)
         else
         {
         // 非双下且控制链路正常时，执行前后状态机、恢复逻辑和 PID 控制。
-        // 前 4310 的编码器必须同时满足在线和机械角度有效，才允许位置闭环。
+        // 前 4340 的编码器必须同时满足在线和机械角度有效，才允许位置闭环。
         const bool front_left_feedback_valid =
             front_left_online && up_stair_fsm.Is_Angle_Valid(1U, front_left_angle);
         const bool front_right_feedback_valid =
             front_right_online && up_stair_fsm.Is_Angle_Valid(2U, front_right_angle);
 
-        // 更新前部 4310 状态机：根据反馈、控制权限和 B 动作序号决定目标位置。
+        // 更新前部 4340 状态机：根据反馈、控制权限和 B 动作序号决定目标位置。
         up_stair_fsm.Update(
             front_left_angle,
             front_right_angle,
@@ -268,13 +269,13 @@ extern "C" void up_stair_task(void *argument)
             rear_action_sequence);
 
         // 电机恢复状态机只负责重新发送 On；实际力矩仍由下面的状态机和 PID 决定。
-        // 前左 4310：逻辑通道 1，对应前部电机 CAN ID 1。
+        // 前左 4340：逻辑通道 1，对应前部电机 CAN ID 1。
         if (front_recovery_fsm[0].Should_Enable(
                 front_left_online,
                 now_tick))
             front_4340.On(1, BSP::Motor::DM::Model::MIT);
 
-        // 前右 4310：逻辑通道 2，对应前部电机 CAN ID 2。
+        // 前右 4340：逻辑通道 2，对应前部电机 CAN ID 2。
         if (front_recovery_fsm[1].Should_Enable(
                 front_right_online,
                 now_tick))
@@ -292,7 +293,7 @@ extern "C" void up_stair_task(void *argument)
                 now_tick))
             rear_6248.On(2, BSP::Motor::DM::Model::MIT);
 
-        // 前左 4310：位置环生成目标速度，速度环生成最终力矩。
+        // 前左 4340：位置环生成目标速度，速度环生成最终力矩。
         if (front_left_feedback_valid && up_stair_fsm.Is_Enabled())
         {
             front_left_target_velocity = front_4340_left_pid[0].UpDate(
@@ -311,7 +312,7 @@ extern "C" void up_stair_task(void *argument)
                                 0.0f, 0.0f, 0.0f);
         }
 
-        // 前右 4310 与左侧使用相同的两级闭环，但使用独立 PID 参数。
+        // 前右 4340 与左侧使用相同的两级闭环，但使用独立 PID 参数。
         if (front_right_feedback_valid && up_stair_fsm.Is_Enabled())
         {
             const float target_velocity = front_4340_right_pid[0].UpDate(
@@ -351,9 +352,9 @@ extern "C" void up_stair_task(void *argument)
             rear_6248.ctrl_Mit(2, SafeMotorAngle(rear_right_angle), 0.0f,
                                0.0f, 0.0f, 0.0f);
         }
-        else if (up_stair_behind_motor_fsm.Uses_Retract_Position_Control())
+        else if (up_stair_behind_motor_fsm.Uses_Position_Control())
         {
-            // 后部姿态控制：pitch、roll 各自采用角度环和角速度环串级 PID。
+            // 后部编码器位置控制：收腿与 IMU 失效基础角度模式共用现有串级 PID。
             rear_6248_pitch_pid[0].reset();
             rear_6248_pitch_pid[1].reset();
             rear_6248_roll_pid[0].reset();
@@ -361,14 +362,14 @@ extern "C" void up_stair_task(void *argument)
 
             const float left_target_velocity =
                 rear_6248_left_retract_pid[0].UpDate(
-                    up_stair_behind_motor_fsm.Get_Retract_Target_Angle(1U),
+                    up_stair_behind_motor_fsm.Get_Position_Target_Angle(1U),
                     up_stair_behind_motor_fsm.Get_Position_Feedback(1U));
             const float left_retract_torque =
                 rear_6248_left_retract_pid[1].UpDate(
                     left_target_velocity, rear_left_velocity);
             const float right_target_velocity =
                 rear_6248_right_retract_pid[0].UpDate(
-                    up_stair_behind_motor_fsm.Get_Retract_Target_Angle(2U),
+                    up_stair_behind_motor_fsm.Get_Position_Target_Angle(2U),
                     up_stair_behind_motor_fsm.Get_Position_Feedback(2U));
             const float right_retract_torque =
                 rear_6248_right_retract_pid[1].UpDate(
@@ -395,19 +396,27 @@ extern "C" void up_stair_task(void *argument)
             const float pitch_target_rate = rear_6248_pitch_pid[0].UpDate(
                 up_stair_behind_motor_fsm.Get_Target_Pitch_Deg(),
                 up_stair_behind_motor_fsm.Get_Feedback_Pitch_Deg());
+						
             const float pitch_torque = rear_6248_pitch_pid[1].UpDate(
-                pitch_target_rate, up_stair_behind_motor_fsm.Get_Pitch_Rate_Dps());
+                pitch_target_rate, 
+						up_stair_behind_motor_fsm.Get_Pitch_Rate_Dps());
+						
             const float roll_target_rate = rear_6248_roll_pid[0].UpDate(
                 up_stair_behind_motor_fsm.Get_Target_Roll_Deg(),
                 up_stair_behind_motor_fsm.Get_Feedback_Roll_Deg());
+						
             const float roll_torque = rear_6248_roll_pid[1].UpDate(
-                roll_target_rate, up_stair_behind_motor_fsm.Get_Roll_Rate_Dps());
+                roll_target_rate, 
+						up_stair_behind_motor_fsm.Get_Roll_Rate_Dps());
+						
             const float left_mixed_torque =
                 static_cast<float>(up_stair_behind_motor_fsm.Get_Motor_Direction(1)) *
                 (pitch_torque + roll_torque);
+								
             const float right_mixed_torque =
                 static_cast<float>(up_stair_behind_motor_fsm.Get_Motor_Direction(2)) *
                 (pitch_torque - roll_torque);
+								
             // pitch 对左右同向，roll 对左右反向。后部 FSM 先执行反馈、机械角度、
             // 恢复比例和左右独立增益保护，再做 J6248 ±40 Nm 应用层最终硬限幅。
             rear_6248.ctrl_Mit(

@@ -10,7 +10,7 @@ static constexpr uint8_t MIDDLE = 3;
 struct StairModePolicy {
   bool zero_all_torque;              // 双下、失联或非法档位：四电机零力矩
   bool control_fault;                // 失联或非法档位：异常安全停车
-  bool front_hold_enabled;           // 是否允许前 4310 保持初始/目标位置
+  bool front_hold_enabled;           // 是否允许前 4340 保持初始/目标位置
   bool rear_attitude_enabled;        // 是否允许后 6248 运行姿态控制
   bool front_stair_command_enabled;  // 仅双中且键盘在线时允许 B 动作
   bool rear_retract_command_enabled;

@@ -28,6 +28,10 @@ extern DMA_HandleTypeDef hdma_usart10_rx;
 static HAL::UART::Data uart10_rx_data;
 
 BSP::REMOTE_CONTROL::RemoteController remoteController(100);
+volatile uint16_t local_remote_keyboard = 0U;
+volatile int16_t local_remote_mouse_x = 0;
+volatile uint32_t local_remote_last_tick = 0U;
+volatile bool local_remote_received = false;
 extern DMA_HandleTypeDef hdma_uart5_rx;   // 遥控器
 extern DMA_HandleTypeDef hdma_uart7_rx;   // 功率计
 extern DMA_HandleTypeDef hdma_usart1_rx;  // 裁判系统
@@ -194,13 +198,37 @@ extern "C" void remote_task(void *argument)
     uart5.register_rx_callback([](const HAL::UART::Data &data) {
         if (data.size == 18)
         {
+            const uint8_t *const b = data.buffer;
+            const uint16_t ch0 = (b[0] | (b[1] << 8)) & 0x07FFU;
+            const uint16_t ch1 = ((b[1] >> 3) | (b[2] << 5)) & 0x07FFU;
+            const uint16_t ch2 = ((b[2] >> 6) | (b[3] << 2) |
+                                  (b[4] << 10)) & 0x07FFU;
+            const uint16_t ch3 = ((b[4] >> 1) | (b[5] << 7)) & 0x07FFU;
+            // 四路摇杆必须落在 DBUS 合法区间；驱动内部会钳位，不能靠钳位结果判帧有效。
+            if (ch0 < 364U || ch0 > 1684U || ch1 < 364U || ch1 > 1684U ||
+                ch2 < 364U || ch2 > 1684U || ch3 < 364U || ch3 > 1684U)
+            {
+                return;
+            }
             remoteController.parseData(data.buffer);
+            const uint8_t s1 = remoteController.get_s1();
+            const uint8_t s2 = remoteController.get_s2();
+            if (s1 < 1U || s1 > 3U || s2 < 1U || s2 > 3U)
+            {
+                return;
+            }
             remoteController.updateTimestamp();
             remoteData.vx = remoteController.DeadzoneCompensation(remoteController.get_left_x());
             remoteData.vy = remoteController.DeadzoneCompensation(remoteController.get_left_y());
             remoteData.wz = remoteController.DeadzoneCompensation(remoteController.get_right_x());
             remoteData.s1 = remoteController.get_s1();
             remoteData.s2 = remoteController.get_s2();
+            // DBUS 同一帧携带键盘位；仅完整且档位合法的帧刷新本地心跳。
+            local_remote_keyboard = static_cast<uint16_t>(data.buffer[14]) |
+                                    (static_cast<uint16_t>(data.buffer[15]) << 8);
+            local_remote_mouse_x = remoteController.get_mouseX();
+            local_remote_last_tick = HAL_GetTick();
+            local_remote_received = true;
         }
     });
     uart5.receive_dma_idle(uart5_rx_data);

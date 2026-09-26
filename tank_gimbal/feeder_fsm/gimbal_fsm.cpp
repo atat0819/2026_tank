@@ -30,6 +30,9 @@ void Class_Gimbal_FSM::Init(const Struct_Gimbal_FSM_Config &__config,
     mode_changed_flag = 0U;
     source_initialized_ = 0U;
     last_is_keymouse_ = false;
+    pitch_came_from_double_down_ = false;
+    pitch_start_locked_ = false;
+    pitch_neutral_seen_ = false;
 
     if (__initial_status == GIMBAL_STATUS_ANGLE)
     {
@@ -272,6 +275,40 @@ void Class_Gimbal_FSM::ReAnchor(float new_angle)
     target_speed = 0.0f;
     angle_target_initialized = 1U;
     mode_changed_flag = 1U;
+}
+
+Class_Gimbal_FSM::PitchStartDecision Class_Gimbal_FSM::Update_Pitch_Start_Gate(
+    bool is_double_down, float pitch_stick)
+{
+    if (is_double_down)
+    {
+        pitch_came_from_double_down_ = true;
+        pitch_start_locked_ = false;
+        pitch_neutral_seen_ = false;
+        return PitchStartDecision::Normal;
+    }
+
+    if (control_type != GIMBAL_CONTROL_STOP && pitch_came_from_double_down_)
+    {
+        pitch_came_from_double_down_ = false;
+        pitch_start_locked_ = true;
+    }
+    if (!pitch_start_locked_)
+    {
+        return PitchStartDecision::Normal;
+    }
+    // 先观察到摇杆回中，再等待首次上拨；切出双下时已上拨不能直接解锁。
+    if (pitch_stick >= -INPUT_DEADBAND && pitch_stick <= INPUT_DEADBAND)
+    {
+        pitch_neutral_seen_ = true;
+    }
+    if (control_type != GIMBAL_CONTROL_STOP && pitch_neutral_seen_ &&
+        pitch_stick > INPUT_DEADBAND)
+    {
+        pitch_start_locked_ = false;
+        return PitchStartDecision::ReanchorAndRelease;
+    }
+    return PitchStartDecision::HoldZero;
 }
 
 float Class_Gimbal_FSM::Get_Control_Output() const

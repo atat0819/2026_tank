@@ -7,8 +7,8 @@
 #include "../user/core/BSP/Motor/DM/DmMotor.hpp"
 #include "../user/core/Alg/PID/pid.hpp"
 
-// 前部两台 J4310 和后部两台 J6248 的达妙电机对象。
-extern BSP::Motor::DM::J4310<2> front_4340;
+// 前部两台 J4340 和后部两台 J6248 的达妙电机对象。
+extern BSP::Motor::DM::J4340<2> front_4340;
 extern BSP::Motor::DM::J6248<2> rear_6248;
 // 前左右位置/速度串级 PID，数组下标 0=位置环、1=速度环。
 extern ALG::PID::PID front_4340_left_pid[2];

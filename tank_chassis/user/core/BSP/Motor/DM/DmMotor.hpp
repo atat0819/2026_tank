@@ -354,7 +354,7 @@ namespace BSP::Motor::DM
         J4310(uint16_t Init_id, const uint8_t (&ids)[N], const uint32_t (&send_idxs)[N],
               HAL::FDCAN::FdcanDeviceId fdcan_device_id = HAL::FDCAN::FdcanDeviceId::HAL_Fdcan2)
             : DMMotorBase<N>(Init_id, ids, send_idxs, 
-                            Parameters(0.0f, 6.283185307f, -45.0f, 45.0f, -10.0f, 10.0f, 0.0f, 500.0f, 0.0f, 5.0f),
+                            Parameters(-3.14159f, 3.14159f, -45.0f, 45.0f, -10.0f, 10.0f, 0.0f, 500.0f, 0.0f, 5.0f),
                             fdcan_device_id)
         {
         }
@@ -370,7 +370,7 @@ namespace BSP::Motor::DM
         S2325(uint16_t Init_id, const uint8_t (&ids)[N], const uint32_t (&send_idxs)[N],
               HAL::FDCAN::FdcanDeviceId fdcan_device_id = HAL::FDCAN::FdcanDeviceId::HAL_Fdcan2)
             : DMMotorBase<N>(Init_id, ids, send_idxs,
-                            Parameters(0.0f, 6.283185307f, -50.0f, 50.0f, -10.0f, 10.0f, 0.0f, 500.0f, 0.0f, 5.0f),
+                            Parameters(-3.14159f, 3.14159f, -50.0f, 50.0f, -10.0f, 10.0f, 0.0f, 500.0f, 0.0f, 5.0f),
                             fdcan_device_id)
         {
         }
@@ -383,7 +383,7 @@ namespace BSP::Motor::DM
         J4340(uint16_t Init_id, const uint8_t (&ids)[N], const uint32_t (&send_idxs)[N],
               HAL::FDCAN::FdcanDeviceId fdcan_device_id = HAL::FDCAN::FdcanDeviceId::HAL_Fdcan2)
             : DMMotorBase<N>(Init_id, ids, send_idxs, 
-                            Parameters(0.0f, 6.283185307f, -50.0f, 50.0f, -9.0f, 9.0f, 0.0f, 500.0f, 0.0f, 5.0f),
+                            Parameters(-3.14159f, 3.14159f, -10.0f, 10.0f, -27.0f, 27.0f, 0.0f, 500.0f, 0.0f, 5.0f),
                             fdcan_device_id)
         {
         }
@@ -396,7 +396,7 @@ namespace BSP::Motor::DM
         J6248(uint16_t Init_id, const uint8_t (&ids)[N], const uint32_t (&send_idxs)[N],
               HAL::FDCAN::FdcanDeviceId fdcan_device_id = HAL::FDCAN::FdcanDeviceId::HAL_Fdcan2)
             : DMMotorBase<N>(Init_id, ids, send_idxs,
-                              Parameters(0.0f, 6.283185307f, -45.0f, 45.0f, -40.0f, 40.0f,
+                              Parameters(-3.14159f, 3.14159f, -20.0f, 20.0f, -97.0f, 97.0f,
                                          0.0f, 500.0f, 0.0f, 5.0f),
                               fdcan_device_id)
         {

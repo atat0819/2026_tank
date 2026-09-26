@@ -801,6 +801,7 @@ tank_chassis/can_send_task.o: ..\RtosTask\can_send_task.cpp \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__functional\pointer_to_binary_function.h \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__functional\pointer_to_unary_function.h \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__functional\unary_negate.h \
+  ..\RtosTask\..\fsm\control_input_selector.hpp \
   ..\RtosTask\remote_task.hpp \
   ..\Middlewares\Third_Party\FreeRTOS\Source\include\queue.h \
   ..\RtosTask\..\user\core\BSP\RemoteControl\DT7.hpp \

@@ -373,7 +373,7 @@ enum Model
         J4310(uint16_t Init_id, const uint8_t (&ids)[N], const uint32_t (&send_idxs)[N],
               HAL::FDCAN::FdcanDeviceId fdcan_device_id = HAL::FDCAN::FdcanDeviceId::HAL_Fdcan2)
             : DMMotorBase<N>(Init_id, ids, send_idxs, 
-                            Parameters(-12.56f, 12.56f, -30.0f, 30.0f, -3.0f, 3.0f, 0.0f, 500.0f, 0.0f, 5.0f),
+                            Parameters(-3.14159f, 3.14159f, -30.0f, 30.0f, -3.0f, 3.0f, 0.0f, 500.0f, 0.0f, 5.0f),
                             fdcan_device_id)
         {
         }
@@ -389,7 +389,7 @@ enum Model
         S2325(uint16_t Init_id, const uint8_t (&ids)[N], const uint32_t (&send_idxs)[N],
               HAL::FDCAN::FdcanDeviceId fdcan_device_id = HAL::FDCAN::FdcanDeviceId::HAL_Fdcan2)
             : DMMotorBase<N>(Init_id, ids, send_idxs,
-                            Parameters(-12.5f, 12.5f, -50.0f, 50.0f, -10.0f, 10.0f, 0.0f, 500.0f, 0.0f, 5.0f),
+                            Parameters(-3.14159f, 3.14159f, -50.0f, 50.0f, -10.0f, 10.0f, 0.0f, 500.0f, 0.0f, 5.0f),
                             fdcan_device_id)
         {
         }
@@ -402,7 +402,7 @@ enum Model
         J4340(uint16_t Init_id, const uint8_t (&ids)[N], const uint32_t (&send_idxs)[N],
               HAL::FDCAN::FdcanDeviceId fdcan_device_id = HAL::FDCAN::FdcanDeviceId::HAL_Fdcan2)
             : DMMotorBase<N>(Init_id, ids, send_idxs, 
-                            Parameters(0.0f, 6.283185307179586f, -50.0f, 50.0f,
+                            Parameters(-3.14159f, 3.14159f, -50.0f, 50.0f,
                                        -9.0f, 9.0f, 0.0f, 500.0f, 0.0f, 5.0f),
                             fdcan_device_id)
         {

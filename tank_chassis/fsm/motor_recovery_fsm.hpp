@@ -19,6 +19,14 @@ public:
         was_online_ = false;
     }
 
+    // 安全门生效期间不立即使能；恢复后的首次正常检查强制请求一次 On，
+    // 即使电机反馈在整个安全阶段始终在线。
+    void Force_Enable_On_Next_Check()
+    {
+        enable_requested_ = false;
+        was_online_ = false;
+    }
+
     // 根据反馈在线状态决定当前周期是否需要发送一次 MIT On。
     // now_tick 使用无符号减法，天然支持系统 tick 回绕。
     bool Should_Enable(bool feedback_online, uint32_t now_tick)

@@ -414,17 +414,18 @@ namespace ALG::PowerControl
              */
             void Update(bool isSupercapOnline, bool isRefereeOnline, float referee_limit, float referee_buffer, float supercap_energy)
             {
-                // 若裁判系统在线，更新裁判系统功率上限
-                if (isRefereeOnline) last_valid_limit = referee_limit;
+                // 上电后在线标志可能先于有效裁判帧出现；0 W 不能覆盖默认或上次有效上限。
+                const bool has_valid_referee_limit = isRefereeOnline && referee_limit > 0.0f;
+                if (has_valid_referee_limit) last_valid_limit = referee_limit;
 
                 // 1. 电容连接，裁判断连
-                if (isSupercapOnline && !isRefereeOnline)
+                if (isSupercapOnline && !has_valid_referee_limit)
                 {
                     input_limit = last_valid_limit;
                     input_energy = supercap_energy;
                 }
                 // 2. 电容断连，裁判连接
-                else if (!isSupercapOnline && isRefereeOnline)
+                else if (!isSupercapOnline && has_valid_referee_limit)
                 {
                     // 隐形能量池逻辑：若缓冲满(接近60J)，认为电容有电，允许爆发
                     if (referee_buffer > 55.0f)
@@ -439,7 +440,7 @@ namespace ALG::PowerControl
                     }
                 }
                 // 3. 双断连
-                else if (!isSupercapOnline && !isRefereeOnline)
+                else if (!isSupercapOnline && !has_valid_referee_limit)
                 {
                     input_limit = last_valid_limit;
                     input_energy = 0.0f;

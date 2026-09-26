@@ -12,6 +12,7 @@ enum Enum_Up_Stair_Behind_Motor_Status
     UP_STAIR_BEHIND_MOTOR_ATTITUDE_HOLD,      // 正常进行 pitch/roll 姿态控制
     UP_STAIR_BEHIND_MOTOR_RETRACTING,
     UP_STAIR_BEHIND_MOTOR_RETRACTED_HOLD,
+    UP_STAIR_BEHIND_MOTOR_BASIC_ANGLE_CONTROL,
     UP_STAIR_BEHIND_MOTOR_COUNT
 };
 
@@ -32,6 +33,9 @@ public:
         float retract_target_rad[2];
         float retract_speed_rad_s;
         float retract_position_tolerance_rad;
+        float basic_target_rad[2];
+        float basic_speed_rad_s;
+        float basic_position_tolerance_rad;
 
         Config();
     };
@@ -75,7 +79,9 @@ public:
     float Get_Roll_Rate_Dps() const;
     bool Uses_Attitude_Control() const;
     bool Uses_Retract_Position_Control() const;
+    bool Uses_Position_Control() const;
     float Get_Retract_Target_Angle(uint8_t id) const;
+    float Get_Position_Target_Angle(uint8_t id) const;
     float Get_Position_Feedback(uint8_t id) const;
 
     // 简短别名，方便任务读取姿态目标、角度反馈和角速度反馈。
@@ -102,10 +108,14 @@ public:
 
 private:
     bool retract_config_valid_;
+    bool basic_config_valid_;
     float position_feedback_rad_[2];
     float retract_target_angle_rad_[2];
     Alg::Utility::SlopePlanning retract_planner_[2];
     uint32_t retract_last_tick_;
+    float basic_target_angle_rad_[2];
+    Alg::Utility::SlopePlanning basic_planner_[2];
+    uint32_t basic_last_tick_;
     uint32_t last_action_sequence_;
     bool pending_resume_;
 
@@ -117,15 +127,19 @@ private:
     void Reset();
     bool Validate_Config() const;
     bool Validate_Retract_Config() const;
+    bool Validate_Basic_Config() const;
     uint8_t To_Index(uint8_t id) const;
     float To_Unwrapped_Angle(uint8_t index, float raw_angle_rad) const;
     float To_Unwrapped_Retract_Target(uint8_t index) const;
+    float To_Unwrapped_Basic_Target(uint8_t index) const;
     void Disable();
     void Start_Recovery(uint32_t now_tick);
     void Update_Recovery_Scale(uint32_t now_tick);
     void Start_Retracting(uint32_t now_tick);
     void Update_Retract_Targets(uint32_t now_tick);
     bool Both_Retract_Targets_Reached() const;
+    void Start_Basic_Angle_Control(uint32_t now_tick);
+    void Update_Basic_Targets(uint32_t now_tick);
 
     Config config_;                         // 机械零位、限位和方向配置
     bool config_valid_;                     // 配置是否通过安全校验

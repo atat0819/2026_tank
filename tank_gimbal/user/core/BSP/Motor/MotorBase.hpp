@@ -135,7 +135,8 @@ namespace BSP::Motor
          */
         float getAddAngleRad(uint8_t id)
         {
-            return this->unit_data_[id - 1].add_angle;
+            // 内部累计值以度保存；仅在读取时转为 rad，保留多圈累计量。
+            return this->unit_data_[id - 1].add_angle * (3.14159265358979323846 / 180.0);
         }
 
         /**

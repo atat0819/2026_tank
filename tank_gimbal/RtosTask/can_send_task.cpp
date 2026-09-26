@@ -183,17 +183,12 @@ uint8_t yaw_mode = GIMBAL_MODE_SPEED;
 uint8_t pitch_mode = GIMBAL_MODE_SPEED;
 
 
-uint8_t gimbal_recv_idxs[2] = {1, 2};     // 接收偏移 ID
-uint32_t gimbal_send_idxs[2] = {1, 2};    // 发送偏移 ID (相对于 0x140)
 
 // 2 个云台电机
 // GM6020 反馈ID = 0x204 + 拨码值，拨码1→0x205，拨码2→0x206
 //BSP::Motor::Dji::GM6020<2> gimbal_motor(0x204, gimbal_motor_idxs, 0x1FF);
 BSP::Motor::DM::J4340<2> gimbal_motor(
-    0,
-    gimbal_recv_idxs,
-    gimbal_send_idxs,
-    HAL::FDCAN::FdcanDeviceId::HAL_Fdcan3);
+    0,{1, 2},{1, 2},HAL::FDCAN::FdcanDeviceId::HAL_Fdcan3);
 
 void ControlTask();
 static bool IMU_Fault_Protection(float &yaw_angle, float &yaw_speed,float &pitch_angle, float &pitch_speed);
@@ -645,6 +640,19 @@ else
 yaw_mode   = yaw_gimbal_fsm.Get_Mode_Command();
 pitch_mode = pitch_gimbal_fsm.Get_Mode_Command();
 
+// 仅从遥控器双下切出时等待 Pitch 摇杆回中后首次上拨。
+const Class_Gimbal_FSM::PitchStartDecision pitch_start_decision =
+    pitch_gimbal_fsm.Update_Pitch_Start_Gate(
+        RemoteData.s1 == Remote::DOWN && RemoteData.s2 == Remote::DOWN,
+        RemoteData.gimbal_pitch);
+const bool pitch_hold_zero =
+    pitch_start_decision == Class_Gimbal_FSM::PitchStartDecision::HoldZero;
+if (pitch_start_decision == Class_Gimbal_FSM::PitchStartDecision::ReanchorAndRelease &&
+    pitch_gimbal_fsm.Get_Control_Type() == GIMBAL_CONTROL_ANGLE)
+{
+    pitch_gimbal_fsm.ReAnchor(pitch_current_angle);
+}
+
 //        if (yaw_target_angle > 60.0f) yaw_target_angle = 60.0f; // 限制最大角度
 //        if (yaw_target_angle < -60.0f) yaw_target_angle = -60.0f; // 限制最小角度
 
@@ -690,8 +698,9 @@ pitch_target_angle = pitch_gimbal_fsm.Get_Target_Angle();
  yaw_error = yaw_target_angle - yaw_current_angle;
 
 pitch_error = pitch_target_angle - pitch_current_angle;
-while (pitch_error > 180.0f)  pitch_error -= 360.0f;
-while (pitch_error < -180.0f) pitch_error += 360.0f;
+// 目标和 IMU 反馈均为弧度，将误差归一化到 [-pi, pi]。
+while (pitch_error > kPi)  pitch_error -= kTwoPi;
+while (pitch_error < -kPi) pitch_error += kTwoPi;
 yaw_speed_pid_output = 0.0f;
 yaw_speed_ff_output = 0.0f;
 yaw_speed_ff_friction = 0.0f;
@@ -782,7 +791,14 @@ yaw_speed_ff_inertia = 0.0f;
 }
 /****************************************************************************************** */
  // pitch 停止模式：清零输出并复位积分、前馈和观测器状态。
- if (pitch_gimbal_fsm.Get_Control_Type() == GIMBAL_CONTROL_STOP)
+ if (pitch_hold_zero)
+{
+    pitch_target_speed = 0.0f;
+    pitch_control_output = 0.0f;
+    pitch_ude.ResetState(pitch_current_speed);
+    pitch_ude_output = 0.0f;
+}
+ else if (pitch_gimbal_fsm.Get_Control_Type() == GIMBAL_CONTROL_STOP)
 {
     pitch_target_speed = 0.0f;
     pitch_control_output = 0.0f;
@@ -855,7 +871,7 @@ yaw_speed_ff_inertia = 0.0f;
 
 }
 
-if (pitch_gimbal_fsm.Get_Control_Type() == GIMBAL_CONTROL_ANGLE && !imu_fault)
+if (!pitch_hold_zero && pitch_gimbal_fsm.Get_Control_Type() == GIMBAL_CONTROL_ANGLE && !imu_fault)
 {
         // UDE 仅在角度闭环且 IMU 正常时工作，补偿未建模扰动。
     pitch_ude.UDE_Update(pitch_last_control_output, pitch_current_speed);

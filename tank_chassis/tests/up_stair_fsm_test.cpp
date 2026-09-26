@@ -38,7 +38,7 @@ int main()
     // Active with no stair command starts in an enabled home hold.
     update(fsm,
            deg_to_rad(34.0f),
-           deg_to_rad(340.0f),
+           deg_to_rad(-20.0f),
            true,
            true,
            true,
@@ -54,17 +54,17 @@ int main()
     assert(!fsm.Is_Angle_Valid(1U, deg_to_rad(9.0f)));
     assert(!fsm.Is_Angle_Valid(1U, deg_to_rad(179.0f)));
 
-    assert(fsm.Is_Angle_Valid(2U, deg_to_rad(300.0f)));
-    assert(fsm.Is_Angle_Valid(2U, deg_to_rad(350.0f)));
+    assert(fsm.Is_Angle_Valid(2U, deg_to_rad(-60.0f)));
+    assert(fsm.Is_Angle_Valid(2U, deg_to_rad(-10.0f)));
     assert(fsm.Is_Angle_Valid(2U, deg_to_rad(0.0f)));
     assert(fsm.Is_Angle_Valid(2U, deg_to_rad(70.0f)));
     assert(!fsm.Is_Angle_Valid(2U, deg_to_rad(71.0f)));
-    assert(!fsm.Is_Angle_Valid(2U, deg_to_rad(299.0f)));
+    assert(!fsm.Is_Angle_Valid(2U, deg_to_rad(-61.0f)));
 
-    // B starts a move to target and preserves wrapped-angle mapping.
+    // B starts a move to target and preserves the signed angle mapping.
     update(fsm,
            deg_to_rad(34.0f),
-           deg_to_rad(340.0f),
+           deg_to_rad(-20.0f),
            true,
            true,
            true,
@@ -72,8 +72,8 @@ int main()
            1U);
     assert(fsm.Get_State() == UP_STAIR_MOVING_TO_TARGET);
     assert(near(fsm.Get_Target_Angle(1U), Class_Up_Stair_FSM::TARGET_ANGLE_RAD[0]));
-    assert(near(fsm.Get_Target_Angle(2U), deg_to_rad(420.0f)));
-    assert(near(fsm.Get_Position_Feedback(2U), deg_to_rad(340.0f)));
+    assert(near(fsm.Get_Target_Angle(2U), deg_to_rad(60.0f)));
+    assert(near(fsm.Get_Position_Feedback(2U), deg_to_rad(-20.0f)));
     assert(near(fsm.Get_Position_Error(2U), deg_to_rad(80.0f)));
 
     // Arrival requires both feedbacks and uses a two-degree tolerance.
@@ -90,7 +90,7 @@ int main()
     // A second B while moving is allowed and reverses the command.
     update(fsm,
            deg_to_rad(80.0f),
-           deg_to_rad(320.0f),
+           deg_to_rad(-40.0f),
            true,
            true,
            true,
@@ -102,7 +102,7 @@ int main()
 
     update(fsm,
            deg_to_rad(34.0f),
-           deg_to_rad(340.0f),
+           deg_to_rad(-20.0f),
            true,
            true,
            true,
@@ -123,7 +123,7 @@ int main()
     assert(fsm.Is_Enabled());
     update(fsm,
            deg_to_rad(34.0f),
-           deg_to_rad(340.0f),
+           deg_to_rad(-20.0f),
            true,
            true,
            true,
@@ -135,7 +135,7 @@ int main()
     // Mechanism disable (double-down-like) disables and synchronizes B.
     update(fsm,
            deg_to_rad(34.0f),
-           deg_to_rad(340.0f),
+           deg_to_rad(-20.0f),
            true,
            true,
            false,
@@ -158,7 +158,7 @@ int main()
     assert(near(fsm.Get_Target_Angle(1U), Class_Up_Stair_FSM::HOME_ANGLE_RAD[0]));
     update(fsm,
            deg_to_rad(34.0f),
-           deg_to_rad(340.0f),
+           deg_to_rad(-20.0f),
            true,
            true,
            true,
@@ -169,7 +169,7 @@ int main()
     // One motor offline keeps control enabled but cannot declare arrival.
     update(fsm,
            deg_to_rad(34.0f),
-           deg_to_rad(340.0f),
+           deg_to_rad(-20.0f),
            true,
            true,
            true,
@@ -204,7 +204,7 @@ int main()
     transition_fsm.Init(0U);
     update(transition_fsm,
            deg_to_rad(34.0f),
-           deg_to_rad(340.0f),
+           deg_to_rad(-20.0f),
            true,
            true,
            true,
@@ -212,7 +212,7 @@ int main()
            0U);
     update(transition_fsm,
            deg_to_rad(34.0f),
-           deg_to_rad(340.0f),
+           deg_to_rad(-20.0f),
            true,
            true,
            true,
@@ -221,7 +221,7 @@ int main()
     assert(transition_fsm.Get_State() == UP_STAIR_MOVING_TO_TARGET);
     update(transition_fsm,
            deg_to_rad(80.0f),
-           deg_to_rad(320.0f),
+           deg_to_rad(-40.0f),
            true,
            true,
            true,
@@ -232,7 +232,7 @@ int main()
                 Class_Up_Stair_FSM::HOME_ANGLE_RAD[0]));
     update(transition_fsm,
            deg_to_rad(80.0f),
-           deg_to_rad(320.0f),
+           deg_to_rad(-40.0f),
            true,
            true,
            true,
@@ -273,7 +273,7 @@ int main()
     feedback_fsm.Init(0U);
     update(feedback_fsm,
            deg_to_rad(34.0f),
-           deg_to_rad(340.0f),
+           deg_to_rad(-20.0f),
            true,
            true,
            true,
@@ -281,7 +281,7 @@ int main()
            0U);
     update(feedback_fsm,
            deg_to_rad(34.0f),
-           deg_to_rad(340.0f),
+           deg_to_rad(-20.0f),
            true,
            true,
            true,
@@ -341,7 +341,7 @@ int main()
     // remaining right feedback reaches home.
     update(feedback_fsm,
            0.0f,
-           deg_to_rad(340.0f),
+           deg_to_rad(-20.0f),
            false,
            true,
            true,

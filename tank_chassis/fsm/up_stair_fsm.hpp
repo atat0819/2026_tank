@@ -18,24 +18,24 @@ class Class_Up_Stair_FSM : public Class_FSM
 {
 public:
     // 编码器和机械限位配置：下标 0 对应电机 1，下标 1 对应电机 2。
-    // 起始角大于终止角时，表示有效区间跨过 0 弧度。
-    static constexpr float LIMIT_START_RAD[2] = {
+    // 起始角大于终止角时，表示有效区间跨过 ±π 接缝。
+    static constexpr float LIMIT_START_RAD[2] = {   // 两侧电机的机械限位起始角
         10.0f * 3.14159265359f / 180.0f,
-        300.0f * 3.14159265359f / 180.0f};
-    static constexpr float LIMIT_END_RAD[2] = {
+        -60.0f * 3.14159265359f / 180.0f};
+    static constexpr float LIMIT_END_RAD[2] = {    // 两侧电机的机械限位终止角
         178.0f * 3.14159265359f / 180.0f,
         70.0f * 3.14159265359f / 180.0f};
-    static constexpr float HOME_ANGLE_RAD[2] = {
+    static constexpr float HOME_ANGLE_RAD[2] = {    // 两侧电机的机械初始角
         34.0f * 3.14159265359f / 180.0f,
-        340.0f * 3.14159265359f / 180.0f};
-    static constexpr float TARGET_ANGLE_RAD[2] = {
+        -20.0f * 3.14159265359f / 180.0f};
+    static constexpr float TARGET_ANGLE_RAD[2] = {    // 两侧电机的上台阶目标角
         122.0f * 3.14159265359f / 180.0f,
         60.0f * 3.14159265359f / 180.0f};
 
     // 初始化状态机、动作序号和角度配置；通常在上台阶任务启动时调用一次。
     void Init(uint32_t action_sequence);
 
-    // 输入两侧编码器反馈和当前控制权限，推进前 4310 状态机。
+    // 输入两侧编码器反馈和当前控制权限，推进前 4340 状态机。
     // action_sequence 每变化一次表示检测到一次经过消抖的 B 按键动作。
     void Update(float current_left_angle,
                 float current_right_angle,
@@ -49,7 +49,7 @@ public:
     float Get_Target_Angle(uint8_t id) const;
     // 获取指定电机最近一次有效的原始编码器角度，单位：弧度。
     float Get_Current_Angle(uint8_t id) const;
-    // 获取用于控制的连续角度；跨过 0 弧度的区间会被展开。
+    // 获取用于控制的连续角度；跨过 ±π 接缝的区间会被展开。
     float Get_Position_Feedback(uint8_t id) const;
     // 返回目标角度减控制反馈角度的误差，单位：弧度。
     float Get_Position_Error(uint8_t id) const;
@@ -71,7 +71,7 @@ private:
     bool Both_Motors_At_Home(bool left_valid, bool right_valid) const;
     // 判断左右两个电机是否都已到达上台阶目标位置容差内。
     bool Both_Motors_At_Target(bool left_valid, bool right_valid) const;
-    // 将跨越 0 弧度的原始角度转换为连续控制角度。
+    // 将跨越 ±π 接缝的原始角度转换为连续控制角度。
     float To_Control_Angle(uint8_t index, float raw_angle) const;
 
 private:

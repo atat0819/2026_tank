@@ -42,7 +42,6 @@ chassisCurrentData_t chassisCurrentData; // 定义一个结构体来存储底盘
 
 float yaw_offset_deg = 0.0f;    //云台偏移量
 bool yaw_offset_updated = false; //标志位，表示是否接收到新的云台偏移量数据，接收到了才允许底盘控制任务使用这个数据进行计算
-static uint32_t yaw_offset_timeout_cnt = 0; // 超时计数器
 
 // 定义全局变量来存储云台底盘速度数据
 Gimbal_Chassis_communicate_t gimbalChassis_communicate;
@@ -55,6 +54,54 @@ volatile uint32_t gimbal_keyboard_last_tick = 0;   // 最近一次合法键盘�
 volatile bool gimbal_keyboard_received = false;    // 键盘通信是否已经建立
 volatile uint32_t gimbal_switch_last_tick = 0U;    // 最近一次合法档位帧时间
 volatile bool gimbal_switch_received = false;  // 档位心跳是否已经建立
+static volatile uint32_t gimbal_speed_last_tick = 0U;
+static volatile bool gimbal_speed_received = false;
+static volatile uint32_t gimbal_yaw_last_tick = 0U;
+static volatile bool gimbal_yaw_received = false;
+
+ControlInputSnapshot GetControlInputSnapshot(uint32_t now_tick)
+{
+    ControlInputSnapshot input;
+    taskENTER_CRITICAL();
+    const bool local_online = local_remote_received &&
+                              now_tick - local_remote_last_tick < 100U;
+    const uint8_t gimbal_s1 = static_cast<uint8_t>(gimbalChassis_communicate.s1);
+    const uint8_t gimbal_s2 = static_cast<uint8_t>(gimbalChassis_communicate.s2);
+    const bool gimbal_keyboard_mode = gimbal_s1 == 3U && gimbal_s2 == 3U;
+    const bool gimbal_keyboard_online = gimbal_keyboard_received &&
+        now_tick - gimbal_keyboard_last_tick < 100U;
+    yaw_offset_updated = gimbal_yaw_received &&
+                         now_tick - gimbal_yaw_last_tick < 500U;
+    const bool gimbal_online = gimbal_switch_received &&
+        now_tick - gimbal_switch_last_tick < 100U &&
+        yaw_offset_updated &&
+        (gimbal_keyboard_mode ? gimbal_keyboard_online :
+         (gimbal_speed_received && now_tick - gimbal_speed_last_tick < 100U));
+
+    input.source = SelectControlInputSource(now_tick, local_online,
+        local_remote_last_tick, gimbal_online, gimbal_switch_last_tick);
+    if (input.source == ControlInputSource::LOCAL) {
+        // 本地 DBUS 摇杆是底盘坐标；同一帧提供档位、键盘和失联心跳。
+        input.s1 = remoteData.s1;
+        input.s2 = remoteData.s2;
+        input.keyboard = local_remote_keyboard;
+        input.mouse_x = local_remote_mouse_x;
+        input.keyboard_online = true;
+        input.vx = remoteData.vy;
+        input.vy = remoteData.vx;
+        input.wz = remoteData.wz;
+    } else if (input.source == ControlInputSource::GIMBAL) {
+        input.s1 = gimbal_s1;
+        input.s2 = gimbal_s2;
+        input.keyboard = gimbal_keyboard;
+        input.keyboard_online = gimbal_keyboard_online;
+        input.vx = gimbalChassis_communicate.vx;
+        input.vy = gimbalChassis_communicate.vy;
+        input.yaw_offset_deg = gimbalChassis_communicate.yaw_offset_deg;
+    }
+    taskEXIT_CRITICAL();
+    return input;
+}
 volatile uint32_t stair_action_sequence = 0;       // B 键动作序号，供前部 FSM 消费
 
 volatile uint32_t rear_retract_action_sequence = 0U;
@@ -268,17 +315,22 @@ extern "C" void can_send_task(void *argument)
     });
 /************************************************************************************** */
    fdcan2.register_rx_callback([](const HAL::FDCAN::Frame &frame) {
-    if (frame.id == 0x301 ) {
+    if (frame.id == 0x301 && frame.dlc >= sizeof(float)) {
        memcpy(&gimbalChassis_communicate.yaw_offset_deg, frame.data, sizeof(float));
        yaw_offset_updated = true;
-       yaw_offset_timeout_cnt = 0; // 收到数据，清零计数器
-   }
-   else if (frame.id == 0x302) {
+        gimbal_yaw_last_tick = HAL_GetTick();
+        gimbal_yaw_received = true;
+    }
+    else if (frame.id == 0x302 && frame.dlc >= 2U * sizeof(float)) {
         memcpy(&gimbalChassis_communicate.vx, &frame.data[0], sizeof(float));
         memcpy(&gimbalChassis_communicate.vy, &frame.data[4], sizeof(float));
        gimbalChassisSpeedUpdated = 1;
-   }
-   else if (frame.id == 0x303 && frame.dlc >= 2U) {
+       gimbal_speed_last_tick = HAL_GetTick();
+       gimbal_speed_received = true;
+    }
+    else if (frame.id == 0x303 && frame.dlc >= 2U &&
+             frame.data[0] >= 1U && frame.data[0] <= 3U &&
+             frame.data[1] >= 1U && frame.data[1] <= 3U) {
        // 只有同时收到两个档位字节才更新档位和心跳时间戳。
        gimbalChassis_communicate.s1 = frame.data[0];
        gimbalChassis_communicate.s2 = frame.data[1];
@@ -325,6 +377,7 @@ ChassisMotorSendCANChecked();
 
 // 在循环前声明
 Enum_Chassis_Mode last_mode = CHASSIS_STOP; //为了不疯车
+ControlInputSource last_input_source = ControlInputSource::NONE;
 
     //IMU的变量
     IMUData_t IMUData;           // IMU 数据结构体
@@ -332,21 +385,16 @@ osDelay(500);
     for (;;)
     {
          const uint32_t now_tick = HAL_GetTick();
+         const ControlInputSnapshot input = GetControlInputSnapshot(now_tick);
+         const bool source_changed = input.source != last_input_source;
+         last_input_source = input.source;
          const bool keyboard_mode =
-             (gimbalChassis_communicate.s1 == 3) &&
-             (gimbalChassis_communicate.s2 == 3);
+             (input.s1 == 3U) && (input.s2 == 3U);
          const bool keyboard_online =
-             gimbal_keyboard_received &&
-             (now_tick - gimbal_keyboard_last_tick < 100U);
-
-         if (!keyboard_mode)
-         {
-             // 键盘帧只在键盘模式下有效；回到双中档后不能继续复用之前模式的旧帧。
-             gimbal_keyboard_received = false;
-         }
+             input.keyboard_online && !source_changed;
 
          keyboard_fsm.Update(
-             gimbal_keyboard,
+             input.keyboard,
              keyboard_mode,
              keyboard_online,
              now_tick);
@@ -368,11 +416,11 @@ osDelay(500);
           }
 
          //获取底盘旋转速度
-         ChassisData.vx = remoteController.get_left_y()*Gain;
-         ChassisData.vy = remoteController.get_left_x()*Gain;
-         ChassisData.wz = remoteController.get_right_x() * c;
-         ChassisData.s1 = remoteController.get_s1();
-         ChassisData.s2 = remoteController.get_s2();
+         ChassisData.vx = input.vx * Gain;
+         ChassisData.vy = input.vy * Gain;
+         ChassisData.wz = -input.wz * c;
+         ChassisData.s1 = input.s1;
+         ChassisData.s2 = input.s2;
 
                  //获取底盘旋转速度
          //ChassisData.wz = remoteController.get_right_x() * c;
@@ -387,22 +435,7 @@ osDelay(500);
 
          // 超级电容在线状态更新
          supercap.updateOnlineStatus();
-         if(!keyboard_mode && remoteController.get_left_y() == -1
-         && remoteController.get_left_x() == -1 
-         && remoteController.get_right_x() == -1)
-         {
-        for (int i = 0; i < 4; i++) 
-        {
-        motor_output[i] = 0;
-        motor_pid[i].reset();
-        chassis_motor.setCAN((int16_t)0, i + 1);
-        }
-         chassis_fsm.Get_Follow_PID().reset();
-  ChassisMotorSendCANChecked();
-    }
-    else if (!keyboard_mode &&
-             gimbalChassis_communicate.vx == -1 &&
-             gimbalChassis_communicate.vy == -1)
+         if (input.source == ControlInputSource::NONE || source_changed)
     {
         for (int i = 0; i < 4; i++) 
         {
@@ -411,6 +444,8 @@ osDelay(500);
         chassis_motor.setCAN((int16_t)0, i + 1);
         }
          chassis_fsm.Get_Follow_PID().reset();
+         chassis_vx_filter.Reset(0.0f);
+         chassis_vy_filter.Reset(0.0f);
  ChassisMotorSendCANChecked();
     }
     else {
@@ -458,30 +493,31 @@ osDelay(500);
     //                 }
             // ==================== 校准模式结束 ====================
 
-           yaw_offset_rad = gimbalChassis_communicate.yaw_offset_deg * M_PI / 180.0f;//将云台偏移角从度转换为弧度
+           yaw_offset_rad = input.yaw_offset_deg * M_PI / 180.0f;
 
-           // 超时检测：500 次循环（约 500ms）未收到新数据，视为离线
-           if (yaw_offset_updated)
+           // 当前来源完整且新鲜才允许退出 STOP；本地输入以车体为坐标系。
+           chassis_fsm.StateUpdate(
+               input.s1, input.s2, input.source != ControlInputSource::NONE);
+           wz_cmd = chassis_fsm.Get_wz_cmd(yaw_offset_rad);
+           if (input.source == ControlInputSource::LOCAL && !keyboard_mode &&
+               chassis_fsm.Get_Mode() != CHASSIS_GYRO_SPIN)
            {
-               yaw_offset_timeout_cnt++;
-               if (yaw_offset_timeout_cnt > 500)
-               {
-                   yaw_offset_updated = false;
-                   yaw_offset_timeout_cnt = 0;
-               }
+               // 与云台遥控器 yaw 的摇杆方向一致：右摇杆向右对应负角速度。
+               wz_cmd = -input.wz * c;
            }
 
-           // 底盘状态机：更新模式并获取旋转角速度指令
-           // yaw_offset_updated 为 1 表示 CAN 通信已建立，否则强制保持 STOP
-           chassis_fsm.StateUpdate(
-               (uint8_t)gimbalChassis_communicate.s1,
-               (uint8_t)gimbalChassis_communicate.s2,
-               keyboard_mode ? keyboard_online : yaw_offset_updated);
-           wz_cmd = chassis_fsm.Get_wz_cmd(yaw_offset_rad);
-
-           if (keyboard_cmd.valid && keyboard_cmd.gyro_enabled)
+           if (keyboard_cmd.valid && keyboard_cmd.gyro_enabled) //小陀螺
            {
                wz_cmd = chassis_fsm.gyro_spin_speed;
+           }
+           else if (input.source == ControlInputSource::LOCAL && keyboard_cmd.valid)
+           {
+               // 本地键鼠档位：鼠标向右为负向旋转。0.2 度/秒/计数，限幅到 2 rad/s。
+               // 鼠标停止时 DBUS 的 X 位移归零；失联或切源由上面的零输出分支处理。
+               wz_cmd = -static_cast<float>(input.mouse_x) *
+                        (3.0f * M_PI / 180.0f);
+               if (wz_cmd > 2.0f) wz_cmd = 2.0f;
+               if (wz_cmd < -2.0f) wz_cmd = -2.0f;
            }
            else if (keyboard_cmd.valid && keyboard_cmd.follow_enabled)
            {
@@ -494,9 +530,10 @@ osDelay(500);
 
         // 2. 获取电机当前反馈 (当前轮速)
         phase_comp = 0.0f; // 这里暂时不使用相位补偿，后续可以根据实际情况调整
-if (chassis_fsm.Get_Mode() == CHASSIS_GYRO_SPIN ||
+if (input.source == ControlInputSource::GIMBAL &&
+    (chassis_fsm.Get_Mode() == CHASSIS_GYRO_SPIN ||
     (keyboard_cmd.valid &&
-     (keyboard_cmd.gyro_enabled || keyboard_cmd.follow_enabled)))
+     (keyboard_cmd.gyro_enabled || keyboard_cmd.follow_enabled))))
 {
     phase_comp = (0.01f * wz_cmd);  // 逆时针转为正，顺时针转为负
 }
@@ -509,8 +546,8 @@ if (chassis_fsm.Get_Mode() == CHASSIS_GYRO_SPIN ||
             }
             else
             {
-                vx_gimbal = gimbalChassis_communicate.vx * Gain;
-                vy_gimbal = gimbalChassis_communicate.vy * Gain;
+                vx_gimbal = input.vx * Gain;
+                vy_gimbal = input.vy * Gain;
             }
 float compensated_angle = yaw_offset_rad + phase_comp;
 vx_body = vx_gimbal * cosf(compensated_angle) + vy_gimbal * sinf(compensated_angle);

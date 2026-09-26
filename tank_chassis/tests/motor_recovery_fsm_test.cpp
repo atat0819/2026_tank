@@ -18,9 +18,15 @@ int main()
     assert(fsm.Should_Enable(true, 4U));
     assert(!fsm.Should_Enable(true, 5U));
 
+    // Leaving double-down or control-link fault must re-arm the motor even
+    // when feedback remained online throughout the safety interval.
+    fsm.Force_Enable_On_Next_Check();
+    assert(fsm.Should_Enable(true, 6U));
+    assert(!fsm.Should_Enable(true, 7U));
+
     // Offline retry remains rate-limited.
-    assert(fsm.Should_Enable(false, 6U));
-    assert(!fsm.Should_Enable(false, 105U));
-    assert(fsm.Should_Enable(false, 106U));
+    assert(fsm.Should_Enable(false, 8U));
+    assert(!fsm.Should_Enable(false, 107U));
+    assert(fsm.Should_Enable(false, 108U));
     return 0;
 }

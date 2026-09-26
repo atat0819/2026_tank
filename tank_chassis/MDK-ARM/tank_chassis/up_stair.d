@@ -816,6 +816,6 @@ tank_chassis/up_stair.o: ..\RtosTask\up_stair.cpp \
   ..\RtosTask\..\fsm\motor_recovery_fsm.hpp \
   ..\RtosTask\..\fsm\rear_torque_safety.hpp \
   ..\RtosTask\can_send_task.hpp ..\user\core\HAL\FDCAN\fdcan_hal.hpp \
-  ..\RtosTask\imu_task.hpp \
+  ..\RtosTask\..\fsm\control_input_selector.hpp ..\RtosTask\imu_task.hpp \
   ..\RtosTask\..\user\core\BSP\simple_bmi088\simple_bmi088.hpp \
   ..\RtosTask\..\user\core\BSP\simple_bmi088\simple_bmi088.h

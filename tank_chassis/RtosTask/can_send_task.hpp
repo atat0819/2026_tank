@@ -66,4 +66,23 @@ extern volatile bool gimbal_switch_received;  // 是否收到过合法档位帧
 }
 #endif
 
+#ifdef __cplusplus
+#include "../fsm/control_input_selector.hpp"
+
+struct ControlInputSnapshot {
+    ControlInputSource source = ControlInputSource::NONE;
+    bool keyboard_online = false;
+    uint8_t s1 = 0U;
+    uint8_t s2 = 0U;
+    uint16_t keyboard = 0U;
+    int16_t mouse_x = 0;
+    float vx = 0.0f;
+    float vy = 0.0f;
+    float wz = 0.0f;
+    float yaw_offset_deg = 0.0f;
+};
+
+ControlInputSnapshot GetControlInputSnapshot(uint32_t now_tick);
+#endif
+
 #endif // CAN_SEND_TASK_HPP

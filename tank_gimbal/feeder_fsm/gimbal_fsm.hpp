@@ -61,6 +61,8 @@ typedef struct Struct_Gimbal_Input
 class Class_Gimbal_FSM : public Class_FSM
 {
 public:
+    enum class PitchStartDecision { Normal, HoldZero, ReanchorAndRelease };
+
     void Init(const Struct_Gimbal_FSM_Config &__config,
               uint8_t __initial_status = GIMBAL_STATUS_STOP);
 
@@ -73,6 +75,7 @@ public:
     void Set_Target_Speed(float speed);
 
     void ReAnchor(float new_angle);
+    PitchStartDecision Update_Pitch_Start_Gate(bool is_double_down, float pitch_stick);
 
     float   Get_Control_Output() const;
     uint8_t Get_Control_Type() const;
@@ -104,6 +107,9 @@ private:
     uint8_t last_mode_command_ = GIMBAL_MODE_STOP;
     uint8_t source_initialized_ = 0U;
     bool last_is_keymouse_ = false;
+    bool pitch_came_from_double_down_ = false;
+    bool pitch_start_locked_ = false;
+    bool pitch_neutral_seen_ = false;
 };
 
 #endif
