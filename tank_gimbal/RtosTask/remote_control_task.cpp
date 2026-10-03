@@ -7,7 +7,6 @@
 #include "../user/core/BSP/version/vision_communication.hpp"
 #include "../communication_between_boards/input_dispatcher.hpp"
 #include "gimbal_task.hpp"
-#include <cstring>
 
 QueueHandle_t remoteDataQueue;
 QueueHandle_t IMUDataQueue;
@@ -112,13 +111,7 @@ extern "C" void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
 //虚拟串口假回调 (见USB_DEVICE\App\usbd_cdc_if.c)
 extern "C" void USB_Receive_Callback(uint8_t *Buf, uint32_t Len)
 {
-    // 帧长固定 19 字节，不对就丢掉
-    if (Len != BSP::Vision::VisionCommunicator::RX_BUFFER_SIZE)
-        {return;}
-
-    memset(vision_comm.GetRxBuffer(), 0, BSP::Vision::VisionCommunicator::RX_BUFFER_SIZE);
-    memcpy(vision_comm.GetRxBuffer(), Buf, BSP::Vision::VisionCommunicator::RX_BUFFER_SIZE);
-    vision_comm.ParseRxData(vision_comm.GetRxBuffer(), BSP::Vision::VisionCommunicator::RX_BUFFER_SIZE);
+    vision_comm.ParseRxData(Buf, Len);
 }
 
 // ==================== 任务函数 ====================
@@ -196,7 +189,13 @@ extern "C" void remote_control_task(void *argument)
             float avg_friction_rpm = (abs_left + abs_right + abs_bottom) / 3.0f;
             float bullet_speed = avg_friction_rpm * 3.14159265358979323846f * 0.0641f / 60.0f;
 
-            vision_comm.SendToVision(quaternion, bullet_speed, BSP::Vision::VisionCommunicator::ENEMY_RED, vision_mode);
+            constexpr float deg_to_rad = 3.14159265358979323846f / 180.0f;
+            vision_comm.SendToVision(quaternion,
+                                     imu.GetAngle(2) * deg_to_rad,
+                                     imu.GetGyro(2) * deg_to_rad,
+                                     imu.GetAngle(1) * deg_to_rad,
+                                     imu.GetGyro(0) * deg_to_rad,
+                                     16.0f, 0U, vision_mode); // 暂不统计累计发弹数
         }
        
 

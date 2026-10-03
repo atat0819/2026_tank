@@ -6,10 +6,10 @@
 %
 % Self-aim mode is active when input->auto_aim_mode != 0. In that mode the
 % firmware uses:
-%   e_theta = theta_meas - theta_ref_planned
-%   e_omega = omega_meas - omega_ref_planned
+%   e_theta = theta_ref_planned - theta_meas
+%   e_omega = omega_ref_planned - omega_meas
 %   tau_ff  = J_auto * alpha_ref + B_auto * omega_ref + coulomb_ff
-%   tau_lqr = tau_ff - Ktheta * e_theta - Komega * e_omega + tau_lqi
+%   tau_lqr = tau_ff + Ktheta * e_theta + Komega * e_omega + tau_lqi
 %
 % This script tunes only the feedback matrix:
 %   K(1) -> g_lqr_auto_k_theta  (also LQR_AUTO_K_THETA_DEFAULT)
@@ -116,8 +116,8 @@ slewActive = false(1, numel(t));
 uLast = 0.0;
 
 for k = 1:numel(t)-1
-    e = x(:, k) - [thetaRef; 0];
-    uRaw(k) = -K * e;
+    e = [thetaRef; 0] - x(:, k);
+    uRaw(k) = K * e;
 
     uLimited = clampScalar(uRaw(k), -torqueLimit, torqueLimit);
     torqueClampActive(k) = (abs(uLimited - uRaw(k)) > 1e-12);
@@ -137,7 +137,7 @@ slewActive(end) = slewActive(end-1);
 
 thetaDeg = rad2deg(x(1, :));
 omegaRadS = x(2, :);
-thetaErrDeg = thetaDeg - stepRefDeg;
+thetaErrDeg = stepRefDeg - thetaDeg;
 settleBandDeg = settleBandRatio * max(abs(stepRefDeg), eps);
 settleTime = findSettlingTime(t, thetaErrDeg, settleBandDeg);
 stepDir = sign(stepRefDeg);
@@ -175,7 +175,7 @@ fprintf('g_lqr_auto_k_omega = %.9gf;\n', currentKOmega);
 
 fprintf('\nRecommended K matrix from current Q/R:\n');
 fprintf('K = [%.9g, %.9g]\n', Ktheta, Komega);
-fprintf('tau_fb = -K * [e_theta; e_omega]\n');
+fprintf('tau_fb = K * [e_theta; e_omega] (reference - measured)\n');
 
 fprintf('\nOzone copy block:\n');
 fprintf('g_lqr_auto_k_theta = %.9gf;\n', Ktheta);

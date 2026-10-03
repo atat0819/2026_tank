@@ -37,7 +37,7 @@ constexpr float POSITION_TOLERANCE_RAD = 2.0f * 3.14159265359f / 180.0f;
  *   的旧动作误认为是一次新的 B 动作。
  *
  * 初始化后的状态为 UP_STAIR_DISABLED。后续第一次 Update() 时，只有在
- * 机构被允许控制且至少有一个有效反馈的情况下，状态机才会尝试回到
+ * 机构被允许控制且两侧反馈都有效的情况下，状态机才会尝试回到
  * 机械初始位置。
  */
 void Class_Up_Stair_FSM::Init(uint32_t action_sequence)
@@ -276,9 +276,10 @@ void Class_Up_Stair_FSM::Update(float current_left_angle,
     const bool right_valid = right_feedback_valid &&
                              Is_Angle_Valid(2U, current_right_angle);
 
-    // 机构未授权、静态配置错误，或者左右反馈都失效时，关闭前部控制。
+    // 机构未授权、静态配置错误，或者任一侧反馈失效时，关闭整个前部控制。
+    // 任务层据 Is_Enabled() 清空两侧 PID，并向两台 4340 发送零力矩。
     // 此时同步动作序号，避免恢复后重复处理旧的 B 动作。
-    if (!mechanism_enabled || !config_valid_ || (!left_valid && !right_valid))
+    if (!mechanism_enabled || !config_valid_ || !left_valid || !right_valid)
     {
         Set_Status(UP_STAIR_DISABLED);
         last_action_sequence_ = action_sequence;

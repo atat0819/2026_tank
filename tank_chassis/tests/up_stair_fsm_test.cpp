@@ -166,7 +166,7 @@ int main()
            10U);
     assert(fsm.Get_State() == UP_STAIR_HOME_HOLD);
 
-    // One motor offline keeps control enabled but cannot declare arrival.
+    // Either motor offline disables both front motors.
     update(fsm,
            deg_to_rad(34.0f),
            deg_to_rad(-20.0f),
@@ -184,8 +184,8 @@ int main()
            true,
            true,
            11U);
-    assert(fsm.Get_State() == UP_STAIR_MOVING_TO_TARGET);
-    assert(fsm.Is_Enabled());
+    assert(fsm.Get_State() == UP_STAIR_DISABLED);
+    assert(!fsm.Is_Enabled());
 
     // Both feedback channels offline disable the shared controller.
     update(fsm,
@@ -305,7 +305,8 @@ int main()
            true,
            true,
            2U);
-    assert(feedback_fsm.Get_State() == UP_STAIR_RETURNING_HOME);
+    assert(feedback_fsm.Get_State() == UP_STAIR_DISABLED);
+    assert(!feedback_fsm.Is_Enabled());
     update(feedback_fsm,
            0.0f,
            deg_to_rad(60.0f),
@@ -314,8 +315,8 @@ int main()
            true,
            true,
            3U);
-    assert(feedback_fsm.Get_State() == UP_STAIR_MOVING_TO_TARGET);
-    assert(feedback_fsm.Is_Enabled());
+    assert(feedback_fsm.Get_State() == UP_STAIR_DISABLED);
+    assert(!feedback_fsm.Is_Enabled());
     update(feedback_fsm,
            deg_to_rad(122.0f),
            deg_to_rad(60.0f),
@@ -347,7 +348,36 @@ int main()
            true,
            true,
            4U);
-    assert(feedback_fsm.Get_State() == UP_STAIR_RETURNING_HOME);
-    assert(feedback_fsm.Is_Enabled());
+    assert(feedback_fsm.Get_State() == UP_STAIR_DISABLED);
+    assert(!feedback_fsm.Is_Enabled());
+    // Exercise left, right and simultaneous loss, including startup and recovery.
+    for (unsigned mask = 0; mask < 3; ++mask)
+    {
+        Class_Up_Stair_FSM pair;
+        pair.Init(0U);
+        const bool left_online = (mask & 1U) != 0U;
+        const bool right_online = (mask & 2U) != 0U;
+        update(pair, deg_to_rad(80), deg_to_rad(30), left_online,
+               right_online, true, true, 1U);
+        assert(!pair.Is_Enabled());
+        update(pair, deg_to_rad(80), deg_to_rad(30), true, true, true, true, 1U);
+        assert(pair.Get_State() == UP_STAIR_RETURNING_HOME);
+        update(pair, deg_to_rad(80), deg_to_rad(30), true, true, true, true, 2U);
+        assert(pair.Get_State() == UP_STAIR_MOVING_TO_TARGET);
+        update(pair, deg_to_rad(80), deg_to_rad(30), left_online,
+               right_online, true, true, 3U);
+        assert(pair.Get_State() == UP_STAIR_DISABLED);
+        assert(!pair.Is_Enabled());
+        update(pair, deg_to_rad(80), deg_to_rad(30), true, true, true, true, 4U);
+        assert(pair.Get_State() == UP_STAIR_RETURNING_HOME);
+        for (unsigned id = 1; id <= 2; ++id)
+            assert(near(pair.Get_Target_Angle(id), Class_Up_Stair_FSM::HOME_ANGLE_RAD[id - 1]));
+        update(pair, deg_to_rad(34), deg_to_rad(-20), true, true, true, true, 4U);
+        assert(pair.Get_State() == UP_STAIR_HOME_HOLD);
+        update(pair, deg_to_rad(34), deg_to_rad(-20), true, true, true, true, 4U);
+        assert(pair.Get_State() == UP_STAIR_HOME_HOLD);
+        update(pair, deg_to_rad(34), deg_to_rad(-20), true, true, true, true, 5U);
+        assert(pair.Get_State() == UP_STAIR_MOVING_TO_TARGET);
+    }
     return 0;
 }

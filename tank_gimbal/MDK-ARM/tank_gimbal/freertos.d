@@ -213,13 +213,6 @@ tank_gimbal/freertos.o: ..\Core\Src\freertos.c \
   ..\Drivers\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal_pcd_ex.h \
   ..\Middlewares\Third_Party\FreeRTOS\Source\CMSIS_RTOS_V2\cmsis_os.h \
   ..\Middlewares\Third_Party\FreeRTOS\Source\CMSIS_RTOS_V2\cmsis_os2.h \
-  ..\USB_DEVICE\App\usb_device.h \
-  ..\Middlewares\ST\STM32_USB_Device_Library\Core\Inc\usbd_def.h \
-  ..\USB_DEVICE\Target\usbd_conf.h \
-  D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\stdio.h \
-  D:\Keil5\Core\ARM\ARMCLANG\include\stdio.h \
-  D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\string.h \
-  D:\Keil5\Core\ARM\ARMCLANG\include\string.h \
   ..\RtosTask\can_send_task.hpp ..\RtosTask\remote_control_task.hpp \
   ..\Middlewares\Third_Party\FreeRTOS\Source\include\queue.h \
   ..\RtosTask\..\user\core\BSP\RemoteControl\DT7.hpp \
@@ -394,6 +387,8 @@ tank_gimbal/freertos.o: ..\Core\Src\freertos.c \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__functional\hash.h \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__functional\unary_function.h \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\cstring \
+  D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\string.h \
+  D:\Keil5\Core\ARM\ARMCLANG\include\string.h \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__functional\operations.h \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__functional\binary_function.h \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__type_traits\operation_traits.h \
@@ -713,6 +708,7 @@ tank_gimbal/freertos.o: ..\Core\Src\freertos.c \
   ..\RtosTask\gimbal_task.hpp \
   ..\RtosTask\..\user\core\BSP\Motor\Dji\DjiMotor.hpp \
   ..\communication_between_boards\..\user\core\BSP\Motor\MotorBase.hpp \
+  ..\communication_between_boards\..\user\core\BSP\buzzer\buzzer.hpp \
   ..\communication_between_boards\..\user\core\HAL\FDCAN\fdcan_hal.hpp \
   ..\communication_between_boards\..\user\core\HAL\FDCAN\interface\fdcan_bus.hpp \
   ..\communication_between_boards\..\user\core\HAL\FDCAN\interface\fdcan_device.hpp \
@@ -752,6 +748,8 @@ tank_gimbal/freertos.o: ..\Core\Src\freertos.c \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__fwd\string_view.h \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__string\char_traits.h \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\cstdio \
+  D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\stdio.h \
+  D:\Keil5\Core\ARM\ARMCLANG\include\stdio.h \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__format\formatter_integral.h \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__charconv\to_chars_integral.h \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__charconv\tables.h \
@@ -818,4 +816,6 @@ tank_gimbal/freertos.o: ..\Core\Src\freertos.c \
   ..\RtosTask\..\feeder_fsm\feeder_fsm.hpp \
   ..\RtosTask\..\feeder_fsm\..\user\core\Alg\FSM\alg_fsm.hpp \
   ..\RtosTask\..\feeder_fsm\friction_fsm.hpp \
-  ..\user\core\Alg\Filter\Filter.hpp
+  ..\user\core\Alg\Filter\Filter.hpp ..\USB_DEVICE\App\usb_device.h \
+  ..\Middlewares\ST\STM32_USB_Device_Library\Core\Inc\usbd_def.h \
+  ..\USB_DEVICE\Target\usbd_conf.h

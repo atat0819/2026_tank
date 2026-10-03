@@ -22,17 +22,31 @@ Dialog DLL:      TCM.DLL V1.56.4.0
  
 <h2>Project:</h2>
 C:\Users\hp\Desktop\2026_tank\tank_gimbal\MDK-ARM\tank_gimbal.uvprojx
-Project File Date:  09/15/2026
+Project File Date:  10/01/2026
 
 <h2>Output:</h2>
 *** Using Compiler 'V6.21', folder: 'D:\Keil5\Core\ARM\ARMCLANG\Bin'
 Build target 'tank_gimbal'
 compiling uart_bus.cpp...
 compiling fdcan_bus.cpp...
+../Core/Src/freertos.c(28): warning: In file included from...
+../RtosTask\can_send_task.hpp(8): warning: In file included from...
+../RtosTask/gimbal_task.hpp(9): warning: In file included from...
+../RtosTask/../feeder_fsm/feeder_fsm.hpp(94): warning: typedef requires a name [-Wmissing-declarations]
+   94 | typedef struct Struct_Feeder_Input
+      | ^~~~~~~
+../Core/Src/freertos.c(28): warning: In file included from...
+../RtosTask\can_send_task.hpp(8): warning: In file included from...
+../RtosTask/gimbal_task.hpp(10): warning: In file included from...
+../RtosTask/../feeder_fsm/friction_fsm.hpp(27): warning: typedef requires a name [-Wmissing-declarations]
+   27 | typedef struct Struct_Friction_Input
+      | ^~~~~~~
+2 warnings generated.
+compiling freertos.c...
 linking...
-Program Size: Code=152772 RO-data=2600 RW-data=420 ZI-data=247924  
+Program Size: Code=162132 RO-data=2752 RW-data=408 ZI-data=248008  
 FromELF: creating hex file...
-"tank_gimbal\tank_gimbal.axf" - 0 Error(s), 0 Warning(s).
+"tank_gimbal\tank_gimbal.axf" - 0 Error(s), 2 Warning(s).
 
 <h2>Software Packages used:</h2>
 
@@ -55,7 +69,7 @@ Package Vendor: Keil
 
    * Component: ARM::CMSIS:CORE@5.6.0
       Include file:  CMSIS/Core/Include/tz_context.h
-Build Time Elapsed:  00:00:05
+Build Time Elapsed:  00:00:04
 </pre>
 </body>
 </html>

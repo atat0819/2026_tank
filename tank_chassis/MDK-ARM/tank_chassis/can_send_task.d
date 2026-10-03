@@ -810,6 +810,7 @@ tank_chassis/can_send_task.o: ..\RtosTask\can_send_task.cpp \
   ..\Core\Inc\tim.h ..\RtosTask\up_stair.hpp \
   ..\RtosTask\..\user\core\BSP\Motor\DM\DmMotor.hpp \
   ..\communication\..\user\core\BSP\Motor\MotorBase.hpp \
+  ..\communication\..\user\core\BSP\buzzer\buzzer.hpp \
   ..\communication\..\user\core\HAL\FDCAN\fdcan_hal.hpp \
   ..\RtosTask\..\user\core\Alg\PID\pid.hpp ..\user\core\Alg\PID\pid.hpp \
   ..\Core\Inc\usart.h ..\user\core\Alg\Filter\Filter.hpp \

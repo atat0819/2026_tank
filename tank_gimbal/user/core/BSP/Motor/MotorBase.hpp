@@ -4,7 +4,7 @@
 #pragma once
 
 #include "../user/core/BSP/Common/StateWatch/state_watch.hpp"
-#include "../user/core/BSP/Common/StateWatch/buzzer_manager.hpp"
+#include "../user/core/BSP/buzzer/buzzer.hpp"
 #include "../user/core/HAL/FDCAN/fdcan_hal.hpp"
 
 namespace BSP::Motor
@@ -74,11 +74,9 @@ namespace BSP::Motor
             {
                 state_watch_[id_state - 1].UpdateTime();
                 state_watch_[id_state - 1].CheckStatus();
-                if(state_watch_[id_state - 1].GetStatus() == BSP::WATCH_STATE::Status::OFFLINE)
-                {
-                    BSP::WATCH_STATE::BuzzerManagerSimple::getInstance().requestMotorRing(id_ring);
-                }
-                return state_watch_[id_state - 1].GetStatus() == BSP::WATCH_STATE::Status::ONLINE;
+                const bool online = state_watch_[id_state - 1].GetStatus() == BSP::WATCH_STATE::Status::ONLINE;
+                BSP::BUZZER::setMotorOnline(id_ring, online);
+                return online;
             }
             return false;
         }

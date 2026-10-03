@@ -222,8 +222,7 @@ tank_chassis/up_stair.o: ..\RtosTask\up_stair.cpp \
   ..\Drivers\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal_pcd.h \
   ..\Drivers\STM32H7xx_HAL_Driver\Inc\stm32h7xx_ll_usb.h \
   ..\Drivers\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal_pcd_ex.h \
-  ..\communication\..\user\core\BSP\Common\StateWatch\buzzer_manager.hpp \
-  ..\Core\Inc\tim.h \
+  ..\communication\..\user\core\BSP\buzzer\buzzer.hpp ..\Core\Inc\tim.h \
   ..\communication\..\user\core\HAL\FDCAN\fdcan_hal.hpp \
   ..\communication\..\user\core\HAL\FDCAN\interface\fdcan_bus.hpp \
   ..\communication\..\user\core\HAL\FDCAN\interface\fdcan_device.hpp \
@@ -818,4 +817,8 @@ tank_chassis/up_stair.o: ..\RtosTask\up_stair.cpp \
   ..\RtosTask\can_send_task.hpp ..\user\core\HAL\FDCAN\fdcan_hal.hpp \
   ..\RtosTask\..\fsm\control_input_selector.hpp ..\RtosTask\imu_task.hpp \
   ..\RtosTask\..\user\core\BSP\simple_bmi088\simple_bmi088.hpp \
-  ..\RtosTask\..\user\core\BSP\simple_bmi088\simple_bmi088.h
+  ..\RtosTask\..\user\core\BSP\simple_bmi088\simple_bmi088.h \
+  ..\RtosTask\..\user\core\HAL\UART\uart_hal.hpp \
+  ..\RtosTask\..\user\core\HAL\UART\interface\uart_bus.hpp \
+  ..\RtosTask\..\user\core\HAL\UART\interface\uart_device.hpp \
+  ..\Core\Inc\usart.h

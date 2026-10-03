@@ -710,6 +710,7 @@ tank_gimbal/boards_communication.o: \
   ..\RtosTask\gimbal_task.hpp \
   ..\RtosTask\..\user\core\BSP\Motor\Dji\DjiMotor.hpp \
   ..\communication_between_boards\..\user\core\BSP\Motor\MotorBase.hpp \
+  ..\communication_between_boards\..\user\core\BSP\buzzer\buzzer.hpp \
   ..\communication_between_boards\..\user\core\HAL\FDCAN\fdcan_hal.hpp \
   ..\communication_between_boards\..\user\core\HAL\FDCAN\interface\fdcan_bus.hpp \
   ..\communication_between_boards\..\user\core\HAL\FDCAN\interface\fdcan_device.hpp \
@@ -817,4 +818,5 @@ tank_gimbal/boards_communication.o: \
   ..\RtosTask\..\feeder_fsm\feeder_fsm.hpp \
   ..\RtosTask\..\feeder_fsm\..\user\core\Alg\FSM\alg_fsm.hpp \
   ..\RtosTask\..\feeder_fsm\friction_fsm.hpp \
-  ..\user\core\Alg\Filter\Filter.hpp
+  ..\user\core\Alg\Filter\Filter.hpp \
+  ..\communication_between_boards\..\user\core\BSP\Motor\DM\DmMotor.hpp

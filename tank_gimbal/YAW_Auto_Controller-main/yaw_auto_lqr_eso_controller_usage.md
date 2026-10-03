@@ -23,7 +23,7 @@
 内部计算链路为：
 
 1. 更新三阶 ESO 观测器。
-2. 计算跟踪误差 `e_theta = theta - theta_ref`、`e_omega = omega - omega_ref`。
+2. 计算跟踪误差 `e_theta = theta_ref - theta`、`e_omega = omega_ref - omega`。
 3. 计算前馈力矩 `J * alpha_ref + B * omega_ref + tau_coulomb`。
 4. 计算 LQR 反馈力矩。
 5. 可选叠加 ESO 扰动补偿。
@@ -156,8 +156,8 @@ DMMotorSetTorque(yaw_motor, out.tau_cmd_nm);
 | `tau_eso_raw_nm` | ESO 估计出的原始补偿力矩 |
 | `tau_eso_active_nm` | 实际接入控制的 ESO 补偿力矩 |
 | `tau_bias_nm` | 偏置补偿力矩 |
-| `e_theta_rad` | 角位置误差 |
-| `e_omega_rad_s` | 角速度误差 |
+| `e_theta_rad` | 目标角度减实际角度，单位 rad |
+| `e_omega_rad_s` | 目标角速度减实际角速度，单位 rad/s |
 | `soft_limit_active` | 软限幅是否触发 |
 | `hard_limit_active` | 硬限幅是否触发 |
 | `slew_limit_active` | 斜率限制是否触发 |

@@ -13,6 +13,7 @@
 #include "../user/core/Alg/Feedforward/Feedforward.hpp"
 #include "../user/core/HAL/UART/uart_hal.hpp"
 #include "../user/core/BSP/Motor/DM/DmMotor.hpp"
+#include "../YAW_Auto_Controller-main/yaw_auto_lqr_eso_controller.h"
 #include <string.h>
 
 extern "C" USBD_HandleTypeDef hUsbDeviceHS;
@@ -127,6 +128,19 @@ ALG::PID::PID pitch_keymouse_speed_pid(4.5f, 0.07f, 0.0f, 5000.0f, 1000.0f, 100.
 ALG::PID::PID yaw_version_angle_pid(16.5f, 0.01f, 0.01f, 2000.0f, 1000.0f, 100.0f);
 // yaw 视觉角度环内环PID
 ALG::PID::PID yaw_version_speed_pid(1.54f, 0.0f, 0.0f, 5000.0f, 1000.0f, 100.0f);
+// 开源脚本示例值，尚未针对本机标定；仅视觉 Yaw 使用。
+static const YawAutoLqrEsoConfig_t yaw_auto_config = {
+    0.039f, 0.30f, 12.0f, 3.4f, // J, B, Ktheta, Komega
+    0.0f, 0.0f,                 // 积分及积分限幅
+    0.0f, 0.0f,                 // 库仑摩擦及平滑速度
+    20.0f, 0.2f, 1.0f,         // ESO 带宽、补偿增益、补偿限幅 (Nm)
+    0.0f, 0.0f,                 // ESO 速度及加速度门限 (0=不限)
+    0.0f, 0.0f, 0.0f,          // 力矩偏置及反馈低通（未启用）
+    0.0f,                       // 角度死区
+    0.0f, -J4340_TORQUE_LIMIT_NM, J4340_TORQUE_LIMIT_NM, 0.0f,
+    1U, 1U, 0U                 // ESO、ESO 补偿、斜率限幅
+};
+static YawAutoLqrEso_t yaw_auto_ctrl;
 // pitch 视觉角度环外环PID（暂未启用，全零）
 ALG::PID::PID pitch_version_angle_pid(17.5f, 0.025f, 0.0f, 2000.0f, 1000.0f, 100.0f);
 // pitch 视觉角度环内环PID（暂未启用，全零）
@@ -261,6 +275,7 @@ static void ResetGimbalControlState()
     yaw_remote_speed_pid.reset();
     yaw_version_angle_pid.reset();
     yaw_version_speed_pid.reset();
+    YawAutoLqrEso_Reset(&yaw_auto_ctrl, 0.0f, 0.0f);
     pitch_angle_pid.reset();
     pitch_angle_to_speed_pid.reset();
     pitch_keymouse_angle_pid.reset();
@@ -370,6 +385,7 @@ for (uint32_t wait = 0; wait < 200; wait++)
 
 // 读电机状态（此时CAN已跑了一段时间，电机数据可靠）
     // CAN 已运行一段时间后读取初始电机反馈，建立可靠基准。
+YawAutoLqrEso_Init(&yaw_auto_ctrl);
 ControlTask();
 
 // 设置初始目标（此时IMU也收敛了）
@@ -619,7 +635,7 @@ else
     yaw_input.mouse_right_held = input_dispatcher.IsVisionMode();
     yaw_input.vision_ready = vision_comm.IsVisionReady();
     yaw_input.vision_fresh = vision_comm.IsDataFresh();
-    yaw_input.vision_angle  = DegreesToRadians(vision_comm.GetYawAngle());
+    yaw_input.vision_angle  = vision_comm.GetYawAngle();
     yaw_gimbal_fsm.Update(yaw_input, yaw_current_angle);
 
     Struct_Gimbal_Input pitch_input = {};
@@ -634,17 +650,18 @@ else
     pitch_input.mouse_right_held = input_dispatcher.IsVisionMode();
     pitch_input.vision_ready = vision_comm.IsVisionReady();
     pitch_input.vision_fresh = vision_comm.IsDataFresh();
-    pitch_input.vision_angle  = DegreesToRadians(vision_comm.GetPitchAngle());
+    pitch_input.vision_angle  = vision_comm.GetPitchAngle();
     pitch_gimbal_fsm.Update(pitch_input, pitch_current_angle);
 }
 yaw_mode   = yaw_gimbal_fsm.Get_Mode_Command();
 pitch_mode = pitch_gimbal_fsm.Get_Mode_Command();
 
-// 仅从遥控器双下切出时等待 Pitch 摇杆回中后首次上拨。
+// 从双下切出后，遥控器档等待右摇杆回中上拨；键鼠档等待鼠标停止后上移。
 const Class_Gimbal_FSM::PitchStartDecision pitch_start_decision =
     pitch_gimbal_fsm.Update_Pitch_Start_Gate(
         RemoteData.s1 == Remote::DOWN && RemoteData.s2 == Remote::DOWN,
-        RemoteData.gimbal_pitch);
+        input_dispatcher.GetSource() == InputSource::KeyMouse,
+        RemoteData.gimbal_pitch, static_cast<float>(mouse_delta_y));
 const bool pitch_hold_zero =
     pitch_start_decision == Class_Gimbal_FSM::PitchStartDecision::HoldZero;
 if (pitch_start_decision == Class_Gimbal_FSM::PitchStartDecision::ReanchorAndRelease &&
@@ -653,10 +670,12 @@ if (pitch_start_decision == Class_Gimbal_FSM::PitchStartDecision::ReanchorAndRel
     pitch_gimbal_fsm.ReAnchor(pitch_current_angle);
 }
 
-//        if (yaw_target_angle > 60.0f) yaw_target_angle = 60.0f; // 限制最大角度
-//        if (yaw_target_angle < -60.0f) yaw_target_angle = -60.0f; // 限制最小角度
+// 电机/IMU 在线检查已通过：向状态机传入 Yaw 原始编码器角度（度）和 IMU 控制角（弧度）。
+yaw_gimbal_fsm.Update_Yaw_Limit(gimbal_motor.getAngleDeg(1), yaw_current_angle);
+const uint8_t yaw_mode_changed = yaw_gimbal_fsm.Take_Mode_Changed_Flag();
+const uint8_t yaw_limit_reset = yaw_gimbal_fsm.Take_Yaw_Limit_Reset_Flag();
 
-if (yaw_gimbal_fsm.Take_Mode_Changed_Flag() != 0U)
+if (yaw_mode_changed != 0U || yaw_limit_reset != 0U)
 {
     yaw_angle_pid.reset();
     yaw_angle_to_speed_pid.reset();
@@ -666,6 +685,7 @@ if (yaw_gimbal_fsm.Take_Mode_Changed_Flag() != 0U)
     yaw_remote_speed_pid.reset();
     yaw_version_angle_pid.reset();
     yaw_version_speed_pid.reset();
+    YawAutoLqrEso_Reset(&yaw_auto_ctrl, yaw_current_angle, yaw_current_speed);
     const float yaw_mode_target_angle = yaw_gimbal_fsm.Get_Target_Angle();
     yaw_angle_velocity_ff.VelocityFeedforward(yaw_mode_target_angle);
     yaw_vision_velocity_ff.VelocityFeedforward(yaw_mode_target_angle);
@@ -727,22 +747,19 @@ yaw_speed_ff_inertia = 0.0f;
 {
     if (yaw_mode == GIMBAL_MODE_VISION)
     {
-        // 视觉模式：使用视觉专用PID
-        yaw_target_speed = yaw_version_angle_pid.UpDate(yaw_error, 0.0f);
-        yaw_vision_dynamics_ff.MomentOfInertiaTuning(yaw_current_speed, yaw_target_speed);
-        yaw_vision_friction_ff.FrictionFeedforward(yaw_target_speed);
-        yaw_vision_velocity_ff.VelocityFeedforward(yaw_target_angle);
-        yaw_speed_pid_output = yaw_version_speed_pid.UpDate(
-            yaw_target_speed,
-            yaw_current_speed
-        );
-        yaw_speed_ff_friction = yaw_vision_dynamics_ff.getFriction()
-                              + yaw_vision_friction_ff.getFeedforward();
-        yaw_speed_ff_inertia = yaw_vision_dynamics_ff.getAccFeedforward();
-        yaw_speed_ff_output = yaw_vision_dynamics_ff.getTorque()
-                            + yaw_speed_ff_friction
-                            + yaw_vision_velocity_ff.getFeedforward();
-        yaw_control_output = yaw_speed_pid_output + yaw_speed_ff_output;
+        // 视觉角度已由 FSM 对齐到连续 IMU 角；速度和加速度直接使用最近一包。
+        const YawAutoLqrEsoFeedback_t feedback = {
+            yaw_current_angle, yaw_current_speed, gimbal_motor.getTorque(1), 1U
+        };
+        const YawAutoLqrEsoReference_t reference = {
+            yaw_target_angle, vision_comm.GetYawVelocity(),
+            vision_comm.GetYawAcceleration()
+        };
+        YawAutoLqrEsoOutput_t output = {};
+        yaw_target_speed = reference.omega_rad_s;
+        YawAutoLqrEso_Calc(&yaw_auto_ctrl, &yaw_auto_config,
+                           &feedback, &reference, 0.001f, &output);
+        yaw_control_output = output.tau_cmd_nm;
     }
     else
     {
@@ -889,6 +906,9 @@ else
             yaw_control_output, -J4340_TORQUE_LIMIT_NM, J4340_TORQUE_LIMIT_NM);
         pitch_control_output = BSP::Motor::DM::ClampMitCommandValue(
             pitch_control_output, -J4340_TORQUE_LIMIT_NM, J4340_TORQUE_LIMIT_NM);
+
+        // 力矩限位判定由 FSM 完成；若被拦截，下一个控制周期复位 Yaw PID/前馈状态。
+        yaw_control_output = yaw_gimbal_fsm.Limit_Yaw_Torque(yaw_control_output);
 
         pitch_last_control_output = pitch_control_output;
 

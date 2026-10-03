@@ -18,8 +18,8 @@ if (-not $leftPid.Success -or -not $rightPid.Success) { throw 'front 4340 PID ar
 if ($leftPid.Groups['body'].Value -notmatch '\{15\.0f,\s*0\.0f,\s*0\.0f,\s*10\.0f[\s\S]*?\{3\.0f,\s*0\.0f,\s*0\.0f,\s*27\.0f') { throw 'left front PID limits must be velocity 10 and torque 27.' }
 if ($rightPid.Groups['body'].Value -notmatch '\{8\.0f,\s*0\.0f,\s*0\.0f,\s*10\.0f[\s\S]*?\{0\.8f,\s*0\.0f,\s*0\.0f,\s*27\.0f') { throw 'right front PID limits must be velocity 10 and torque 27.' }
 
-if ($canTask -notmatch 'fdcan1\.register_rx_callback\(\[\]\(const HAL::FDCAN::Frame &frame\)[\s\S]*?frame\.id >= 0x01 && frame\.id <= 0x02[\s\S]*?front_4340\.Parse\(frame\)') {
-    throw 'FDCAN1 does not route DM feedback IDs 0x01-0x02 to front_4340.'
+if ($canTask -notmatch 'fdcan1\.register_rx_callback\(\[\]\(const HAL::FDCAN::Frame &frame\)[\s\S]*?frame\.id >= 0x05 && frame\.id <= 0x06[\s\S]*?front_4340\.Parse\(frame\)') {
+    throw 'FDCAN1 does not route DM feedback IDs 0x05-0x06 to front_4340.'
 }
 
 if ($canTask -notmatch 'frame\.id >= 0x201 && frame\.id <= 0x204[\s\S]*?chassis_motor\.Parse\(frame\)') {

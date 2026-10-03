@@ -1,111 +1,126 @@
-﻿#include "vision_communication.hpp"
-#include "../../HAL/UART/uart_hal.hpp"
-#include <cstring>
+#include "vision_communication.hpp"
+#include "main.h"
 #include "usbd_cdc_if.h"
+#include "usb_device.h"
+#include <cmath>
+#include <cstring>
+
+extern "C" USBD_HandleTypeDef hUsbDeviceHS;
 
 namespace BSP::Vision
 {
 
+static_assert(sizeof(float) == 4, "Vision protocol requires 32-bit float");
+
 VisionCommunicator::VisionCommunicator()
-    : pitch_angle_(0.0f), yaw_angle_(0.0f),
-      vision_ready_(false), fire_command_(false), timestamp_(0),
-      aim_x_(0), aim_y_(0), last_rx_tick_(0)
+    : rx_size_(0), pitch_angle_(0.0f), yaw_angle_(0.0f),
+      pitch_velocity_(0.0f), yaw_velocity_(0.0f),
+      pitch_acceleration_(0.0f), yaw_acceleration_(0.0f), mode_(0),
+      has_valid_frame_(false), last_rx_tick_(0)
 {
-    memset(tx_buffer_, 0, TX_FRAME_SIZE);
-    tx_buffer_[0]  = HEADER;
-    tx_buffer_[1]  = HEADER;
-    tx_buffer_[24] = TAIL;
-
-    memset(rx_buffer_, 0, RX_BUFFER_SIZE);
+    memset(tx_buffer_, 0, sizeof(tx_buffer_));
+    memset(rx_buffer_, 0, sizeof(rx_buffer_));
 }
 
-// ==================== 电控 → 视觉 ====================
-
-void VisionCommunicator::writeFloatBE(uint8_t offset, float value)
+uint16_t VisionCommunicator::Crc16(const uint8_t* data, uint8_t size)
 {
-    uint32_t raw;
-    memcpy(&raw, &value, sizeof(float));
-    raw = __REV(raw);
-    memcpy(&tx_buffer_[offset], &raw, sizeof(float));
+    uint16_t crc = 0xffff;
+    for (uint8_t i = 0; i < size; ++i)
+    {
+        crc ^= data[i];
+        for (uint8_t bit = 0; bit < 8; ++bit)
+            crc = (crc & 1U) ? (crc >> 1) ^ 0x8408U : crc >> 1;
+    }
+    return crc;
 }
 
-void VisionCommunicator::SendToVision(const float quaternion[4], float bullet_rate,
-                                       uint8_t enemy_color, uint8_t vision_mode)
+void VisionCommunicator::SendToVision(const float quaternion[4], float yaw, float yaw_vel,
+                                      float pitch, float pitch_vel, float bullet_speed,
+                                      uint16_t bullet_count, uint8_t mode)
 {
-    // 四元数 w, x, y, z
-    writeFloatBE(Q_OFFSET,      quaternion[0]);
-    writeFloatBE(Q_OFFSET + 4,  quaternion[1]);
-    writeFloatBE(Q_OFFSET + 8,  quaternion[2]);
-    writeFloatBE(Q_OFFSET + 12, quaternion[3]);
+    // CDC 在传输完成前仍引用上次传入的缓冲区，忙时不能覆盖它。
+    const auto* cdc = static_cast<const USBD_CDC_HandleTypeDef*>(hUsbDeviceHS.pClassData);
+    if (cdc == nullptr || cdc->TxState != 0)
+        return;
 
-    // 弹速
-    writeFloatBE(BR_OFFSET, bullet_rate);
-
-    // 敌方颜色 / 视觉模式
-    tx_buffer_[EC_OFFSET] = enemy_color;
-    tx_buffer_[VM_OFFSET] = vision_mode;
-
-    // 时间戳 (大端 uint32)
-    uint32_t tick = HAL_GetTick();
-    tx_buffer_[TIME_OFFSET]     = (tick >> 24) & 0xFF;
-    tx_buffer_[TIME_OFFSET + 1] = (tick >> 16) & 0xFF;
-    tx_buffer_[TIME_OFFSET + 2] = (tick >> 8)  & 0xFF;
-    tx_buffer_[TIME_OFFSET + 3] =  tick        & 0xFF;
-
+    tx_buffer_[0] = 'S';
+    tx_buffer_[1] = 'P';
+    tx_buffer_[2] = mode;
+    memcpy(tx_buffer_ + 3, quaternion, 16); // w, x, y, z; STM32H7 为小端 IEEE-754
+    memcpy(tx_buffer_ + 19, &yaw, 4);
+    memcpy(tx_buffer_ + 23, &yaw_vel, 4);
+    memcpy(tx_buffer_ + 27, &pitch, 4);
+    memcpy(tx_buffer_ + 31, &pitch_vel, 4);
+    memcpy(tx_buffer_ + 35, &bullet_speed, 4);
+    tx_buffer_[39] = static_cast<uint8_t>(bullet_count);
+    tx_buffer_[40] = static_cast<uint8_t>(bullet_count >> 8);
+    const uint16_t crc = Crc16(tx_buffer_, 41);
+    tx_buffer_[41] = static_cast<uint8_t>(crc);
+    tx_buffer_[42] = static_cast<uint8_t>(crc >> 8);
     CDC_Transmit_HS(tx_buffer_, TX_FRAME_SIZE);
 }
 
-// ==================== 视觉 → 电控 ====================
-
-void VisionCommunicator::ParseRxData(const uint8_t* data, uint16_t size)
+void VisionCommunicator::AcceptFrame()
 {
-    if (size < RX_BUFFER_SIZE) 
-		{return;}
-    if (data[0] != HEADER || data[1] != HEADER) 
-		{return;}
-    if (data[12] != TAIL) 
-		{return;}
+    float yaw, yaw_velocity, yaw_acceleration;
+    float pitch, pitch_velocity, pitch_acceleration;
+    memcpy(&yaw, rx_buffer_ + 3, 4);
+    memcpy(&yaw_velocity, rx_buffer_ + 7, 4);
+    memcpy(&yaw_acceleration, rx_buffer_ + 11, 4);
+    memcpy(&pitch, rx_buffer_ + 15, 4);
+    memcpy(&pitch_velocity, rx_buffer_ + 19, 4);
+    memcpy(&pitch_acceleration, rx_buffer_ + 23, 4);
+    // 延续旧协议的宽松物理范围校验，拒绝 CRC 正确但目标明显失常的帧。
+    if (!std::isfinite(yaw) || !std::isfinite(pitch) ||
+        !std::isfinite(yaw_velocity) || !std::isfinite(yaw_acceleration) ||
+        !std::isfinite(pitch_velocity) || !std::isfinite(pitch_acceleration) ||
+        std::fabs(yaw) > 6.28318530718f || std::fabs(pitch) > 1.57079632679f)
+        return;
 
-    // Pitch 角度：大端 int32，单位 0.01 度
-    int32_t pitch_raw = (data[2] << 24) | (data[3] << 16)
-                      | (data[4] << 8)  |  data[5];
-    float pitch = pitch_raw * 0.01f;
-
-    // Yaw 角度：大端 int32，单位 0.01 度
-    int32_t yaw_raw = (data[6] << 24) | (data[7] << 16)
-                    | (data[8] << 8)  |  data[9];
-    float yaw = yaw_raw * 0.01f;
-
-    // --- 内容校验：拒绝 UART 干扰导致的野值，防止疯车 ---
-    // Pitch 物理极限 ±90°（远超实际机械限位 -19°~40°，拦截任何 bit 翻转）
-    if (pitch > 90.0f || pitch < -90.0f) return;
-    // Yaw 合理范围 ±360°（1 圈余量，覆盖视觉 [0,360) 或 [-180,180] 两种
-    // 约定，同时拦截中间字节 bit 翻转产生的异常值）
-    if (yaw > 360.0f || yaw < -360.0f) return;
-
-    // 校验通过，写入成员变量
+    yaw_angle_ = yaw;
+    yaw_velocity_ = yaw_velocity;
+    yaw_acceleration_ = yaw_acceleration;
     pitch_angle_ = pitch;
-    yaw_angle_   = yaw;
-
-    // 标志位
-    vision_ready_ = (data[10] != 0);
-    fire_command_ = (data[11] != 0);
-
-    // 时间戳：大端 uint32
-    timestamp_ = (data[13] << 24) | (data[14] << 16)
-               | (data[15] << 8) |  data[16];
-
-    // 目标坐标
-    aim_x_ = data[17];
-    aim_y_ = data[18];
-
-    // 记录最后一次有效帧的时间戳
+    pitch_velocity_ = pitch_velocity;
+    pitch_acceleration_ = pitch_acceleration;
+    mode_ = rx_buffer_[2];
     last_rx_tick_ = HAL_GetTick();
+    has_valid_frame_ = true;
+}
+
+void VisionCommunicator::ParseRxData(const uint8_t* data, uint32_t size)
+{
+    for (uint32_t i = 0; i < size; ++i)
+    {
+        rx_buffer_[rx_size_++] = data[i];
+        while (rx_size_ >= 1 && rx_buffer_[0] != 'S')
+            memmove(rx_buffer_, rx_buffer_ + 1, --rx_size_);
+        while (rx_size_ >= 2 && rx_buffer_[1] != 'P')
+        {
+            memmove(rx_buffer_, rx_buffer_ + 1, --rx_size_);
+            while (rx_size_ >= 1 && rx_buffer_[0] != 'S')
+                memmove(rx_buffer_, rx_buffer_ + 1, --rx_size_);
+        }
+        if (rx_size_ == RX_FRAME_SIZE)
+        {
+            const uint16_t received_crc = static_cast<uint16_t>(rx_buffer_[27]) |
+                                          (static_cast<uint16_t>(rx_buffer_[28]) << 8);
+            if (Crc16(rx_buffer_, 27) == received_crc)
+            {
+                AcceptFrame();
+                rx_size_ = 0;
+            }
+            else
+            {
+                memmove(rx_buffer_, rx_buffer_ + 1, --rx_size_);
+            }
+        }
+    }
 }
 
 bool VisionCommunicator::IsDataFresh() const
 {
-    return (HAL_GetTick() - last_rx_tick_) < DATA_TIMEOUT_MS;
+    return has_valid_frame_ && (HAL_GetTick() - last_rx_tick_) < DATA_TIMEOUT_MS;
 }
 
 } // namespace BSP::Vision

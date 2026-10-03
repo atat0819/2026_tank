@@ -809,6 +809,7 @@ tank_gimbal/remote_control_task.o: ..\RtosTask\remote_control_task.cpp \
   ..\RtosTask\gimbal_task.hpp \
   ..\RtosTask\..\user\core\BSP\Motor\Dji\DjiMotor.hpp \
   ..\communication_between_boards\..\user\core\BSP\Motor\MotorBase.hpp \
+  ..\communication_between_boards\..\user\core\BSP\buzzer\buzzer.hpp \
   ..\communication_between_boards\..\user\core\HAL\FDCAN\fdcan_hal.hpp \
   ..\communication_between_boards\..\user\core\HAL\FDCAN\interface\fdcan_bus.hpp \
   ..\communication_between_boards\..\user\core\HAL\FDCAN\interface\fdcan_device.hpp \

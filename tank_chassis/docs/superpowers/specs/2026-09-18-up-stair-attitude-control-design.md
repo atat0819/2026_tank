@@ -1,5 +1,13 @@
 # Up-Stair Attitude Control Design
 
+## 2026-09-27 Strategy Update
+
+The rear J6248 attitude controller now holds pitch level only. It sends the same
+pitch torque to both rear motors after applying each motor's direction and
+safety limits. The roll controller, differential torque mixing, and roll-based
+IMU validity requirements described below are historical and no longer apply.
+Mechanical angles and pitch zero offset still require calibration on the car.
+
 ## Scope
 
 This design completes the up-stair mechanism control. Down-stair behavior and

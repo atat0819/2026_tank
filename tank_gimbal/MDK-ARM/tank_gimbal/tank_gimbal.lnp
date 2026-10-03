@@ -72,6 +72,7 @@
 "tank_gimbal\uart_bus_impl.o"
 "tank_gimbal\uart_device_impl.o"
 "tank_gimbal\uart_bus.o"
+"tank_gimbal\yaw_auto_lqr_eso_controller.o"
 "tank_gimbal\can_send_task.o"
 "tank_gimbal\gimbal_task.o"
 "tank_gimbal\remote_control_task.o"

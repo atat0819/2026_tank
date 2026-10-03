@@ -709,6 +709,7 @@ tank_gimbal/can_send_task.o: ..\RtosTask\can_send_task.cpp \
   ..\RtosTask\gimbal_task.hpp \
   ..\RtosTask\..\user\core\BSP\Motor\Dji\DjiMotor.hpp \
   ..\communication_between_boards\..\user\core\BSP\Motor\MotorBase.hpp \
+  ..\communication_between_boards\..\user\core\BSP\buzzer\buzzer.hpp \
   ..\communication_between_boards\..\user\core\HAL\FDCAN\fdcan_hal.hpp \
   ..\communication_between_boards\..\user\core\HAL\FDCAN\interface\fdcan_bus.hpp \
   ..\communication_between_boards\..\user\core\HAL\FDCAN\interface\fdcan_device.hpp \
@@ -831,4 +832,6 @@ tank_gimbal/can_send_task.o: ..\RtosTask\can_send_task.cpp \
   ..\RtosTask\..\user\core\Alg\Feedforward\..\Filter\Filter.hpp \
   ..\RtosTask\..\user\core\HAL\UART\uart_hal.hpp \
   ..\RtosTask\..\user\core\HAL\UART\interface\uart_bus.hpp \
-  ..\RtosTask\..\user\core\HAL\UART\interface\uart_device.hpp
+  ..\RtosTask\..\user\core\HAL\UART\interface\uart_device.hpp \
+  ..\RtosTask\..\user\core\BSP\Motor\DM\DmMotor.hpp \
+  ..\RtosTask\..\YAW_Auto_Controller-main\yaw_auto_lqr_eso_controller.h

@@ -218,7 +218,7 @@ tank_gimbal/gimbal_task.o: ..\RtosTask\gimbal_task.cpp \
   ..\Drivers\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal_pcd.h \
   ..\Drivers\STM32H7xx_HAL_Driver\Inc\stm32h7xx_ll_usb.h \
   ..\Drivers\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal_pcd_ex.h \
-  ..\communication_between_boards\..\user\core\BSP\Common\StateWatch\buzzer_manager.hpp \
+  ..\communication_between_boards\..\user\core\BSP\buzzer\buzzer.hpp \
   ..\Core\Inc\tim.h \
   ..\communication_between_boards\..\user\core\HAL\FDCAN\fdcan_hal.hpp \
   ..\communication_between_boards\..\user\core\HAL\FDCAN\interface\fdcan_bus.hpp \
@@ -812,6 +812,7 @@ tank_gimbal/gimbal_task.o: ..\RtosTask\gimbal_task.cpp \
   ..\RtosTask\..\feeder_fsm\friction_fsm.hpp \
   ..\user\core\Alg\PID\pid.hpp ..\RtosTask\remote_control_task.hpp \
   ..\RtosTask\..\user\core\BSP\RemoteControl\DT7.hpp \
+  ..\communication_between_boards\..\user\core\BSP\Common\StateWatch\buzzer_manager.hpp \
   ..\user\core\BSP\IMU\HI12_imu.hpp ..\user\core\BSP\IMU\HI12Base.hpp \
   ..\RtosTask\..\user\core\BSP\version\vision_communication.hpp \
   ..\RtosTask\can_send_task.hpp \

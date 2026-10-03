@@ -75,7 +75,11 @@ public:
     void Set_Target_Speed(float speed);
 
     void ReAnchor(float new_angle);
-    PitchStartDecision Update_Pitch_Start_Gate(bool is_double_down, float pitch_stick);
+    PitchStartDecision Update_Pitch_Start_Gate(bool is_double_down, bool is_keymouse,
+                                               float pitch_stick, float mouse_delta_y);
+    void Update_Yaw_Limit(float encoder_deg, float current_imu_angle);
+    float Limit_Yaw_Torque(float torque_nm);
+    uint8_t Take_Yaw_Limit_Reset_Flag();
 
     float   Get_Control_Output() const;
     uint8_t Get_Control_Type() const;
@@ -110,6 +114,9 @@ private:
     bool pitch_came_from_double_down_ = false;
     bool pitch_start_locked_ = false;
     bool pitch_neutral_seen_ = false;
+    bool pitch_unlock_is_keymouse_ = false;
+    float yaw_encoder_deg_ = 0.0f;
+    uint8_t yaw_limit_reset_flag_ = 0U;
 };
 
 #endif

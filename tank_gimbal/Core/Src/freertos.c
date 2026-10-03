@@ -24,10 +24,11 @@
 #include "cmsis_os.h"
 
 /* Private includes ----------------------------------------------------------*/
-#include "usb_device.h"
+/* USER CODE BEGIN Includes */
 #include "can_send_task.hpp"
 #include "gimbal_task.hpp"
 #include "remote_control_task.hpp"
+#include "usb_device.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -70,6 +71,7 @@ extern void MX_USB_DEVICE_Init(void);
 
 void StartDefaultTask(void *argument);
 
+extern void MX_USB_DEVICE_Init(void);
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 
 /**
@@ -101,6 +103,7 @@ void MX_FREERTOS_Init(void) {
   /* Create the thread(s) */
   /* creation of defaultTask */
   defaultTaskHandle = osThreadNew(StartDefaultTask, NULL, &defaultTask_attributes);
+
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
   /* USB is initialized by defaultTask after the scheduler starts. */

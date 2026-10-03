@@ -12,6 +12,13 @@ float Absolute_Value(float value)
 {
     return (value >= 0.0f) ? value : -value;
 }
+
+// 原始编码器角度为度：+60 度拦正方向，-60 度拦负方向。
+bool YawWouldPushOutward(float encoder_deg, float signed_command)
+{
+    return (encoder_deg >= 60.0f && signed_command > 0.0f) ||
+           (encoder_deg <= -60.0f && signed_command < 0.0f);
+}
 }
 
 using Remote = BSP::REMOTE_CONTROL::RemoteController;
@@ -33,6 +40,9 @@ void Class_Gimbal_FSM::Init(const Struct_Gimbal_FSM_Config &__config,
     pitch_came_from_double_down_ = false;
     pitch_start_locked_ = false;
     pitch_neutral_seen_ = false;
+    pitch_unlock_is_keymouse_ = false;
+    yaw_encoder_deg_ = 0.0f;
+    yaw_limit_reset_flag_ = 0U;
 
     if (__initial_status == GIMBAL_STATUS_ANGLE)
     {
@@ -57,14 +67,14 @@ uint8_t Class_Gimbal_FSM::DetermineMode(const Struct_Gimbal_Input &input) const
         return GIMBAL_MODE_ANGLE;
     }
 
-    // ---- 遥控器模式 ----
+    // ---- 遥控器模式：双下 STOP，视觉就绪时进视觉，其余运行档位均为角度双环 ----
     else if (input.s1 == Remote::DOWN && input.s2 == Remote::DOWN)
     {
         return GIMBAL_MODE_STOP;
     }
     else if (input.s1 == Remote::DOWN && input.s2 == Remote::MIDDLE)
     {
-        return GIMBAL_MODE_SPEED;
+        return GIMBAL_MODE_ANGLE;
     }
     else if (input.s1 == Remote::MIDDLE && input.s2 == Remote::DOWN)
     {
@@ -73,7 +83,7 @@ uint8_t Class_Gimbal_FSM::DetermineMode(const Struct_Gimbal_Input &input) const
 
     else if (input.s1 == Remote::DOWN && input.s2 == Remote::UP)
     {
-        return GIMBAL_MODE_SPEED;
+        return GIMBAL_MODE_ANGLE;
     }
     else if (input.s1 == Remote::UP && input.s2 == Remote::DOWN)
     {
@@ -93,7 +103,7 @@ uint8_t Class_Gimbal_FSM::DetermineMode(const Struct_Gimbal_Input &input) const
         {
             return GIMBAL_MODE_VISION;
         }
-        return GIMBAL_MODE_SPEED;
+        return GIMBAL_MODE_ANGLE;
     }
     else
     {
@@ -122,7 +132,7 @@ void Class_Gimbal_FSM::Update(const Struct_Gimbal_Input &input, float current_an
     {
         angle_input = input.vision_angle;
     }
-    // 速度模式只由遥控器模式使用，键鼠模式在视觉失效时回到角度模式。
+    // 键鼠或遥控器的视觉数据失效后回到普通角度模式。
 
     // 3. 状态转移（与原 Update 完全一致）
     uint8_t next_status = GIMBAL_STATUS_STOP;
@@ -277,14 +287,47 @@ void Class_Gimbal_FSM::ReAnchor(float new_angle)
     mode_changed_flag = 1U;
 }
 
+void Class_Gimbal_FSM::Update_Yaw_Limit(float encoder_deg, float current_imu_angle)
+{
+    yaw_encoder_deg_ = encoder_deg;
+    if (control_type == GIMBAL_CONTROL_ANGLE &&
+        YawWouldPushOutward(encoder_deg, target_angle - current_imu_angle))
+    {
+        // 目标仍朝机械边界外时收回到当前 IMU 角，防止遥控器/键鼠累积目标后难以反向。
+        // 视觉目标也在每次 Update 后通过此处检查；不改变控制反馈来源。
+        target_angle = Apply_Angle_Rule(current_imu_angle);
+        control_output = target_angle;
+        yaw_limit_reset_flag_ = 1U;
+    }
+}
+
+float Class_Gimbal_FSM::Limit_Yaw_Torque(float torque_nm)
+{
+    if (YawWouldPushOutward(yaw_encoder_deg_, torque_nm))
+    {
+        // 所有 PID 与前馈相加后再拦截，向内的制动/回退力矩仍允许输出。
+        yaw_limit_reset_flag_ = 1U;
+        return 0.0f;
+    }
+    return torque_nm;
+}
+
+uint8_t Class_Gimbal_FSM::Take_Yaw_Limit_Reset_Flag()
+{
+    const uint8_t flag = yaw_limit_reset_flag_;
+    yaw_limit_reset_flag_ = 0U;
+    return flag;
+}
+
 Class_Gimbal_FSM::PitchStartDecision Class_Gimbal_FSM::Update_Pitch_Start_Gate(
-    bool is_double_down, float pitch_stick)
+    bool is_double_down, bool is_keymouse, float pitch_stick, float mouse_delta_y)
 {
     if (is_double_down)
     {
         pitch_came_from_double_down_ = true;
         pitch_start_locked_ = false;
         pitch_neutral_seen_ = false;
+        pitch_unlock_is_keymouse_ = is_keymouse;
         return PitchStartDecision::Normal;
     }
 
@@ -292,18 +335,26 @@ Class_Gimbal_FSM::PitchStartDecision Class_Gimbal_FSM::Update_Pitch_Start_Gate(
     {
         pitch_came_from_double_down_ = false;
         pitch_start_locked_ = true;
+        pitch_unlock_is_keymouse_ = is_keymouse;
     }
     if (!pitch_start_locked_)
     {
         return PitchStartDecision::Normal;
     }
-    // 先观察到摇杆回中，再等待首次上拨；切出双下时已上拨不能直接解锁。
-    if (pitch_stick >= -INPUT_DEADBAND && pitch_stick <= INPUT_DEADBAND)
+    if (pitch_unlock_is_keymouse_ != is_keymouse)
+    {
+        pitch_unlock_is_keymouse_ = is_keymouse;
+        pitch_neutral_seen_ = false;
+    }
+    // 当前输入先进入死区，再等待首次上移；切档时已上移不能直接解锁。
+    const float unlock_input = is_keymouse ? mouse_delta_y : pitch_stick;
+    const float deadband = is_keymouse ? MOUSE_ANGLE_DEADBAND : INPUT_DEADBAND;
+    if (unlock_input >= -deadband && unlock_input <= deadband)
     {
         pitch_neutral_seen_ = true;
     }
     if (control_type != GIMBAL_CONTROL_STOP && pitch_neutral_seen_ &&
-        pitch_stick > INPUT_DEADBAND)
+        unlock_input > deadband)
     {
         pitch_start_locked_ = false;
         return PitchStartDecision::ReanchorAndRelease;

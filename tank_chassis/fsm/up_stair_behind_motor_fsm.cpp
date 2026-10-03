@@ -8,7 +8,7 @@
  * 本文件只负责检查 IMU、左右电机反馈和机械角度，维护后部状态，执行
  * 300 ms 力矩软启动，并对最终力矩进行机械边界和反馈安全保护。
  * 本文件不执行姿态 PID，也不直接发送电机命令；任务层读取本文件提供的
- * 姿态反馈，完成 pitch/roll 串级 PID 和左右混控后，再调用 Limit_Torque()。
+ * 姿态反馈，完成 pitch 串级 PID 和左右电机方向修正后，再调用 Limit_Torque()。
  *
  * 对外电机编号使用 1、2 表示左、右两个逻辑通道，内部数组下标为 0、1。
  * 具体 CAN ID 由后部电机对象负责映射，不能把这里的逻辑编号直接当作
@@ -21,6 +21,18 @@ namespace
 const float PI_RAD = 3.14159265358979323846f;
 }
 
+constexpr float Class_Up_Stair_Behind_Motor_FSM::PITCH_ZERO_DEG;
+constexpr float Class_Up_Stair_Behind_Motor_FSM::ANGLE_START_RAD[2];
+constexpr float Class_Up_Stair_Behind_Motor_FSM::ANGLE_END_RAD[2];
+constexpr int8_t Class_Up_Stair_Behind_Motor_FSM::MOTOR_DIRECTION[2];
+constexpr float Class_Up_Stair_Behind_Motor_FSM::MOTOR_TORQUE_GAIN[2];
+constexpr float Class_Up_Stair_Behind_Motor_FSM::RETRACT_TARGET_RAD[2];
+constexpr float Class_Up_Stair_Behind_Motor_FSM::RETRACT_SPEED_RAD_S;
+constexpr float Class_Up_Stair_Behind_Motor_FSM::RETRACT_POSITION_TOLERANCE_RAD;
+constexpr float Class_Up_Stair_Behind_Motor_FSM::BASIC_TARGET_RAD[2];
+constexpr float Class_Up_Stair_Behind_Motor_FSM::BASIC_SPEED_RAD_S;
+constexpr float Class_Up_Stair_Behind_Motor_FSM::BASIC_POSITION_TOLERANCE_RAD;
+
 /*
  * 构造默认配置。
  * 默认机械起止角相等，因此会被 Validate_Config() 判定为无效，保证完成
@@ -28,7 +40,6 @@ const float PI_RAD = 3.14159265358979323846f;
  */
 Class_Up_Stair_Behind_Motor_FSM::Config::Config()
     : pitch_zero_deg(0.0f),
-      roll_zero_deg(0.0f),
       angle_start_rad{0.0f, 0.0f},
       angle_end_rad{0.0f, 0.0f},
       motor_direction{1, 1},
@@ -40,6 +51,27 @@ Class_Up_Stair_Behind_Motor_FSM::Config::Config()
       basic_speed_rad_s(0.0f),
       basic_position_tolerance_rad(0.0f)
 {
+}
+
+Class_Up_Stair_Behind_Motor_FSM::Config
+Class_Up_Stair_Behind_Motor_FSM::Config::WithAngleConstants()
+{
+    Config config;
+    config.pitch_zero_deg = PITCH_ZERO_DEG;
+    for (int i = 0; i < 2; ++i)
+    {
+        config.angle_start_rad[i] = ANGLE_START_RAD[i];
+        config.angle_end_rad[i] = ANGLE_END_RAD[i];
+        config.motor_direction[i] = MOTOR_DIRECTION[i];
+        config.motor_torque_gain[i] = MOTOR_TORQUE_GAIN[i];
+        config.retract_target_rad[i] = RETRACT_TARGET_RAD[i];
+        config.basic_target_rad[i] = BASIC_TARGET_RAD[i];
+    }
+    config.retract_speed_rad_s = RETRACT_SPEED_RAD_S;
+    config.retract_position_tolerance_rad = RETRACT_POSITION_TOLERANCE_RAD;
+    config.basic_speed_rad_s = BASIC_SPEED_RAD_S;
+    config.basic_position_tolerance_rad = BASIC_POSITION_TOLERANCE_RAD;
+    return config;
 }
 
 /*
@@ -66,9 +98,7 @@ Class_Up_Stair_Behind_Motor_FSM::Class_Up_Stair_Behind_Motor_FSM()
       motor_controllable_{false, false},
       motor_angle_rad_{0.0f, 0.0f},
       feedback_pitch_deg_(0.0f),
-      feedback_roll_deg_(0.0f),
       pitch_rate_dps_(0.0f),
-      roll_rate_dps_(0.0f),
       output_scale_(0.0f),
       recovery_start_tick_(0U),
       recovery_last_tick_(0U),
@@ -108,9 +138,7 @@ Class_Up_Stair_Behind_Motor_FSM::Class_Up_Stair_Behind_Motor_FSM(
       motor_controllable_{false, false},
       motor_angle_rad_{0.0f, 0.0f},
       feedback_pitch_deg_(0.0f),
-      feedback_roll_deg_(0.0f),
       pitch_rate_dps_(0.0f),
-      roll_rate_dps_(0.0f),
       output_scale_(0.0f),
       recovery_start_tick_(0U),
       recovery_last_tick_(0U),
@@ -192,8 +220,7 @@ bool Class_Up_Stair_Behind_Motor_FSM::Validate_Config() const
             return false;
         }
     }
-    return std::isfinite(config_.pitch_zero_deg) &&
-           std::isfinite(config_.roll_zero_deg);
+    return std::isfinite(config_.pitch_zero_deg);
 }
 
 /*
@@ -409,8 +436,8 @@ void Class_Up_Stair_Behind_Motor_FSM::Update_Recovery_Scale(uint32_t now_tick)
  * - control_enabled：上层档位和控制策略是否允许后部姿态控制；
  * - imu_valid：本次 IMU 快照是否有效；
  * - left/right_feedback_valid：左右电机反馈链路是否在线；
- * - pitch_deg、roll_deg：IMU 姿态角，单位为度；
- * - pitch_rate_dps、roll_rate_dps：姿态角速度，单位为度/秒；
+ * - pitch_deg：IMU 俯仰角，单位为度；
+ * - pitch_rate_dps：俯仰角速度，单位为度/秒；
  * - left/right_angle_rad：左右编码器原始角度，单位为弧度；
  * - now_tick：当前系统 tick，用于计算恢复斜坡时间。
  *
@@ -529,9 +556,7 @@ void Class_Up_Stair_Behind_Motor_FSM::Update(
     bool left_feedback_valid,
     bool right_feedback_valid,
     float pitch_deg,
-    float roll_deg,
     float pitch_rate_dps,
-    float roll_rate_dps,
     float left_angle_rad,
     float right_angle_rad,
     uint32_t now_tick,
@@ -542,17 +567,12 @@ void Class_Up_Stair_Behind_Motor_FSM::Update(
         Get_State() == UP_STAIR_BEHIND_MOTOR_RETRACTING ||
         Get_State() == UP_STAIR_BEHIND_MOTOR_RETRACTED_HOLD;
     const float calibrated_pitch_deg = pitch_deg - config_.pitch_zero_deg;
-    const float calibrated_roll_deg = roll_deg - config_.roll_zero_deg;
     const bool imu_ready =
-        imu_valid && std::isfinite(pitch_deg) && std::isfinite(roll_deg) &&
-        std::isfinite(pitch_rate_dps) && std::isfinite(roll_rate_dps) &&
-        std::isfinite(calibrated_pitch_deg) &&
-        std::isfinite(calibrated_roll_deg);
+        imu_valid && std::isfinite(pitch_deg) &&
+        std::isfinite(pitch_rate_dps) && std::isfinite(calibrated_pitch_deg);
 
     feedback_pitch_deg_ = imu_ready ? calibrated_pitch_deg : 0.0f;
-    feedback_roll_deg_ = imu_ready ? calibrated_roll_deg : 0.0f;
     pitch_rate_dps_ = imu_ready ? pitch_rate_dps : 0.0f;
-    roll_rate_dps_ = imu_ready ? roll_rate_dps : 0.0f;
     motor_angle_rad_[0] = left_angle_rad;
     motor_angle_rad_[1] = right_angle_rad;
     motor_controllable_[0] = config_valid_ && left_feedback_valid &&
@@ -731,34 +751,16 @@ float Class_Up_Stair_Behind_Motor_FSM::Get_Target_Pitch_Deg() const
     return 0.0f;
 }
 
-/* 后部姿态控制的目标 roll；当前设计目标为水平姿态 0°。 */
-float Class_Up_Stair_Behind_Motor_FSM::Get_Target_Roll_Deg() const
-{
-    return 0.0f;
-}
-
 /* 返回去除 IMU pitch 零偏后的角度反馈，单位为度。 */
 float Class_Up_Stair_Behind_Motor_FSM::Get_Feedback_Pitch_Deg() const
 {
     return feedback_pitch_deg_;
 }
 
-/* 返回去除 IMU roll 零偏后的角度反馈，单位为度。 */
-float Class_Up_Stair_Behind_Motor_FSM::Get_Feedback_Roll_Deg() const
-{
-    return feedback_roll_deg_;
-}
-
 /* 返回最近一次保存的 pitch 角速度反馈，单位为度/秒。 */
 float Class_Up_Stair_Behind_Motor_FSM::Get_Pitch_Rate_Dps() const
 {
     return pitch_rate_dps_;
-}
-
-/* 返回最近一次保存的 roll 角速度反馈，单位为度/秒。 */
-float Class_Up_Stair_Behind_Motor_FSM::Get_Roll_Rate_Dps() const
-{
-    return roll_rate_dps_;
 }
 
 bool Class_Up_Stair_Behind_Motor_FSM::Uses_Attitude_Control() const
@@ -807,8 +809,8 @@ float Class_Up_Stair_Behind_Motor_FSM::Get_Position_Feedback(uint8_t id) const
 
 /*
  * 返回指定逻辑电机的方向系数。
- * 任务层先完成 pitch/roll 左右混控，再使用该系数修正左右电机的实际正
- * 方向；非法编号返回 0。
+ * 任务层先计算 pitch 力矩，再使用该系数修正左右电机的实际正负方向；
+ * 非法编号返回 0。
  */
 int8_t Class_Up_Stair_Behind_Motor_FSM::Get_Motor_Direction(uint8_t id) const
 {
@@ -831,7 +833,7 @@ bool Class_Up_Stair_Behind_Motor_FSM::Is_Motor_Controllable(uint8_t id) const
 /*
  * 对任务层生成的原始力矩执行最终安全限制。
  *
- * raw_torque_nm 已经包含 pitch/roll 混控和方向修正。本函数继续检查电机
+ * raw_torque_nm 已经包含 pitch 力矩和方向修正。本函数继续检查电机
  * 编号、反馈状态、状态机状态和有限值，然后：
  * 1. 在机械下限附近禁止继续向负方向施力；
  * 2. 在机械上限附近禁止继续向正方向施力；
