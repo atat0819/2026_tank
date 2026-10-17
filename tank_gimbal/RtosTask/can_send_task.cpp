@@ -1,6 +1,20 @@
+/**
+ * @file can_send_task.cpp
+ * @brief 云台通信、输入调度及 Yaw/Pitch 闭环控制任务。
+ *
+ * 控制顺序：读取输入和反馈 -> 在线保护 -> 故障恢复锚定 -> 两轴 FSM 更新
+ *           -> 目标限位检查 -> 控制器复位 -> PID/LQR 与补偿
+ *           -> +/-9 N*m 幅值限制 -> FSM 向外力矩拦截 -> MIT 指令发送。
+ *
+ * 两轴正常使用 IMU，IMU 异常降级为编码器；角为 rad、速度为 rad/s、力矩为 N*m。
+ * 两轴限位始终使用原始电机编码器，与 IMU/编码器闭环来源无关。
+ * 编码器到边界后向外目标收回到当前控制角，全部补偿叠加后再拦截向外力矩。
+ * 本任务更新两轴云台 FSM；摩擦轮、拨弹控制由其他任务中的对应 FSM 负责。
+ */
 #include "can_send_task.hpp"
 #include "remote_control_task.hpp"
 #include "boards_communication.hpp"
+#include "../communication_between_boards/boards_communication_uart_485.hpp"
 #include "FreeRTOS.h"
 #include "queue.h"
 #include "cmsis_os.h"
@@ -8,7 +22,8 @@
 #include "usart.h"
 #include "usbd_cdc_if.h"
 #include "../feeder_fsm/gimbal_fsm.hpp"
-#include "../communication_between_boards/refree_receive.hpp"
+#include "../feeder_fsm/motor_recovery_fsm.hpp"
+#include "../feeder_fsm/imu_feedback_fsm.hpp"
 #include "../communication_between_boards/input_dispatcher.hpp"
 #include "../user/core/Alg/Feedforward/Feedforward.hpp"
 #include "../user/core/HAL/UART/uart_hal.hpp"
@@ -23,9 +38,11 @@ namespace
 constexpr float kPi = 3.14159265358979323846f;
 constexpr float kTwoPi = 2.0f * kPi;
 constexpr float DEG_TO_RAD = kPi / 180.0f;
-constexpr float YAW_MAX_UNWRAP_STEP_RAD = 45.0f * DEG_TO_RAD;
-constexpr float J4340_TORQUE_LIMIT_NM = 9.0f;
+constexpr float YAW_MAX_UNWRAP_STEP_RAD = 45.0f * DEG_TO_RAD; // 相邻有效 Yaw 样本最大接受增量；不是行程限位
+constexpr float J4340_TORQUE_LIMIT_NM = 9.0f; // 两轴最终 MIT 力矩幅值上限，N*m
+constexpr float PITCH_ENCODER_HORIZONTAL_RAD = 46.7f * DEG_TO_RAD; // 实测水平时 ID2 原始编码器角
 
+// 外部 IMU/编码器的度数和配置中的角度数值，进入控制计算前统一转换为弧度。
 float DegreesToRadians(float value)
 {
     return value * DEG_TO_RAD;
@@ -36,6 +53,11 @@ float AbsFloat(float value)
     return (value >= 0.0f) ? value : -value;
 }
 
+/**
+ * @brief 将有界 IMU Yaw 展开为连续角，避免跨越 +/-pi 时产生近 2pi 的假误差。
+ * @param raw_yaw IMU 原始 Yaw，rad；force_reset 在启动重新建立展开基准时使用。
+ * @return 累计后的连续 Yaw，rad；该角用于姿态闭环，不用作编码器行程限位。
+ */
 float GetContinuousYawAngle(float raw_yaw, bool force_reset = false)
 {
     static bool initialized = false;
@@ -62,6 +84,7 @@ float GetContinuousYawAngle(float raw_yaw, bool force_reset = false)
 
     if (AbsFloat(delta) > YAW_MAX_UNWRAP_STEP_RAD)
     {
+        // 拒绝本次异常跳变，连续角和上一有效原始角均保持；后续仍与上一有效样本比较。
         return continuous_yaw;
     }
 
@@ -77,92 +100,74 @@ float GetContinuousYawAngle(float raw_yaw, bool force_reset = false)
 
 /******************************************************************************** */
 // ============ 角度双环（普通角度模式：外环角度PID → 目标速度，内环速度PID → 扭矩） ============
+// PID 构造参数依次为 Kp、Ki、Kd、输出幅值上限、积分状态上限、积分分离误差阈值。
+// 普通角度/速度环按 IMU、编码器独立配置；编码器初值复制原参数，后续分别整定。
+// 外环输入角度误差(rad)，输出目标速度(rad/s)；内环输入速度误差(rad/s)，输出力矩(N*m)。
+// PID 自身的输出上限不等于允许电机力矩；发送前仍统一夹到 +/-9 N*m 并检查方向限位。
 // yaw轴角度环外环PID
-ALG::PID::PID yaw_angle_pid(19.5f, 0.01f, 0.0f, 5000.0f, 1000.0f, 100.0f);
+ALG::PID::PID yaw_angle_imu_pid(19.5f, 0.01f, 0.0f, 5000.0f, 1000.0f, 100.0f);
+// 编码器角度外环独立调参和保存状态；初值沿用 IMU 参数，待实机整定。
+ALG::PID::PID yaw_angle_encoder_pid(19.5f, 0.01f, 0.0f, 5000.0f, 1000.0f, 100.0f);
 // yaw轴角度环内环PID
-ALG::PID::PID yaw_angle_to_speed_pid(4.8f, 0.01f, 0.0f, 5000.0f, 1000.0f, 100.0f);
+ALG::PID::PID yaw_angle_to_speed_imu_pid(4.8f, 0.01f, 0.0f, 5000.0f, 1000.0f, 100.0f);
+ALG::PID::PID yaw_angle_to_speed_encoder_pid(4.8f, 0.01f, 0.0f, 5000.0f, 1000.0f, 100.0f);
 // pitch轴角度环外环PID
-ALG::PID::PID pitch_angle_pid(32.0f,0.015f, 0.0f, 5000.0f, 1000.0f, 100.0f);
+ALG::PID::PID pitch_angle_imu_pid(32.0f,0.015f, 0.0f, 5000.0f, 1000.0f, 100.0f);
+ALG::PID::PID pitch_angle_encoder_pid(32.0f,0.015f, 0.0f, 5000.0f, 1000.0f, 100.0f);
 // pitch轴角度环内环PID
-ALG::PID::PID pitch_angle_to_speed_pid(7.4f, 0.01f, 0.0f, 5000.0f, 1000.0f, 100.0f);
+ALG::PID::PID pitch_angle_to_speed_imu_pid(7.4f, 0.01f, 0.0f, 5000.0f, 1000.0f, 100.0f);
+ALG::PID::PID pitch_angle_to_speed_encoder_pid(7.4f, 0.01f, 0.0f, 5000.0f, 1000.0f, 100.0f);
 
 
-// 键鼠角度环 PID：独立于遥控器角度环，初始参数与遥控器角度环一致
-ALG::PID::PID yaw_keymouse_angle_pid(18.0f, 0.0f, 0.0f, 5000.0f, 1000.0f, 100.0f);
-ALG::PID::PID yaw_keymouse_angle_to_speed_pid(4.7f, 0.0f, 0.0f, 5000.0f, 1000.0f, 100.0f);
-ALG::PID::PID pitch_keymouse_angle_pid(26.5f, 0.0f, 0.0f, 5000.0f, 1000.0f, 100.0f);
-ALG::PID::PID pitch_keymouse_angle_to_speed_pid(6.0f, 0.01f, 0.0f, 5000.0f, 1000.0f, 100.0f);
-// 角度模式前馈：控制周期 1 ms，输出量纲为 J4340 N*m。
-Alg::Feedforward::Velocity yaw_angle_velocity_ff(
-    0.0f, 0.001f);
-Alg::Feedforward::Friction yaw_angle_friction_ff(
-    0.0f, 0.0f);
-Alg::Feedforward::GimbalFullCompensation yaw_angle_dynamics_ff(
-    0.0f, 0.001f, 0.0f, 0.0f, 50.0f);
-// Pitch 角度模式前馈：仅保留惯量项，静摩擦由独立前馈处理。
-Alg::Feedforward::GimbalFullCompensation pitch_angle_dynamics_ff(
-    0.0f, 0.001f, 0.0f, 0.0f);
-Alg::Feedforward::Friction pitch_angle_friction_ff(
-    0.0f, 15.0f);
-// pitch 重力补偿前馈（J4340 N*m；待实测标定，先关闭旧 LK 命令量 440）
+// 键鼠角度双环与遥控器独立；每个环再按 IMU/编码器分开参数和积分/微分状态。
+ALG::PID::PID yaw_keymouse_angle_imu_pid(18.0f, 0.0f, 0.0f, 5000.0f, 1000.0f, 100.0f);
+ALG::PID::PID yaw_keymouse_angle_encoder_pid(18.0f, 0.0f, 0.0f, 5000.0f, 1000.0f, 100.0f);
+ALG::PID::PID yaw_keymouse_angle_to_speed_imu_pid(4.7f, 0.0f, 0.0f, 5000.0f, 1000.0f, 100.0f);
+ALG::PID::PID yaw_keymouse_angle_to_speed_encoder_pid(4.7f, 0.0f, 0.0f, 5000.0f, 1000.0f, 100.0f);
+ALG::PID::PID pitch_keymouse_angle_imu_pid(26.5f, 0.0f, 0.0f, 5000.0f, 1000.0f, 100.0f);
+ALG::PID::PID pitch_keymouse_angle_encoder_pid(26.5f, 0.0f, 0.0f, 5000.0f, 1000.0f, 100.0f);
+ALG::PID::PID pitch_keymouse_angle_to_speed_imu_pid(6.0f, 0.01f, 0.0f, 5000.0f, 1000.0f, 100.0f);
+ALG::PID::PID pitch_keymouse_angle_to_speed_encoder_pid(6.0f, 0.01f, 0.0f, 5000.0f, 1000.0f, 100.0f);
+// Pitch 重力前馈参数依次为补偿幅值(N*m)、相位(rad)；沿用原值，待实机标定。
 Alg::Feedforward::Gravity pitch_gravity_ff(
     0.0f, 0.0f);
-// pitch 扰动观测补偿：保守起步，实车再调 b/gain/limit
-Alg::Feedforward::UDE pitch_ude(
-    0.0f, 0.0f, 0.001f, 20.0f, 100.0f, 0.0f);
 /********************************************************************************** */
 
-// ============ 速度单环（遥控器/键鼠直驱速度控制） ============
+// ============ 速度单环（保留的速度控制分支；当前 FSM 正常运行档位均映射为角度模式） ============
 //yaw轴遥控器单速度环PID（继承原 yaw_single_speed_pid 参数，遥控器手感不变）
-ALG::PID::PID yaw_remote_speed_pid(4.3f, 0.05f, 0.0f, 5000.0f, 1000.0f, 100.0f);
+ALG::PID::PID yaw_remote_speed_imu_pid(4.3f, 0.05f, 0.0f, 5000.0f, 1000.0f, 100.0f);
+ALG::PID::PID yaw_remote_speed_encoder_pid(4.3f, 0.05f, 0.0f, 5000.0f, 1000.0f, 100.0f);
 //pitch轴遥控器单速度环PID（继承原 pitch_single_speed_pid 参数，遥控器手感不变）
-ALG::PID::PID pitch_remote_speed_pid(4.0f, 0.04f, 0.0f, 5000.0f, 1000.0f, 100.0f);
-//yaw轴键鼠单速度环PID（初始参数同遥控器版，键鼠手感单独调参）
-ALG::PID::PID yaw_keymouse_speed_pid(3.5f, 0.05f, 0.0f, 5000.0f, 1000.0f, 100.0f);
-//pitch轴键鼠单速度环PID（初始参数同遥控器版，键鼠手感单独调参）
-ALG::PID::PID pitch_keymouse_speed_pid(4.5f, 0.07f, 0.0f, 5000.0f, 1000.0f, 100.0f);
+ALG::PID::PID pitch_remote_speed_imu_pid(4.0f, 0.04f, 0.0f, 5000.0f, 1000.0f, 100.0f);
+ALG::PID::PID pitch_remote_speed_encoder_pid(4.0f, 0.04f, 0.0f, 5000.0f, 1000.0f, 100.0f);
 /********************************************************************************** */
 
-// ============ 视觉模式（独立 PID 与前馈状态，防止与普通角度模式共用微分历史） ============
+// ============ 视觉模式（仅 IMU，编码器降级时视觉关闭；PID 和前馈状态独立） ============
 // yaw 视觉角度环外环PID
-ALG::PID::PID yaw_version_angle_pid(16.5f, 0.01f, 0.01f, 2000.0f, 1000.0f, 100.0f);
+ALG::PID::PID yaw_version_angle_imu_pid(16.5f, 0.01f, 0.01f, 2000.0f, 1000.0f, 100.0f);
 // yaw 视觉角度环内环PID
-ALG::PID::PID yaw_version_speed_pid(1.54f, 0.0f, 0.0f, 5000.0f, 1000.0f, 100.0f);
+ALG::PID::PID yaw_version_speed_imu_pid(1.54f, 0.0f, 0.0f, 5000.0f, 1000.0f, 100.0f);
 // 开源脚本示例值，尚未针对本机标定；仅视觉 Yaw 使用。
 static const YawAutoLqrEsoConfig_t yaw_auto_config = {
-    0.039f, 0.30f, 12.0f, 3.4f, // J, B, Ktheta, Komega
-    0.0f, 0.0f,                 // 积分及积分限幅
-    0.0f, 0.0f,                 // 库仑摩擦及平滑速度
-    20.0f, 0.2f, 1.0f,         // ESO 带宽、补偿增益、补偿限幅 (Nm)
-    0.0f, 0.0f,                 // ESO 速度及加速度门限 (0=不限)
-    0.0f, 0.0f, 0.0f,          // 力矩偏置及反馈低通（未启用）
-    0.0f,                       // 角度死区
+    0.039f, 0.30f, 12.0f, 3.4f, // J(kg*m^2)、B(N*m*s/rad)、角误差反馈增益、角速度误差反馈增益
+    0.0f, 0.0f,                 // 角误差积分增益、积分状态上限(rad*s)；当前关闭积分补偿
+    0.0f, 0.0f,                 // 库仑摩擦力矩(N*m)、平滑速度(rad/s)；当前摩擦幅值为 0
+    20.0f, 0.2f, 1.0f,         // ESO 带宽(rad/s)、扰动补偿比例、补偿幅值上限(N*m)
+    0.0f, 0.0f,                 // ESO 补偿的反馈速度(rad/s)、参考加速度(rad/s^2)门限；0 表示不设门限
+    0.0f, 0.0f, 0.0f,          // 力矩偏置积分增益、偏置上限(N*m)、反馈力矩低通系数；当前未启用
+    0.0f,                       // 角误差死区(rad)；当前不设置死区
+    // 对称软限幅(N*m，0=关闭)、硬限幅下限/上限(N*m)、力矩变化率上限(N*m/s)。
     0.0f, -J4340_TORQUE_LIMIT_NM, J4340_TORQUE_LIMIT_NM, 0.0f,
-    1U, 1U, 0U                 // ESO、ESO 补偿、斜率限幅
+    1U, 1U, 0U                 // 启用 ESO、启用 ESO 扰动补偿、关闭力矩变化率限制
 };
 static YawAutoLqrEso_t yaw_auto_ctrl;
-// pitch 视觉角度环外环PID（暂未启用，全零）
-ALG::PID::PID pitch_version_angle_pid(17.5f, 0.025f, 0.0f, 2000.0f, 1000.0f, 100.0f);
-// pitch 视觉角度环内环PID（暂未启用，全零）
-ALG::PID::PID pitch_version_speed_pid(4.0f, 0.01f, 0.0f, 5000.0f, 1000.0f, 100.0f);
-// 视觉模式前馈：控制周期 1 ms，输出量纲为 J4340 N*m。
-Alg::Feedforward::Velocity yaw_vision_velocity_ff(
-    0.0f, 0.001f);
-Alg::Feedforward::Friction yaw_vision_friction_ff(
-    0.0f, 0.0f);
-Alg::Feedforward::GimbalFullCompensation yaw_vision_dynamics_ff(
-    // Visual angle-loop target speed can change abruptly; tune inertia FF
-    // separately after the visual loop is stable.
-    0.01f, 0.001f, 0.025f, 50.0f, 50.0f);
-// Pitch 视觉模式使用独立前馈状态，参数与普通角度模式一致。
+// Pitch 视觉角度环外环 PID：视觉模式下使用，输出目标角速度(rad/s)。
+ALG::PID::PID pitch_version_angle_imu_pid(17.5f, 0.025f, 0.0f, 2000.0f, 1000.0f, 100.0f);
+// Pitch 视觉角度环内环 PID：速度误差转换为力矩(N*m)，再叠加视觉惯量前馈。
+ALG::PID::PID pitch_version_speed_imu_pid(4.0f, 0.01f, 0.0f, 5000.0f, 1000.0f, 100.0f);
+// Pitch 视觉模式保留有效惯量前馈，输出力矩(N*m)。
 Alg::Feedforward::GimbalFullCompensation pitch_vision_dynamics_ff(
     0.01f, 0.001f, 0.0f, 0.0f);
-Alg::Feedforward::Friction pitch_vision_friction_ff(
-    0.0f, 15.0f);
-// Yaw speed-mode full compensation FF, independent from angle/vision mode state.
-Alg::Feedforward::GimbalFullCompensation yaw_speed_dynamics_ff(
-    0.0f, 0.001f, 0.0f, 0.0f, 20.0f);
-
 /*********************************************************************** */
 
 using Remote = BSP::REMOTE_CONTROL::RemoteController;
@@ -173,20 +178,21 @@ Struct_Gimbal_FSM_Config pitch_gimbal_fsm_config;  // pitch 轴的 FSM 配置结
 Class_Gimbal_FSM yaw_gimbal_fsm;   // 定义 yaw 轴的 FSM 实例
 Class_Gimbal_FSM pitch_gimbal_fsm;   // 定义 pitch 轴的 FSM 实例
 
-DM4340_State_t dm4340_state[2]; // index 0=Yaw(ID1), index 1=Pitch(ID2)
+DM4340_State_t dm4340_state[2]; // 下标 0=Yaw(ID1)，下标 1=Pitch(ID2)，保存电机反馈快照
 RemoteData_t RemoteData;
-IMU_t ImuData_user; // 存储解析后的 IMU 数据的结构体
+IMU_t ImuData_user; // 仅缓存通过健康检查的 IMU 数据
+static ImuFeedbackFSM imu_feedback_fsm;
 
 
-float yaw_target_angle = 0.0f;   // 来自遥控器的目标角度
-float pitch_target_angle = 300.0f; // 来自遥控器的目标角度
-float yaw_current_angle = 0.0f;   // 来自IMU的当前角度
-float pitch_current_angle = 0.0f; // 来自IMU的当前角度
+float yaw_target_angle = 0.0f;   // FSM 给出的目标角(rad)，来源可为遥控、键鼠或视觉
+float pitch_target_angle = 300.0f; // 目标角(rad)；此处为原有初值，启动时由 IMU 和 FSM 覆盖
+float yaw_current_angle = 0.0f;   // 选定的 Yaw 闭环反馈(rad)：正常用 IMU，降级用编码器
+float pitch_current_angle = 0.0f; // 选定的 Pitch 闭环反馈(rad)，两来源零点不同
 
-float yaw_target_speed = 0.0f;   // 来自pid计算的目标速度
-float pitch_target_speed = 0.0f; // 来自pid计算的目标速度
-float yaw_current_speed = 0.0f;   // 来自IMU的当前速度
-float pitch_current_speed = 0.0f; // 来自IMU的当前速度
+float yaw_target_speed = 0.0f;   // 目标角速度(rad/s)：普通角度分支由 PID 产生，视觉分支取视觉参考
+float pitch_target_speed = 0.0f; // 目标角速度(rad/s)：角度分支由外环 PID 产生
+float yaw_current_speed = 0.0f;   // IMU 提供的 Yaw 控制角速度(rad/s)
+float pitch_current_speed = 0.0f; // IMU 提供的 Pitch 控制角速度(rad/s)，当前读取陀螺仪通道 0
 
 float filted_yaw = 0.0f; // 滤波后的角度
 float filted_gyroz = 0.0f; // 滤波后的陀螺仪 z 轴角速度
@@ -202,10 +208,10 @@ uint8_t pitch_mode = GIMBAL_MODE_SPEED;
 // GM6020 反馈ID = 0x204 + 拨码值，拨码1→0x205，拨码2→0x206
 //BSP::Motor::Dji::GM6020<2> gimbal_motor(0x204, gimbal_motor_idxs, 0x1FF);
 BSP::Motor::DM::J4340<2> gimbal_motor(
-    0,{1, 2},{1, 2},HAL::FDCAN::FdcanDeviceId::HAL_Fdcan3);
+    0,{7, 8},{7, 8},HAL::FDCAN::FdcanDeviceId::HAL_Fdcan3);
 
 void ControlTask();
-static bool IMU_Fault_Protection(float &yaw_angle, float &yaw_speed,float &pitch_angle, float &pitch_speed);
+static bool UpdateGimbalFeedback(float &yaw_angle, float &yaw_speed, float &pitch_angle, float &pitch_speed);
 
 
 
@@ -240,59 +246,61 @@ extern "C" void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t)
     }
 }
 
-/* 注：bxCAN 时代的 HAL_CAN_ErrorCallback（手动置 CAN_MCR_ABOM 实现总线离线自动恢复）已移除。
-   STM32H7 的 FDCAN 在 bus-off 后由硬件自动恢复（CCCR.INIT 在检测到 129 次总线空闲后
-   自动清除），不需要像 bxCAN 那样手动干预，因此"总线卡死导致电机疯转"的保护依然有效。*/
+/* 本文件使用 H7 FDCAN 接口，不设置 bxCAN 的 CAN_MCR_ABOM。
+   下方在线检查按电机反馈有效性停止输出；这里没有单独实现 FDCAN bus-off 恢复流程。 */
 
-float yaw_error = 0.0f;
-float pitch_error = 0.0f;
-float yaw_control_output = 0.0f;
+float yaw_error = 0.0f; // 目标减反馈(rad)，Yaw 使用连续角直接求差
+float pitch_error = 0.0f; // 目标减反馈(rad)，计算后将误差归一化到 [-pi, pi]
+float yaw_control_output = 0.0f; // Yaw 合成力矩(N*m)，发送前还需幅值与方向限位
 float yaw_speed_pid_output = 0.0f;
-float yaw_speed_ff_output = 0.0f;
-float yaw_speed_ff_friction = 0.0f;
-float yaw_speed_ff_inertia = 0.0f;
-float pitch_control_output = 0.0f;
-float pitch_ude_output = 0.0f;
-float pitch_last_control_output = 0.0f;
-volatile uint8_t gimbal_remote_offline = 0;
+float pitch_control_output = 0.0f; // Pitch 合成力矩(N*m)，包含 PID、重力及视觉惯量前馈
+volatile uint8_t gimbal_remote_offline = 0; // 遥控数据无效标志：1=本任务判定失联/异常
 
-static void ResetGimbalControlState()
+// 按轴复位控制状态；单轴电机掉线不清除另一轴的 PID、观测器和输出。
+static void ResetYawControlState()
 {
     yaw_control_output = 0.0f;
-    pitch_control_output = 0.0f;
     yaw_target_speed = 0.0f;
-    pitch_target_speed = 0.0f;
     yaw_speed_pid_output = 0.0f;
-    yaw_speed_ff_output = 0.0f;
-    yaw_speed_ff_friction = 0.0f;
-    yaw_speed_ff_inertia = 0.0f;
-
-    yaw_angle_pid.reset();
-    yaw_angle_to_speed_pid.reset();
-    yaw_keymouse_angle_pid.reset();
-    yaw_keymouse_angle_to_speed_pid.reset();
-    yaw_keymouse_speed_pid.reset();
-    yaw_remote_speed_pid.reset();
-    yaw_version_angle_pid.reset();
-    yaw_version_speed_pid.reset();
+    yaw_angle_imu_pid.reset();
+    yaw_angle_encoder_pid.reset();
+    yaw_angle_to_speed_imu_pid.reset();
+    yaw_angle_to_speed_encoder_pid.reset();
+    yaw_keymouse_angle_imu_pid.reset();
+    yaw_keymouse_angle_encoder_pid.reset();
+    yaw_keymouse_angle_to_speed_imu_pid.reset();
+    yaw_keymouse_angle_to_speed_encoder_pid.reset();
+    yaw_remote_speed_imu_pid.reset();
+    yaw_remote_speed_encoder_pid.reset();
+    yaw_version_angle_imu_pid.reset();
+    yaw_version_speed_imu_pid.reset();
     YawAutoLqrEso_Reset(&yaw_auto_ctrl, 0.0f, 0.0f);
-    pitch_angle_pid.reset();
-    pitch_angle_to_speed_pid.reset();
-    pitch_keymouse_angle_pid.reset();
-    pitch_keymouse_angle_to_speed_pid.reset();
-    pitch_keymouse_speed_pid.reset();
-    pitch_remote_speed_pid.reset();
-    pitch_version_angle_pid.reset();
-    pitch_version_speed_pid.reset();
+}
 
-    yaw_angle_dynamics_ff.ResetState(0.0f);
-    yaw_vision_dynamics_ff.ResetState(0.0f);
-    yaw_speed_dynamics_ff.ResetState(0.0f);
-    pitch_angle_dynamics_ff.ResetState(0.0f);
+static void ResetPitchControlState()
+{
+    pitch_control_output = 0.0f;
+    pitch_target_speed = 0.0f;
+    pitch_angle_imu_pid.reset();
+    pitch_angle_encoder_pid.reset();
+    pitch_angle_to_speed_imu_pid.reset();
+    pitch_angle_to_speed_encoder_pid.reset();
+    pitch_keymouse_angle_imu_pid.reset();
+    pitch_keymouse_angle_encoder_pid.reset();
+    pitch_keymouse_angle_to_speed_imu_pid.reset();
+    pitch_keymouse_angle_to_speed_encoder_pid.reset();
+    pitch_remote_speed_imu_pid.reset();
+    pitch_remote_speed_encoder_pid.reset();
+    pitch_version_angle_imu_pid.reset();
+    pitch_version_speed_imu_pid.reset();
     pitch_vision_dynamics_ff.ResetState(0.0f);
-    pitch_ude.ResetState(0.0f);
-    pitch_ude_output = 0.0f;
-    pitch_last_control_output = 0.0f;
+}
+
+// 遥控或 IMU 故障仍同时复位两轴；目标由恢复分支另行重新锚定。
+static void ResetGimbalControlState()
+{
+    ResetYawControlState();
+    ResetPitchControlState();
 }
 
 void vofa_send(float x1, float x2, float x3, float x4, float x5, float x6);
@@ -302,49 +310,64 @@ void vofa_sendN(const float *data, uint8_t count);
 extern "C" void can_send_task(void *argument)
 {
     // CAN 任务负责初始化总线、注册反馈回调，并周期性运行云台控制。
-        // 等待裁判系统就位（约需5秒），确保电机上电前裁判系统已就绪
-    // 等待其他任务和通信外设完成上电初始化。
+    // 延时 1000 个 CMSIS-OS tick，给其他任务和通信外设初始化留出时间。
     osDelay(1000);
 
 /*********************************************************************************** */
-yaw_gimbal_fsm_config.angle_step = DegreesToRadians(0.10f);
-yaw_gimbal_fsm_config.speed_scale = DegreesToRadians(110.0f);
-yaw_gimbal_fsm_config.mouse_speed_scale = DegreesToRadians(0.2f);   // rad/s per pixel
-yaw_gimbal_fsm_config.mouse_angle_scale = DegreesToRadians(0.017f);  // rad per pixel
-yaw_gimbal_fsm_config.min_angle = 0.0f;
-yaw_gimbal_fsm_config.max_angle = 0.0f;
-yaw_gimbal_fsm_config.limit_angle = 0U;
-yaw_gimbal_fsm_config.normalize_angle = 1U;
-yaw_gimbal_fsm_config.continuous_angle = 1U;
-yaw_gimbal_fsm.Init(yaw_gimbal_fsm_config, GIMBAL_STATUS_STOP);
+// ==================== Yaw 状态机参数 ====================
+// FSM 负责模式和目标生成，本任务负责闭环计算及发送；所有角度参数在此转换成 rad。
+// angle_step 是“每次 FSM 更新、单位摇杆输入”的目标增量，不是独立的每秒速率。
+// 摇杆目标累加公式：target_angle += joystick_speed * angle_step（通过死区判断后）。
+yaw_gimbal_fsm_config.angle_step = DegreesToRadians(0.10f); // 单位摇杆每次累加 0.10 度；实际速率随更新周期变化
+yaw_gimbal_fsm_config.speed_scale = DegreesToRadians(110.0f); // 保留速度分支的单位摇杆目标速度，110 度/s
+// mouse_speed_scale 是预留鼠标速度比例(rad/s 每像素)，当前 FSM 尚未读取此成员。
+// 当前运行档位为角度模式，键鼠目标实际使用下面的 mouse_angle_scale。
+yaw_gimbal_fsm_config.mouse_speed_scale = DegreesToRadians(0.2f);   // 预留值：0.2 度/s 每像素
+yaw_gimbal_fsm_config.mouse_angle_scale = DegreesToRadians(0.017f);  // 累计鼠标 X 位移每像素改变目标 0.017 度
+// 上下限以电机原始编码器零点为基准；任务传入 getAngleDeg(1) 转换后的弧度。
+// 这不是 IMU Yaw 的 +/-60 度目标范围，也不是发送到底盘的带偏置 Yaw 角范围。
+yaw_gimbal_fsm_config.min_angle = DegreesToRadians(-60.0f); // 编码器 <= -60 度时禁止继续减小角度
+yaw_gimbal_fsm_config.max_angle = DegreesToRadians(60.0f);  // 编码器 >= +60 度时禁止继续增大角度
+yaw_gimbal_fsm_config.limit_angle = 1U; // 限位总开关：检查边界处的向外目标和最终向外力矩
+yaw_gimbal_fsm_config.limit_target_angle = 0U; // 不夹紧 IMU 目标；其参考系与编码器限位不同
+// normalize_angle=1 使视觉目标展开到最接近当前连续 IMU 角的圈数。
+// continuous_angle=1 保留累计圈数，普通目标不被归一化回 [-pi, pi)。
+yaw_gimbal_fsm_config.normalize_angle = 1U; // 启用视觉目标与连续控制角的圈数对齐
+yaw_gimbal_fsm_config.continuous_angle = 1U; // 保持连续 Yaw 目标，避免过 +/-pi 时目标跳变
+yaw_gimbal_fsm.Init(yaw_gimbal_fsm_config, GIMBAL_STATUS_STOP); // 复制配置并清状态，初始零力矩 STOP
 
-pitch_gimbal_fsm_config.angle_step = DegreesToRadians(0.11f);
-pitch_gimbal_fsm_config.speed_scale = DegreesToRadians(95.0f);
-pitch_gimbal_fsm_config.mouse_speed_scale = DegreesToRadians(0.2f);   // rad/s per pixel
-pitch_gimbal_fsm_config.mouse_angle_scale = DegreesToRadians(0.013f);  // rad per pixel
-pitch_gimbal_fsm_config.min_angle = DegreesToRadians(-16.32f);   // IMU pitch minimum
-pitch_gimbal_fsm_config.max_angle = DegreesToRadians(31.8f);    // IMU pitch maximum
-pitch_gimbal_fsm_config.limit_angle = 1U;
-pitch_gimbal_fsm_config.normalize_angle = 0U;
-pitch_gimbal_fsm_config.continuous_angle = 0U;
-pitch_gimbal_fsm.Init(pitch_gimbal_fsm_config, GIMBAL_STATUS_STOP);
+// ==================== Pitch 状态机参数 ====================
+// Pitch 正常闭环用 IMU，降级闭环用编码器；机械限位始终取 ID2 原始编码器。
+// 上下限按用户提供的原始编码器角设置，不作为 IMU 目标角的夹紧范围。
+pitch_gimbal_fsm_config.angle_step = DegreesToRadians(0.11f); // 单位摇杆每次累加 0.11 度
+pitch_gimbal_fsm_config.speed_scale = DegreesToRadians(95.0f); // 保留速度分支的单位摇杆目标速度，95 度/s
+pitch_gimbal_fsm_config.mouse_speed_scale = DegreesToRadians(0.2f);   // 预留鼠标速度比例，当前 FSM 未读取
+pitch_gimbal_fsm_config.mouse_angle_scale = DegreesToRadians(0.013f);  // 累计鼠标 Y 位移每像素改变目标 0.013 度
+pitch_gimbal_fsm_config.min_angle = DegreesToRadians(34.2f);    // 原始编码器 <= 34.2 度时禁止继续减小角度
+pitch_gimbal_fsm_config.max_angle = DegreesToRadians(67.9f);    // 原始编码器 >= 67.9 度时禁止继续增大角度
+pitch_gimbal_fsm_config.limit_angle = 1U; // 限位总开关；实际到边界后另拦截最终向外力矩
+pitch_gimbal_fsm_config.limit_upper_torque = 0U; // 保留上限目标保护，允许正力矩支撑重力/制动下降；下限仍拦负力矩
+// 与 Yaw 相同：不夹紧绝对目标角，避免混用 IMU 目标和编码器机械行程。
+// 到机械边界后，Update_Angle_Limit 收回向外目标，最终 Limit_Torque 拦截向外力矩。
+pitch_gimbal_fsm_config.limit_target_angle = 0U; // 遥控、键鼠、视觉目标均使用边界目标保护
+pitch_gimbal_fsm_config.normalize_angle = 0U; // Pitch 不做 Yaw 式圈数对齐/角度归一化
+pitch_gimbal_fsm_config.continuous_angle = 0U; // 配合上面的归一化关闭，不使用连续圈数展开
+pitch_gimbal_fsm.Init(pitch_gimbal_fsm_config, GIMBAL_STATUS_STOP); // 初始停止，运行时由输入决定状态
 /************************************************************************************* */
 
-	static uint32_t can2_tick = 0;
-static uint8_t last_s1 = 0xFF;
-static uint8_t last_s2 = 0xFF;
-static bool remote_was_offline = false;
-static bool gimbal_motor_was_offline = false;
-static bool imu_was_fault = false;
-static uint16_t startup_protect = 0; // 上电保护计数器
+	static uint32_t can2_tick = 0; // 有效遥控分支中的调度拍数，用于 VOFA 分频，不是毫秒时间戳
+static bool remote_was_offline = false; // 遥控曾异常：恢复时用选定反馈角重新建立目标
+static bool yaw_motor_was_offline = false; // Yaw 恢复后只重新锚定自身
+static bool pitch_motor_was_offline = false; // Pitch 恢复后只重新锚定自身
+
+static uint16_t startup_protect = 0; // 遥控有效且至少一轴在线时累计的启动保护次数
 
 	// --- 在进入循环前初始化 ---
     // 这行代码执行时会触发 HAL_FDCAN_Start 和开启接收中断     
 	HAL::FDCAN::get_fdcan_bus_instance(); // 触发 FDCAN bus 初始化：HAL_FDCAN_Start + 激活中断通知
 	    auto &fdcan1 = HAL::FDCAN::get_fdcan_bus_instance().get_device(HAL::FDCAN::FdcanDeviceId::HAL_Fdcan1);
-    auto &fdcan2 = HAL::FDCAN::get_fdcan_bus_instance().get_device(HAL::FDCAN::FdcanDeviceId::HAL_Fdcan2);
     auto &fdcan3 = HAL::FDCAN::get_fdcan_bus_instance().get_device(HAL::FDCAN::FdcanDeviceId::HAL_Fdcan3);
-    // FDCAN1：接收底盘/拨弹轮/摩擦轮电机反馈。
+    // FDCAN1：本回调仅将 0x201~0x204 帧交给 friction_motor 的解析器。
     fdcan1.register_rx_callback([](const HAL::FDCAN::Frame &frame) {
     if (frame.id >= 0x201 && frame.id <= 0x204)
     {
@@ -352,25 +375,18 @@ static uint16_t startup_protect = 0; // 上电保护计数器
     }
     });
 
-    // FDCAN2：接收云台电机反馈和裁判系统热量数据。
-    fdcan2.register_rx_callback([](const HAL::FDCAN::Frame &frame) {
-        if (frame.id == 0x520)
-        {
-            // 底盘发来的裁判系统热量数据
-            Communication::GimbalRefree::instance().parse(frame);
-        }
-    });
+    // 裁判转发已改为 USART3，接收 lambda 在 remote_control_task 中注册。
 
     // FDCAN3：两台 J4340 云台电机反馈，Yaw=1，Pitch=2。
     fdcan3.register_rx_callback([](const HAL::FDCAN::Frame &frame) {
-        if (frame.id == 1 || frame.id == 2)
+        if (frame.id == 7 || frame.id == 8)
         {
             gimbal_motor.Parse(frame);
         }
     });
 
 
-// 等遥控器数据就绪（最多等200ms）
+// 等待摇杆不再同时为 -1，最多 200 次、每次延时 1 tick；连接状态仍由主循环检查。
 for (uint32_t wait = 0; wait < 200; wait++)
 {
     vTaskDelay(1);
@@ -383,18 +399,19 @@ for (uint32_t wait = 0; wait < 200; wait++)
     }
 }
 
-// 读电机状态（此时CAN已跑了一段时间，电机数据可靠）
-    // CAN 已运行一段时间后读取初始电机反馈，建立可靠基准。
+// 初始化视觉 Yaw 控制器并读取当前缓存的电机反馈；在线有效性由主循环另行检查。
 YawAutoLqrEso_Init(&yaw_auto_ctrl);
 ControlTask();
 
-// 设置初始目标（此时IMU也收敛了）
-ImuData_user.yaw = GetContinuousYawAngle(DegreesToRadians(imu.GetAngle(2)), true);
-ImuData_user.pitch = DegreesToRadians(imu.GetAngle(1));
-yaw_target_angle = ImuData_user.yaw;   // 目标=当前，偏差为0
-pitch_target_angle = ImuData_user.pitch; // pitch 用 IMU 闭环
+// 初始目标先用编码器；主循环验证 IMU 后切换来源并重新锚定。
+yaw_target_angle = gimbal_motor.getAngleRad(1);
+pitch_target_angle = gimbal_motor.getAngleRad(2);
 
 // 最后才使能电机
+MotorRecoveryFSM gimbal_recovery_fsm[2]; // 1=Yaw、2=Pitch，独立重试使能
+const uint32_t motor_init_tick = HAL_GetTick();
+gimbal_recovery_fsm[0].Init(motor_init_tick);
+gimbal_recovery_fsm[1].Init(motor_init_tick);
 gimbal_motor.On(1, BSP::Motor::DM::MIT); // Yaw, FDCAN3
 gimbal_motor.On(2, BSP::Motor::DM::MIT); // Pitch, FDCAN3
 vTaskDelay(500); // 等电机上电完成
@@ -407,7 +424,8 @@ for (uint32_t i = 0; i < 1000; i++)
     vTaskDelay(1);
 }
 
-// 第二步：等角度收敛（连续10次变化<1°，最多等 200ms）
+// 第二步：仅检查相邻 Yaw 样本变化，连续 10 次小于 1 度或满 200 次后结束等待。
+// 这是变化量稳定判据，不是 IMU 精度校准，也不代表 Pitch 或偏置已经验证。
 {
     float prev_yaw = imu.GetAngle(2);
     uint8_t stable_count = 0;
@@ -431,15 +449,19 @@ for (uint32_t i = 0; i < 1000; i++)
     }
 }
 
-// 用收敛后的 IMU 重新校准初始目标角度
-  ImuData_user.yaw = GetContinuousYawAngle(DegreesToRadians(imu.GetAngle(2)), true);
-  ImuData_user.pitch = DegreesToRadians(imu.GetAngle(1));
-yaw_target_angle = ImuData_user.yaw;
-pitch_target_angle = ImuData_user.pitch;
+// 等待结束后更新编码器初始目标；未验证的 IMU 不进入连续角计算。
+yaw_target_angle = gimbal_motor.getAngleRad(1);
+pitch_target_angle = gimbal_motor.getAngleRad(2);
 
     // 主循环：采集输入、更新状态机、计算控制量并发送 CAN。
     for(;;)
     {
+        // 遥控失联期间也检查反馈，连续健康计时不能包含未检查的区间。
+        // 先验证原始值，再展开 IMU Yaw，避免 NaN/Inf 进入控制计算。
+        const bool feedback_source_changed = UpdateGimbalFeedback(
+            yaw_current_angle, yaw_current_speed, pitch_current_angle, pitch_current_speed);
+        const bool using_encoder = imu_feedback_fsm.UsingEncoder();
+         // 一次性消费此前收到的鼠标累计位移，避免控制任务多次累加同一帧。
          int32_t mouse_delta_x = 0;
          int32_t mouse_delta_y = 0;
          remoteController.ConsumeMouseDelta(mouse_delta_x, mouse_delta_y);
@@ -452,9 +474,15 @@ pitch_target_angle = ImuData_user.pitch;
         )
         {
             gimbal_remote_offline = 1;
+            // 遥控安全门期间不使能，恢复后的首次正常检查补发 On。
+            gimbal_recovery_fsm[0].Force_Enable_On_Next_Check();
+            gimbal_recovery_fsm[1].Force_Enable_On_Next_Check();
             remote_was_offline = true;
             RemoteData = {};
-            CAN2_SendChassisSpeed(0.0f, 0.0f);
+            // 遥控失联仍发送完整快照，清零操作量，阻止底盘沿用旧速度或键盘。
+            RS485_SendBoardData(0.0f, 0.0f, 0U, 0U,
+                                imu.isConnected() && std::isfinite(imu.GetAngle(2)) ? imu.GetAngle(2) : 0.0f,
+                                imu.isConnected() && std::isfinite(imu.GetGyro(2)) ? imu.GetGyro(2) : 0.0f, 0U);
 
             ResetGimbalControlState();
             gimbal_motor.ctrl_Mit(1, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); // Yaw
@@ -480,8 +508,8 @@ pitch_target_angle = ImuData_user.pitch;
         RemoteData.mouse_right = remoteController.get_mouseRight() ? 1 : 0;
         RemoteData.keyboard   = remoteController.get_keyboard();
 
-        // [新增] 更新 InputDispatcher 状态机
-         // 将原始遥控器数据转换为统一的遥控器/键鼠输入状态。
+         // 输入调度 FSM：双中选择键鼠，其余档位选择遥控器；维护按键消抖及视觉右键状态。
+         // 云台 FSM 随后结合视觉是否就绪/新鲜决定是否进入视觉控制。
         input_dispatcher.Update(
             RemoteData.s1,
             RemoteData.s2,
@@ -492,60 +520,26 @@ pitch_target_angle = ImuData_user.pitch;
 
         if (input_dispatcher.GetSource() != InputSource::KeyMouse)
         {
+            // 遥控器档丢弃鼠标累计量，避免切到键鼠后继承此前移动。
             mouse_delta_x = 0;
             mouse_delta_y = 0;
         }
 
-ImuData_user.yaw = GetContinuousYawAngle(DegreesToRadians(imu.GetAngle(2))); // continuous yaw feedback, rad
-ImuData_user.pitch = DegreesToRadians(imu.GetAngle(1)); // pitch angle, rad
-ImuData_user.gyro_y = DegreesToRadians(imu.GetGyro(0)); // pitch angular rate, rad/s
-ImuData_user.gyro_z = DegreesToRadians(imu.GetGyro(2)); // yaw angular rate, rad/s
+
 
 
         
 /******************************************************************** */
-// 1. 核心控制指令：直接脱离 switch-case，每 1ms 循环必发！
-// 这样底盘能接收到最高频、最实时的坐标方向
- // 高频发送云台偏移，保证底盘及时获得最新姿态补偿数据。
- YawOffset_SendToCan2(); 
-
-// 2. 其他辅助数据：使用 switch-case 分频发送，避免 CAN 总线拥堵
- // 辅助数据分频发送，降低 CAN 总线占用。
- switch (can2_tick % 10) 
-{
-    case 0:
-        // 云台 IMU 数据改成 10ms 发送一次（对底盘来说足够了）
-        //CAN2_SendGimbalIMU_Raw(ImuData_user.yaw, ImuData_user.gyro_z);
-        break;
-
-    case 5:
-        // 遥控器开关状态发生突变时立马发送
-        if (RemoteData.s1 != last_s1 || RemoteData.s2 != last_s2)
-        {
-            CAN2_Send_S1andS2_Status(RemoteData.s1, RemoteData.s2);
-            last_s1 = RemoteData.s1;
-            last_s2 = RemoteData.s2;
-        }
-        break;
-}
-
-// 键鼠模式下按控制周期发送键盘位掩码给底盘
-if (input_dispatcher.GetSource() == InputSource::KeyMouse)
-{
-    CAN2_SendKeyboard(input_dispatcher.GetKeyboardMask());
-}
-else if (input_dispatcher.GetSource() == InputSource::Remote)
-{
-    CAN2_SendChassisSpeed(RemoteData.chassis_vx, RemoteData.chassis_vy);
-}
-
-// 3. 兜底保护：每 20ms 强行同步一次开关状态，防止漏帧
-if ((can2_tick % 20) == 19)
-{
-    CAN2_Send_S1andS2_Status(RemoteData.s1, RemoteData.s2);
-    last_s1 = RemoteData.s1;
-    last_s2 = RemoteData.s2;
-}
+// 每轮提交最新快照，收到回复后即可发送；无回复最多等待 2ms，未使用字段归零。
+// IMU 原始接口为度和度/秒，不使用上方供控制器计算的连续角(rad)。
+const bool chassis_remote_mode = input_dispatcher.GetSource() == InputSource::Remote;
+const bool chassis_keymouse_mode = input_dispatcher.GetSource() == InputSource::KeyMouse;
+RS485_SendBoardData(chassis_remote_mode ? RemoteData.chassis_vx : 0.0f,
+                    chassis_remote_mode ? RemoteData.chassis_vy : 0.0f,
+                    RemoteData.s1, RemoteData.s2,
+                    imu.isConnected() && std::isfinite(imu.GetAngle(2)) ? imu.GetAngle(2) : 0.0f,
+                    imu.isConnected() && std::isfinite(imu.GetGyro(2)) ? imu.GetGyro(2) : 0.0f,
+                    chassis_keymouse_mode ? input_dispatcher.GetKeyboardMask() : 0U);
 
  // tick 用于分频发送和周期任务调度。
  can2_tick++;/************************************************************************************** */
@@ -553,51 +547,62 @@ if ((can2_tick % 20) == 19)
 /************************************************************************************** */
        ControlTask(); // 读取2个电机的数据
 
-  // Motor feedback timeout is an actuator safety fault; block FSM/PID output here.
+   // 电机反馈在线状态独立判断；掉线轴停止，在线轴继续控制。
+   // isConnected 的第一个参数为逻辑状态槽，第二个参数为蜂鸣器标识，不是另一 CAN ID。
   const bool yaw_motor_online = gimbal_motor.isConnected(1, 1);
   const bool pitch_motor_online = gimbal_motor.isConnected(2, 2);
-  if (!pitch_motor_online || !yaw_motor_online)
+  // 电机恢复使能：双下停车期间不发 On，退出后重新请求一次。
+  const bool motor_recovery_paused =
+      input_dispatcher.GetSource() != InputSource::KeyMouse &&
+      RemoteData.s1 == Remote::DOWN && RemoteData.s2 == Remote::DOWN;
+  if (motor_recovery_paused)
   {
-      gimbal_motor_was_offline = true;
-      ResetGimbalControlState();
-      gimbal_motor.ctrl_Mit(1, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); // Yaw
-      gimbal_motor.ctrl_Mit(2, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); // Pitch
-      vTaskDelay(1);
-      continue;
+      gimbal_recovery_fsm[0].Force_Enable_On_Next_Check();
+      gimbal_recovery_fsm[1].Force_Enable_On_Next_Check();
+  }
+  else
+  {
+      // 先检查恢复请求，离线轴也需要周期性重试使能。
+      const uint32_t motor_recovery_tick = HAL_GetTick();
+      if (gimbal_recovery_fsm[0].Should_Enable(yaw_motor_online, motor_recovery_tick))
+          gimbal_motor.On(1, BSP::Motor::DM::MIT);
+      if (gimbal_recovery_fsm[1].Should_Enable(pitch_motor_online, motor_recovery_tick))
+          gimbal_motor.On(2, BSP::Motor::DM::MIT);
+  }
+  // 电机掉线按轴处理：只复位掉线轴，后续向该轴传入 STOP 并发送零力矩。
+  if (!yaw_motor_online)
+  {
+      yaw_motor_was_offline = true;
+      ResetYawControlState();
+  }
+  if (!pitch_motor_online)
+  {
+      pitch_motor_was_offline = true;
+      ResetPitchControlState();
   }
 
-  // IMU is the only gimbal feedback. There is no encoder-control fallback.
-  bool imu_fault = IMU_Fault_Protection(yaw_current_angle, yaw_current_speed,
-                      pitch_current_angle, pitch_current_speed);
-
-  if (imu_fault)
-  {
-      imu_was_fault = true;
-      ResetGimbalControlState();
-      gimbal_motor.ctrl_Mit(1, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
-      gimbal_motor.ctrl_Mit(2, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
-      vTaskDelay(1);
-      continue;
-  }
-
-  if (imu_was_fault)
-  {
-      yaw_gimbal_fsm.ReAnchor(yaw_current_angle);
-      pitch_gimbal_fsm.ReAnchor(pitch_current_angle);
-      ResetGimbalControlState();
-      imu_was_fault = false;
-  }
-
-  // Re-anchor to fresh feedback after a motor comes back online.
-  if (gimbal_motor_was_offline)
+  if (feedback_source_changed)
   {
       yaw_gimbal_fsm.ReAnchor(yaw_current_angle);
       pitch_gimbal_fsm.ReAnchor(pitch_current_angle);
       ResetGimbalControlState();
-      gimbal_motor_was_offline = false;
   }
 
-  // Remote control recovery: re-anchor the target to the latest measured angle.
+   // 电机恢复按轴处理：按选定反馈锚定恢复轴，保留另一轴的目标和控制状态。
+  if (yaw_motor_online && yaw_motor_was_offline)
+  {
+      yaw_gimbal_fsm.ReAnchor(yaw_current_angle);
+      ResetYawControlState();
+      yaw_motor_was_offline = false;
+  }
+  if (pitch_motor_online && pitch_motor_was_offline)
+  {
+      pitch_gimbal_fsm.ReAnchor(pitch_current_angle);
+      ResetPitchControlState();
+      pitch_motor_was_offline = false;
+  }
+
+   // 遥控恢复：丢弃旧操作对应的目标偏差，锚定到选定来源的最新角。
   if (remote_was_offline)
   {
       yaw_gimbal_fsm.ReAnchor(yaw_current_angle);
@@ -611,8 +616,8 @@ if ((can2_tick % 20) == 19)
 
 if (startup_protect < 500)
 {
-    // 上电保护：前 500ms 强制 STOP，覆盖拨杆值让 FSM 判定为停止
-    startup_protect++;
+    // 前 500 次至少一轴在线的有效更新强制 STOP；两轴均掉线不累计。
+    if (yaw_motor_online || pitch_motor_online) startup_protect++;
     Struct_Gimbal_Input stop_input = {};
     stop_input.s1 = Remote::DOWN;
     stop_input.s2 = Remote::DOWN;
@@ -623,19 +628,28 @@ else
 {
     /************************************************************************************* */
     // FSM 内部自行判断模式：传入原始输入，FSM 根据 s1/s2/键鼠 自行决定
+    // 遥控双下为 STOP，双上且视觉有效为 VISION，其他有效运行档位为 ANGLE。
+    // 键鼠视觉需输入调度器确认右键视觉状态，并且 vision_ready、vision_fresh 均成立。
+    // 角度模式会累加摇杆/累计鼠标位移；视觉模式使用视觉目标，切模式/输入源时重新锚定。
     Struct_Gimbal_Input yaw_input = {};
     yaw_input.s1       = RemoteData.s1;
     yaw_input.s2       = RemoteData.s2;
     yaw_input.is_keymouse = (input_dispatcher.GetSource() == InputSource::KeyMouse);
     yaw_input.joystick_speed = RemoteData.gimbal_yaw;
     yaw_input.mouse_speed = -static_cast<float>(RemoteData.mouse_x);
-    yaw_input.mouse_angle_delta = -static_cast<float>(mouse_delta_x);
+    yaw_input.mouse_angle_delta = -static_cast<float>(mouse_delta_x); // Yaw 按控制方向取负，再由 FSM 乘像素角度比例
     yaw_input.mouse_dx = RemoteData.mouse_x;
     yaw_input.mouse_dy = RemoteData.mouse_y;
     yaw_input.mouse_right_held = input_dispatcher.IsVisionMode();
-    yaw_input.vision_ready = vision_comm.IsVisionReady();
-    yaw_input.vision_fresh = vision_comm.IsDataFresh();
+    yaw_input.vision_ready = !using_encoder && vision_comm.IsVisionReady();
+    yaw_input.vision_fresh = !using_encoder && vision_comm.IsDataFresh();
     yaw_input.vision_angle  = vision_comm.GetYawAngle();
+    if (!yaw_motor_online)
+    {
+        yaw_input = {};
+        yaw_input.s1 = Remote::DOWN;
+        yaw_input.s2 = Remote::DOWN;
+    }
     yaw_gimbal_fsm.Update(yaw_input, yaw_current_angle);
 
     Struct_Gimbal_Input pitch_input = {};
@@ -644,87 +658,84 @@ else
     pitch_input.is_keymouse = (input_dispatcher.GetSource() == InputSource::KeyMouse);
     pitch_input.joystick_speed = RemoteData.gimbal_pitch;
     pitch_input.mouse_speed = static_cast<float>(RemoteData.mouse_y);
-    pitch_input.mouse_angle_delta = static_cast<float>(mouse_delta_y);
+    pitch_input.mouse_angle_delta = static_cast<float>(mouse_delta_y); // Pitch 按现有方向映射使用正 Y 累计位移
     pitch_input.mouse_dx = RemoteData.mouse_x;
     pitch_input.mouse_dy = RemoteData.mouse_y;
     pitch_input.mouse_right_held = input_dispatcher.IsVisionMode();
-    pitch_input.vision_ready = vision_comm.IsVisionReady();
-    pitch_input.vision_fresh = vision_comm.IsDataFresh();
+    pitch_input.vision_ready = !using_encoder && vision_comm.IsVisionReady();
+    pitch_input.vision_fresh = !using_encoder && vision_comm.IsDataFresh();
     pitch_input.vision_angle  = vision_comm.GetPitchAngle();
+    if (!pitch_motor_online)
+    {
+        pitch_input = {};
+        pitch_input.s1 = Remote::DOWN;
+        pitch_input.s2 = Remote::DOWN;
+    }
     pitch_gimbal_fsm.Update(pitch_input, pitch_current_angle);
 }
 yaw_mode   = yaw_gimbal_fsm.Get_Mode_Command();
 pitch_mode = pitch_gimbal_fsm.Get_Mode_Command();
 
-// 从双下切出后，遥控器档等待右摇杆回中上拨；键鼠档等待鼠标停止后上移。
-const Class_Gimbal_FSM::PitchStartDecision pitch_start_decision =
-    pitch_gimbal_fsm.Update_Pitch_Start_Gate(
-        RemoteData.s1 == Remote::DOWN && RemoteData.s2 == Remote::DOWN,
-        input_dispatcher.GetSource() == InputSource::KeyMouse,
-        RemoteData.gimbal_pitch, static_cast<float>(mouse_delta_y));
-const bool pitch_hold_zero =
-    pitch_start_decision == Class_Gimbal_FSM::PitchStartDecision::HoldZero;
-if (pitch_start_decision == Class_Gimbal_FSM::PitchStartDecision::ReanchorAndRelease &&
-    pitch_gimbal_fsm.Get_Control_Type() == GIMBAL_CONTROL_ANGLE)
-{
-    pitch_gimbal_fsm.ReAnchor(pitch_current_angle);
-}
-
-// 电机/IMU 在线检查已通过：向状态机传入 Yaw 原始编码器角度（度）和 IMU 控制角（弧度）。
-yaw_gimbal_fsm.Update_Yaw_Limit(gimbal_motor.getAngleDeg(1), yaw_current_angle);
+// 两轴在线时均用原始编码器更新机械限位，两种闭环下始终有效。
+// 第一个角用于与编码器 min/max 比较；第二个角是当前选定闭环来源的反馈角。
+// 到机械边界且目标仍向外时，收回到当前控制角；最终再拦截向外力矩。
+if (yaw_motor_online)
+    yaw_gimbal_fsm.Update_Angle_Limit(DegreesToRadians(gimbal_motor.getAngleDeg(1)), yaw_current_angle);
+if (pitch_motor_online)
+    pitch_gimbal_fsm.Update_Angle_Limit(DegreesToRadians(gimbal_motor.getAngleDeg(2)), pitch_current_angle);
 const uint8_t yaw_mode_changed = yaw_gimbal_fsm.Take_Mode_Changed_Flag();
-const uint8_t yaw_limit_reset = yaw_gimbal_fsm.Take_Yaw_Limit_Reset_Flag();
+const uint8_t yaw_limit_reset = yaw_gimbal_fsm.Take_Limit_Reset_Flag();
+const uint8_t pitch_mode_changed = pitch_gimbal_fsm.Take_Mode_Changed_Flag();
+const uint8_t pitch_limit_reset = pitch_gimbal_fsm.Take_Limit_Reset_Flag();
 
+// Take_* 返回后清除标志：模式/输入源切换或目标保护引起的复位在本周期控制计算前处理。
+// 本周期末 Limit_Torque 产生的新标志则留待下一周期处理，避免旧积分和观测状态继续向外推。
 if (yaw_mode_changed != 0U || yaw_limit_reset != 0U)
 {
-    yaw_angle_pid.reset();
-    yaw_angle_to_speed_pid.reset();
-    yaw_keymouse_angle_pid.reset();
-    yaw_keymouse_angle_to_speed_pid.reset();
-    yaw_keymouse_speed_pid.reset();
-    yaw_remote_speed_pid.reset();
-    yaw_version_angle_pid.reset();
-    yaw_version_speed_pid.reset();
+    yaw_angle_imu_pid.reset();
+    yaw_angle_encoder_pid.reset();
+    yaw_angle_to_speed_imu_pid.reset();
+    yaw_angle_to_speed_encoder_pid.reset();
+    yaw_keymouse_angle_imu_pid.reset();
+    yaw_keymouse_angle_encoder_pid.reset();
+    yaw_keymouse_angle_to_speed_imu_pid.reset();
+    yaw_keymouse_angle_to_speed_encoder_pid.reset();
+    yaw_remote_speed_imu_pid.reset();
+    yaw_remote_speed_encoder_pid.reset();
+    yaw_version_angle_imu_pid.reset();
+    yaw_version_speed_imu_pid.reset();
     YawAutoLqrEso_Reset(&yaw_auto_ctrl, yaw_current_angle, yaw_current_speed);
-    const float yaw_mode_target_angle = yaw_gimbal_fsm.Get_Target_Angle();
-    yaw_angle_velocity_ff.VelocityFeedforward(yaw_mode_target_angle);
-    yaw_vision_velocity_ff.VelocityFeedforward(yaw_mode_target_angle);
-    yaw_angle_dynamics_ff.ResetState(0.0f);
-    yaw_vision_dynamics_ff.ResetState(0.0f);
-    yaw_speed_dynamics_ff.ResetState(0.0f);
 }
 
-if (pitch_gimbal_fsm.Take_Mode_Changed_Flag() != 0U)
+if (pitch_mode_changed != 0U || pitch_limit_reset != 0U)
 {
-    pitch_angle_pid.reset();
-    pitch_angle_to_speed_pid.reset();
-    pitch_keymouse_angle_pid.reset();
-    pitch_keymouse_angle_to_speed_pid.reset();
-    pitch_keymouse_speed_pid.reset();
-    pitch_remote_speed_pid.reset();
-    pitch_version_angle_pid.reset();
-    pitch_version_speed_pid.reset();
-    pitch_angle_dynamics_ff.ResetState(0.0f);
+    pitch_angle_imu_pid.reset();
+    pitch_angle_encoder_pid.reset();
+    pitch_angle_to_speed_imu_pid.reset();
+    pitch_angle_to_speed_encoder_pid.reset();
+    pitch_keymouse_angle_imu_pid.reset();
+    pitch_keymouse_angle_encoder_pid.reset();
+    pitch_keymouse_angle_to_speed_imu_pid.reset();
+    pitch_keymouse_angle_to_speed_encoder_pid.reset();
+    pitch_remote_speed_imu_pid.reset();
+    pitch_remote_speed_encoder_pid.reset();
+    pitch_version_angle_imu_pid.reset();
+    pitch_version_speed_imu_pid.reset();
     pitch_vision_dynamics_ff.ResetState(0.0f);
-    pitch_ude.ResetState(pitch_current_speed);
-    pitch_ude_output = 0.0f;
-    pitch_last_control_output = pitch_control_output;
 }
 
+// 完成目标保护后再取目标，确保 PID/LQR 不使用本周期已经被 FSM 撤回的向外目标。
 yaw_target_angle = yaw_gimbal_fsm.Get_Target_Angle();
 pitch_target_angle = pitch_gimbal_fsm.Get_Target_Angle();
 
- // 计算目标与反馈误差，作为角度环输入。
+ // 统一采用“目标减实际”；切换来源时已经重新锚定，Yaw 直接求差。
  yaw_error = yaw_target_angle - yaw_current_angle;
 
 pitch_error = pitch_target_angle - pitch_current_angle;
-// 目标和 IMU 反馈均为弧度，将误差归一化到 [-pi, pi]。
+// 目标和选定反馈均为弧度，将 Pitch 误差归一化到 [-pi, pi]。
 while (pitch_error > kPi)  pitch_error -= kTwoPi;
 while (pitch_error < -kPi) pitch_error += kTwoPi;
 yaw_speed_pid_output = 0.0f;
-yaw_speed_ff_output = 0.0f;
-yaw_speed_ff_friction = 0.0f;
-yaw_speed_ff_inertia = 0.0f;
 
 /********************************************************************************* */
  // yaw 停止模式：清零输出并复位各控制器状态。
@@ -732,22 +743,27 @@ yaw_speed_ff_inertia = 0.0f;
 {
     yaw_target_speed = 0.0f;
     yaw_control_output = 0.0f;
-    yaw_angle_pid.reset();
-    yaw_angle_to_speed_pid.reset();
-    yaw_keymouse_angle_pid.reset();
-    yaw_keymouse_angle_to_speed_pid.reset();
-    yaw_keymouse_speed_pid.reset();
-    yaw_remote_speed_pid.reset();
-    yaw_version_angle_pid.reset();
-    yaw_version_speed_pid.reset();
-    yaw_speed_dynamics_ff.ResetState(0.0f);
+    yaw_angle_imu_pid.reset();
+    yaw_angle_encoder_pid.reset();
+    yaw_angle_to_speed_imu_pid.reset();
+    yaw_angle_to_speed_encoder_pid.reset();
+    yaw_keymouse_angle_imu_pid.reset();
+    yaw_keymouse_angle_encoder_pid.reset();
+    yaw_keymouse_angle_to_speed_imu_pid.reset();
+    yaw_keymouse_angle_to_speed_encoder_pid.reset();
+    yaw_remote_speed_imu_pid.reset();
+    yaw_remote_speed_encoder_pid.reset();
+    yaw_version_angle_imu_pid.reset();
+    yaw_version_speed_imu_pid.reset();
 }
- // yaw 角度模式：角度环产生目标速度，速度环和前馈共同产生力矩。
- else if (yaw_gimbal_fsm.Get_Control_Type() == GIMBAL_CONTROL_ANGLE && !imu_fault)
+ // yaw 角度模式：角度环产生目标速度，速度环输出力矩。
+ else if (yaw_gimbal_fsm.Get_Control_Type() == GIMBAL_CONTROL_ANGLE)
 {
     if (yaw_mode == GIMBAL_MODE_VISION)
     {
-        // 视觉角度已由 FSM 对齐到连续 IMU 角；速度和加速度直接使用最近一包。
+        // 视觉角度已由 FSM 对齐到连续 IMU 角；速度(rad/s)、加速度(rad/s^2)使用最近一包。
+        // LQR/ESO 直接输出力矩(N*m)，此分支不叠加普通 Yaw PID 和独立前馈对象。
+        // 电机反馈力矩用于观测器，feedback_ok=1 的前提是上方电机和 IMU 检查已经通过。
         const YawAutoLqrEsoFeedback_t feedback = {
             yaw_current_angle, yaw_current_speed, gimbal_motor.getTorque(1), 1U
         };
@@ -757,175 +773,126 @@ yaw_speed_ff_inertia = 0.0f;
         };
         YawAutoLqrEsoOutput_t output = {};
         yaw_target_speed = reference.omega_rad_s;
+        // 控制器计算周期按固定 0.001 s 传入；任务调度并不是严格的硬件 1 kHz 定时。
         YawAutoLqrEso_Calc(&yaw_auto_ctrl, &yaw_auto_config,
                            &feedback, &reference, 0.001f, &output);
         yaw_control_output = output.tau_cmd_nm;
     }
     else
     {
+        // 普通 Yaw：按输入源和反馈来源选择角度/速度双环，速度环输出力矩。
         const bool is_keymouse = (input_dispatcher.GetSource() == InputSource::KeyMouse);
         yaw_target_speed = is_keymouse
-            ? yaw_keymouse_angle_pid.UpDate(yaw_error, 0.0f)
-            : yaw_angle_pid.UpDate(yaw_error, 0.0f);
-        yaw_angle_dynamics_ff.MomentOfInertiaTuning(yaw_current_speed, yaw_target_speed);
-        yaw_angle_friction_ff.FrictionFeedforward(yaw_target_speed);
-        yaw_angle_velocity_ff.VelocityFeedforward(yaw_target_angle);
+            ? (using_encoder ? yaw_keymouse_angle_encoder_pid : yaw_keymouse_angle_imu_pid).UpDate(yaw_error, 0.0f)
+            : (using_encoder ? yaw_angle_encoder_pid : yaw_angle_imu_pid).UpDate(yaw_error, 0.0f);
         yaw_speed_pid_output = is_keymouse
-            ? yaw_keymouse_angle_to_speed_pid.UpDate(yaw_target_speed, yaw_current_speed)
-            : yaw_angle_to_speed_pid.UpDate(yaw_target_speed, yaw_current_speed);
-        yaw_speed_ff_friction = yaw_angle_dynamics_ff.getFriction()
-                              + yaw_angle_friction_ff.getFeedforward();
-        yaw_speed_ff_inertia = yaw_angle_dynamics_ff.getAccFeedforward();
-        yaw_speed_ff_output = yaw_angle_dynamics_ff.getTorque()
-                            + yaw_speed_ff_friction
-                            + yaw_angle_velocity_ff.getFeedforward();
-        yaw_control_output = yaw_speed_pid_output + yaw_speed_ff_output;
+            ? (using_encoder ? yaw_keymouse_angle_to_speed_encoder_pid : yaw_keymouse_angle_to_speed_imu_pid).UpDate(yaw_target_speed, yaw_current_speed)
+            : (using_encoder ? yaw_angle_to_speed_encoder_pid : yaw_angle_to_speed_imu_pid).UpDate(yaw_target_speed, yaw_current_speed);
+        yaw_control_output = yaw_speed_pid_output;
     }
 }
- // yaw 速度模式：直接使用速度环控制。
+ // yaw 保留遥控单速度环；键鼠由 FSM 选择角度或视觉模式。
  else if (yaw_gimbal_fsm.Get_Control_Type() == GIMBAL_CONTROL_SPEED)
 {
-     // 直驱单速度环
-    // 键鼠/遥控器单速度环分开调参（is_keymouse 判定统一走 InputDispatcher）
-    const bool is_keymouse = (input_dispatcher.GetSource() == InputSource::KeyMouse);
-
-     yaw_target_speed = yaw_gimbal_fsm.Get_Control_Output();
-
-    yaw_speed_dynamics_ff.MomentOfInertiaTuning(yaw_current_speed, yaw_target_speed);
-    if (is_keymouse)
-    {
-        yaw_speed_pid_output = yaw_keymouse_speed_pid.UpDate(yaw_target_speed, yaw_current_speed);
-    }
-    else
-    {
-        yaw_speed_pid_output = yaw_remote_speed_pid.UpDate(yaw_target_speed, yaw_current_speed);
-    }
-    yaw_speed_ff_friction = yaw_speed_dynamics_ff.getFriction();
-    yaw_speed_ff_inertia = yaw_speed_dynamics_ff.getAccFeedforward();
-    yaw_speed_ff_output = yaw_speed_dynamics_ff.getTorque();
-    yaw_control_output = yaw_speed_pid_output + yaw_speed_ff_output;
-
+    yaw_target_speed = yaw_gimbal_fsm.Get_Control_Output();
+    yaw_speed_pid_output = (using_encoder ? yaw_remote_speed_encoder_pid : yaw_remote_speed_imu_pid).UpDate(yaw_target_speed, yaw_current_speed);
+    yaw_control_output = yaw_speed_pid_output;
 }
 /****************************************************************************************** */
- // pitch 停止模式：清零输出并复位积分、前馈和观测器状态。
- if (pitch_hold_zero)
+ // 重力补偿按反馈来源换算水平角：IMU 已是姿态角，编码器扣除实测水平零点。
+ // 编码器降级以标定时底盘姿态为基准，无法感知底盘后续倾斜。
+ const float pitch_gravity_angle = using_encoder
+     ? pitch_current_angle - PITCH_ENCODER_HORIZONTAL_RAD
+     : pitch_current_angle;
+ pitch_gravity_ff.GravityFeedforward(pitch_gravity_angle);
+ const float pitch_gravity_output = pitch_gravity_ff.getFeedforward();
+ // Pitch STOP 时不进入角度/速度控制计算。
+ if (pitch_gimbal_fsm.Get_Control_Type() == GIMBAL_CONTROL_STOP)
 {
     pitch_target_speed = 0.0f;
     pitch_control_output = 0.0f;
-    pitch_ude.ResetState(pitch_current_speed);
-    pitch_ude_output = 0.0f;
+    pitch_angle_imu_pid.reset();
+    pitch_angle_encoder_pid.reset();
+    pitch_angle_to_speed_imu_pid.reset();
+    pitch_angle_to_speed_encoder_pid.reset();
+    pitch_keymouse_angle_imu_pid.reset();
+    pitch_keymouse_angle_encoder_pid.reset();
+    pitch_keymouse_angle_to_speed_imu_pid.reset();
+    pitch_keymouse_angle_to_speed_encoder_pid.reset();
+    pitch_remote_speed_imu_pid.reset();
+    pitch_remote_speed_encoder_pid.reset();
+    pitch_version_angle_imu_pid.reset();
+    pitch_version_speed_imu_pid.reset();
 }
- else if (pitch_gimbal_fsm.Get_Control_Type() == GIMBAL_CONTROL_STOP)
-{
-    pitch_target_speed = 0.0f;
-    pitch_control_output = 0.0f;
-    pitch_angle_pid.reset();
-    pitch_angle_to_speed_pid.reset();
-    pitch_keymouse_angle_pid.reset();
-    pitch_keymouse_angle_to_speed_pid.reset();
-    pitch_keymouse_speed_pid.reset();
-    pitch_remote_speed_pid.reset();
-    pitch_version_angle_pid.reset();
-    pitch_version_speed_pid.reset();
-    pitch_ude.ResetState(pitch_current_speed);
-    pitch_ude_output = 0.0f;
-}
- // pitch 角度模式：角度环、速度环、重力补偿和摩擦补偿叠加。
- else if (pitch_gimbal_fsm.Get_Control_Type() == GIMBAL_CONTROL_ANGLE && !imu_fault)
+ // pitch 角度模式：双环叠加重力补偿，视觉分支另加惯量前馈。
+ else if (pitch_gimbal_fsm.Get_Control_Type() == GIMBAL_CONTROL_ANGLE)
 {
     if (pitch_mode == GIMBAL_MODE_VISION)
     {
-        // 视觉模式：使用视觉专用PID
-        pitch_target_speed = pitch_version_angle_pid.UpDate(pitch_error, 0.0f);
+        // 视觉 Pitch 使用独立角度/速度双环，叠加视觉惯量和重力前馈。
+        pitch_target_speed = pitch_version_angle_imu_pid.UpDate(pitch_error, 0.0f);
         pitch_vision_dynamics_ff.MomentOfInertiaTuning(pitch_current_speed, pitch_target_speed);
-        pitch_vision_friction_ff.FrictionFeedforward(pitch_target_speed);
-        pitch_gravity_ff.GravityFeedforward(pitch_current_angle);
-        pitch_control_output = pitch_version_speed_pid.UpDate(
+        pitch_control_output = pitch_version_speed_imu_pid.UpDate(
             pitch_target_speed,
             pitch_current_speed
         ) + pitch_vision_dynamics_ff.getTorque()
-          + pitch_vision_friction_ff.getFeedforward()
-          + pitch_gravity_ff.getFeedforward();
+          + pitch_gravity_output;
     }
     else
     {
         const bool is_keymouse = (input_dispatcher.GetSource() == InputSource::KeyMouse);
         pitch_target_speed = is_keymouse
-            ? pitch_keymouse_angle_pid.UpDate(pitch_error, 0.0f)
-            : pitch_angle_pid.UpDate(pitch_error, 0.0f);
-        pitch_angle_dynamics_ff.MomentOfInertiaTuning(pitch_current_speed, pitch_target_speed);
-        pitch_angle_friction_ff.FrictionFeedforward(pitch_target_speed);
-        pitch_gravity_ff.GravityFeedforward(pitch_current_angle);
+            ? (using_encoder ? pitch_keymouse_angle_encoder_pid : pitch_keymouse_angle_imu_pid).UpDate(pitch_error, 0.0f)
+            : (using_encoder ? pitch_angle_encoder_pid : pitch_angle_imu_pid).UpDate(pitch_error, 0.0f);
         pitch_control_output = is_keymouse
-            ? pitch_keymouse_angle_to_speed_pid.UpDate(pitch_target_speed, pitch_current_speed)
-            : pitch_angle_to_speed_pid.UpDate(pitch_target_speed, pitch_current_speed);
-        pitch_control_output += pitch_angle_dynamics_ff.getTorque()
-          + pitch_angle_friction_ff.getFeedforward()
-          + pitch_gravity_ff.getFeedforward();
+            ? (using_encoder ? pitch_keymouse_angle_to_speed_encoder_pid : pitch_keymouse_angle_to_speed_imu_pid).UpDate(pitch_target_speed, pitch_current_speed)
+            : (using_encoder ? pitch_angle_to_speed_encoder_pid : pitch_angle_to_speed_imu_pid).UpDate(pitch_target_speed, pitch_current_speed);
+        pitch_control_output += pitch_gravity_output;
+
     }
 }
- // pitch 速度模式：速度环继续提供可控输出，并保留重力补偿。
+ // pitch 保留遥控单速度环，并叠加重力补偿。
  else if (pitch_gimbal_fsm.Get_Control_Type() == GIMBAL_CONTROL_SPEED)
 {
-     // 直驱单速度环
-    // 键鼠/遥控器单速度环分开调参（is_keymouse 判定统一走 InputDispatcher）
-    const bool is_keymouse = (input_dispatcher.GetSource() == InputSource::KeyMouse);
-
-     pitch_target_speed = pitch_gimbal_fsm.Get_Control_Output();
-
-    // 速度模式同样叠加重力前馈，防止松杆后 pitch 被重力拽下垂
-    pitch_gravity_ff.GravityFeedforward(pitch_current_angle);
-    if (is_keymouse)
-    {
-        pitch_control_output = pitch_keymouse_speed_pid.UpDate(pitch_target_speed, pitch_current_speed)
-                             + pitch_gravity_ff.getFeedforward();
-    }
-    else
-    {
-        pitch_control_output = pitch_remote_speed_pid.UpDate(pitch_target_speed, pitch_current_speed)
-                             + pitch_gravity_ff.getFeedforward();
-    }
-
+    pitch_target_speed = pitch_gimbal_fsm.Get_Control_Output();
+    pitch_control_output = (using_encoder ? pitch_remote_speed_encoder_pid : pitch_remote_speed_imu_pid).UpDate(pitch_target_speed, pitch_current_speed)
+                         + pitch_gravity_output;
 }
 
-if (!pitch_hold_zero && pitch_gimbal_fsm.Get_Control_Type() == GIMBAL_CONTROL_ANGLE && !imu_fault)
-{
-        // UDE 仅在角度闭环且 IMU 正常时工作，补偿未建模扰动。
-    pitch_ude.UDE_Update(pitch_last_control_output, pitch_current_speed);
-    pitch_ude_output = pitch_ude.getOutput();
-    pitch_control_output += pitch_ude_output;
-}
-else
-{
-    pitch_ude.ResetState(pitch_current_speed);
-    pitch_ude_output = 0.0f;
-}
 /********************************************************************************** */
-        // J4340 MIT torque command is in N*m.
+        // 第一层：限制总力矩幅值至 +/-9 N*m，防止 PID、前馈或观测补偿叠加后超过发送范围。
         yaw_control_output = BSP::Motor::DM::ClampMitCommandValue(
             yaw_control_output, -J4340_TORQUE_LIMIT_NM, J4340_TORQUE_LIMIT_NM);
         pitch_control_output = BSP::Motor::DM::ClampMitCommandValue(
             pitch_control_output, -J4340_TORQUE_LIMIT_NM, J4340_TORQUE_LIMIT_NM);
 
-        // 力矩限位判定由 FSM 完成；若被拦截，下一个控制周期复位 Yaw PID/前馈状态。
-        yaw_control_output = yaw_gimbal_fsm.Limit_Yaw_Torque(yaw_control_output);
+        // 第二层：Yaw 上限拦正、下限拦负；Pitch 只在下限拦负，保留上限正力矩支撑/制动。
+        // 等于边界也拦截，朝范围内的制动/回退力矩允许通过；这里不主动规划减速轨迹。
+        // 必须放在全部补偿之后，否则后加的惯量或重力前馈可能重新产生向外力矩。
+        yaw_control_output = yaw_gimbal_fsm.Limit_Torque(yaw_control_output);
+        pitch_control_output = pitch_gimbal_fsm.Limit_Torque(pitch_control_output);
 
-        pitch_last_control_output = pitch_control_output;
+        // 最终发送保护：仅将掉线轴力矩清零，在线轴保留本周期控制结果。
+        if (!yaw_motor_online) yaw_control_output = 0.0f;
+        if (!pitch_motor_online) pitch_control_output = 0.0f;
 
+            // MIT 参数顺序为电机槽、位置(rad)、速度(rad/s)、Kp、Kd、力矩(N*m)。
+            // 位置/速度及 Kp/Kd 均为 0，电机按力矩指令运行，姿态闭环由本任务实现。
             gimbal_motor.ctrl_Mit(1, 0.0f, 0.0f, 0.0f, 0.0f, yaw_control_output);   // Yaw
             gimbal_motor.ctrl_Mit(2, 0.0f, 0.0f, 0.0f, 0.0f, pitch_control_output); // Pitch
-        // vofa 发送: 1ms 循环里 28 字节帧 @115200 需 2.43ms, 每 10 拍(10ms)发一帧 → 100Hz
+        // UART10 的 VOFA 六通道 JustFloat 帧为 28 字节；当前每 4 个调度拍尝试 DMA 发送一次。
+        // 发送发生在有效控制分支；实际频率取决于任务周期及故障跳过，不是固定每 10 ms。
         
         
             if ((can2_tick % 4) == 0)
             {
                 vofa_send(
-                    pitch_target_angle,       // ch1: pitch target angle
-                    pitch_current_angle,      // ch2: pitch feedback angle
-                    pitch_target_speed,              // ch3: pitch angle error
-                    pitch_current_speed,       // ch4: pitch target speed
-                    pitch_target_angle,      // ch5: pitch feedback speed
-                    pitch_control_output      // ch6: final pitch torque command
+                    pitch_target_angle,       // 通道 1：Pitch 目标角，rad
+                    pitch_current_angle,      // 通道 2：Pitch 选定反馈角，rad
+                    pitch_target_speed,              // 通道 3：Pitch 目标角速度，rad/s
+                    pitch_current_speed,       // 通道 4：Pitch 选定反馈角速度，rad/s
+                    pitch_target_angle,      // 通道 5：再次发送 Pitch 目标角，当前与通道 1 重复
+                    pitch_control_output      // 通道 6：Pitch 最终发送力矩，N*m
                 );
                 // // VOFA channels for yaw tuning.
                 // float vofa_data[] = {
@@ -935,7 +902,6 @@ else
                 //     yaw_angle_pid_output,                          // ch4: active yaw angle PID output
                 //     yaw_angle_ff_output,                           // ch5: active yaw total feedforward
                 //     yaw_angle_ff_friction,                         // ch6: active yaw friction feedforward
-                //     yaw_speed_ff_inertia,                          // ch7: active yaw inertia feedforward
                 //     yaw_control_output,                            // ch8: yaw final torque command
                 //     yaw_error,                                     // ch9: yaw angle error
                 //     dm4340_state[0].current_a                      // ch10: yaw motor current
@@ -948,7 +914,7 @@ else
 
 
 
-        vTaskDelay(1); // 每5ms执行一次控制循环
+        vTaskDelay(1); // 相对延时 1 个 FreeRTOS tick；实际循环周期还包含本周期执行时间
     }
 }
 
@@ -958,19 +924,20 @@ else
 
 
 
+// 辅助安全检查接口：本任务主循环另有按轴零力矩保护，不依赖此函数执行。
+// 此函数更新在线/蜂鸣器状态并清除共享 remote 输入，没有直接发送零力矩 CAN 帧。
 void SafetyCheck()
 {
     // 遍历所有电机
     for (int i = 1; i <= 2; i++)
     {
-        // isConnected(电机ID, CAN ID)
+        // isConnected(逻辑状态槽, 蜂鸣器标识)，本工程两者均使用 1=Yaw、2=Pitch。
         if (!gimbal_motor.isConnected(i, i))
         {
             // 电机 i 掉线了！
             // 蜂鸣器会自动报警
 
-            // 你可以在这里做一些安全处理
-            // 比如停止所有电机
+            // 清除共享输入和档位，阻止继续使用此前操作；实际电机零力矩发送在主循环保护中。
 			remote.chassis_vx = 0.0f;
 			remote.chassis_vy = 0.0f;
 			remote.gimbal_yaw = 0.0f;
@@ -984,12 +951,14 @@ void SafetyCheck()
     uint8_t offline_motor = gimbal_motor.getOfflineStatus();
 	
     // 返回 0 表示都在线
-    // 返回 1-4 表示对应电机掉线
+    // 非零值表示驱动报告的掉线电机；当前只配置两台 J4340，返回值在本函数中未进一步使用。
 
 }
 
 //开vofa软件的justfloat模式
 uint8_t send_str2[sizeof(float) * 11]; // 分配11个float空间（44字节，10数据+1帧尾）
+// 可变通道 JustFloat 发送：USB CDC-HS 路径，最多 10 个 float，另附 4 字节帧尾。
+// USB 未就绪或正在发送时直接跳过；与下方六通道 UART10 DMA 发送接口不同。
 void vofa_sendN(const float *data, uint8_t count)
 {
     if (data == nullptr || count == 0)
@@ -1018,6 +987,8 @@ void vofa_sendN(const float *data, uint8_t count)
 // uint8_t send_str2[sizeof(float) * 7]; // 6个float数据 + 4字节帧尾（28字节）
 
 // 开vofa软件的justfloat模式
+// 固定六通道 JustFloat 发送：UART10 DMA；6 个小端 float(24 字节)加帧尾(4 字节)。
+// 单位由调用方定义；该函数只封装数据，不把 rad 转为度，也不更改通道物理意义。
 void vofa_send(float x1, float x2, float x3, float x4, float x5, float x6)
 {
     const uint8_t sendSize = sizeof(float); // 单浮点数占4字节
@@ -1037,7 +1008,9 @@ void vofa_send(float x1, float x2, float x3, float x4, float x5, float x6)
     HAL::UART::get_uart_bus_instance().get_uart10().transmit_dma(vofa_tx_data);
 }
 
- // 读取云台电机的角度、速度、电流和温度，供控制环使用。
+ // 将驱动已解析的反馈缓存复制为电机状态快照，不在这里接收 CAN 或运行姿态 PID。
+ // angle_deg/angle_rad 为原始位置；velocity_rpm/velocity_rads 为转速；delta_angle 为累计角(度)。
+ // 电机反馈用于状态监测和 IMU 故障降级；两轴限位始终使用原始编码器。
  void ControlTask() {
     for (int i = 0; i < 2; i++) {
         uint8_t motor_id = i + 1; // 电机逻辑 ID 通常从 1 开始
@@ -1052,29 +1025,37 @@ void vofa_send(float x1, float x2, float x3, float x4, float x5, float x6)
     }
 }
 
-// ==================== IMU 故障检测 ====================
-// IMU 是云台唯一的姿态反馈。故障时调用方停止两台电机，恢复后重新锚定。
-static bool IMU_Fault_Protection(float &yaw_angle, float &yaw_speed,
-                                  float &pitch_angle, float &pitch_speed)
+// ==================== IMU / 编码器反馈选择 ====================
+// 四个引用参数输出选定来源的控制角(rad)和速度(rad/s)。
+// 健康检查在连续角展开之前执行。返回值只表示来源切换，不是停止控制请求。
+static bool UpdateGimbalFeedback(float &yaw_angle, float &yaw_speed,
+                                float &pitch_angle, float &pitch_speed)
 {
-    static uint16_t imu_fault_counter = 0;
-
-    bool imu_all_zero = (imu.GetAngle(2) == 0.0f && imu.GetAngle(1) == 0.0f &&
-                         imu.GetGyro(2) == 0.0f && imu.GetGyro(0) == 0.0f);
-    bool imu_lost = (!imu.isConnected());
-
-    if (imu_all_zero || imu_lost)
-        imu_fault_counter++;
+    const ImuFeedbackFSM::Sample sample = {
+        DegreesToRadians(imu.GetAngle(2)), DegreesToRadians(imu.GetAngle(1)),
+        DegreesToRadians(imu.GetGyro(2)), DegreesToRadians(imu.GetGyro(0))
+    };
+    const bool source_changed = imu_feedback_fsm.Update(imu.isConnected(), sample, HAL_GetTick());
+    if (imu_feedback_fsm.UsingEncoder())
+    {
+        yaw_angle = gimbal_motor.getAngleRad(1);
+        yaw_speed = gimbal_motor.getVelocityRads(1);
+        pitch_angle = gimbal_motor.getAngleRad(2);
+        pitch_speed = gimbal_motor.getVelocityRads(2);
+    }
     else
-        imu_fault_counter = 0;
-
-    const bool imu_fault = (imu_fault_counter > 500); // 500ms 防抖
-
-    yaw_angle   = ImuData_user.yaw;
-    pitch_angle = ImuData_user.pitch;
-    yaw_speed   = ImuData_user.gyro_z;
-    pitch_speed = ImuData_user.gyro_y;
-    return imu_fault;
+    {
+        // 从编码器切回时重置圈数基准，丢弃 IMU 故障期间的旧连续角历史。
+        ImuData_user.yaw = GetContinuousYawAngle(sample.yaw_rad, source_changed);
+        ImuData_user.pitch = sample.pitch_rad;
+        ImuData_user.gyro_z = sample.yaw_speed_rad_s;
+        ImuData_user.gyro_y = sample.pitch_speed_rad_s;
+        yaw_angle = ImuData_user.yaw;
+        yaw_speed = ImuData_user.gyro_z;
+        pitch_angle = ImuData_user.pitch;
+        pitch_speed = ImuData_user.gyro_y;
+    }
+    return source_changed;
 }
 
 

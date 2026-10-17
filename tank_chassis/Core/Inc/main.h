@@ -58,7 +58,6 @@ void Error_Handler(void);
 void can_send_task(void *argument);
 void remote_task(void *argument);
 void ui_task(void *argument);
-void imu_task(void *argument);
 void up_stair_task(void *argument);
 
 /* USER CODE END EFP */

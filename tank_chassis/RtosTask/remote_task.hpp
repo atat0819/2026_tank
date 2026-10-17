@@ -7,6 +7,22 @@
 #include "../user/core/BSP/RemoteControl/DT7.hpp"
 
 #ifdef __cplusplus
+#include "../user/core/BSP/Hi14/HI14.hpp"
+
+// HI14 后腿控制反馈接口，实现在 remote_task.cpp；不创建 IMU 任务。
+struct ImuControlSnapshot
+{
+    float pitch_deg;          // 去零偏前的 Pitch 角度，单位：度
+    float pitch_rate_dps;     // Pitch 角速度，单位：度/秒
+    uint32_t tick;            // 有效帧解析完成时的板端时间，单位：毫秒
+    bool valid;
+};
+
+// 仅供 UART7 接收/错误中断调用。
+void PublishHi14ImuFromISR(const IMU_Float_t &data, uint32_t sample_tick, bool valid);
+// 在临界区复制整帧；超过 20 ms 未更新时返回 valid=false。
+void GetImuControlSnapshot(ImuControlSnapshot &snapshot);
+
 extern "C" {
 #endif
 

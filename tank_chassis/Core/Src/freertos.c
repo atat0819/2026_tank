@@ -26,7 +26,6 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "can_send_task.hpp"
-#include "imu_task.hpp"
 #include "up_stair.hpp"
 #include "remote_task.hpp"
 #include "ui_task.hpp"
@@ -64,10 +63,8 @@ const osThreadAttr_t defaultTask_attributes = {
 /* USER CODE BEGIN FunctionPrototypes */
 BaseType_t start_remote_control;
 BaseType_t start_can_send;
-BaseType_t start_imu;
 BaseType_t start_up_stair;
 
-TaskHandle_t xImuHandle;
 TaskHandle_t xUpStairHandle;
 TaskHandle_t xRemoteHandle;
 TaskHandle_t xCanSendHandle;
@@ -118,7 +115,6 @@ void MX_FREERTOS_Init(void) {
   	start_can_send = xTaskCreate(can_send_task, "CAN_Send_Task", 1024, NULL, osPriorityAboveNormal, &xCanSendHandle);
   start_remote_control = xTaskCreate(remote_task, "Remote_Control_Task", 256, NULL, osPriorityAboveNormal, &xRemoteHandle);
   xTaskCreate(ui_task, "UI_Task", 256, NULL, osPriorityNormal, &xUIHandle);
-  start_imu = xTaskCreate(imu_task, "IMU_Task", 256, NULL, osPriorityHigh, &xImuHandle);
   start_up_stair = xTaskCreate(up_stair_task, "Up_Stair_Task", 512, NULL, osPriorityRealtime, &xUpStairHandle);
   /* USER CODE END RTOS_THREADS */
 

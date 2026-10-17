@@ -21,6 +21,7 @@
 #include "cmsis_os.h"
 #include "dma.h"
 #include "fdcan.h"
+#include "spi.h"
 #include "tim.h"
 #include "usart.h"
 #include "usb_device.h"
@@ -62,6 +63,29 @@ void MX_FREERTOS_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+
+/* SPI6 初始化完成后调用，发送一次颜色数据，板载灯保持低亮度绿色。 */
+static void Board_LED_Init(void)
+{
+  /* SPI6 为 6 Mbit/s，WS2812 按 G、R、B 顺序接收。 */
+  uint8_t led_tx[256 + 24 + 256] = {0};
+  const uint8_t led_grb[3] = {16, 0, 0};
+  uint16_t led_index = 256;
+
+  for (uint8_t color = 0; color < 3; ++color)
+  {
+    for (uint8_t mask = 0x80; mask != 0; mask >>= 1)
+    {
+      /* 每位约 1.333 us：0 高电平约 0.333 us，1 高电平约 0.833 us。 */
+      led_tx[led_index++] = (led_grb[color] & mask) ? 0xF8 : 0xC0;
+    }
+  }
+  /* 帧前、帧后各约 341 us 低电平，用于复位和锁存颜色。 */
+  if (HAL_SPI_Transmit(&hspi6, led_tx, sizeof(led_tx), 20) != HAL_OK)
+  {
+    Error_Handler();
+  }
+}
 
 /* USER CODE END 0 */
 
@@ -114,8 +138,9 @@ int main(void)
   MX_USART2_UART_Init();
   MX_USART3_UART_Init();
   MX_TIM12_Init();
+  MX_SPI6_Init();
   /* USER CODE BEGIN 2 */
-
+  Board_LED_Init();
   /* USER CODE END 2 */
 
   /* Init scheduler */

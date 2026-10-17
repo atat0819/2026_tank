@@ -4,10 +4,8 @@
 #include <stdint.h>
 
 #define IMU_DATA_LEN         54
-#define IMU_CMD_POS          4
+#define IMU_CMD_POS          6
 #define IMU_EXPECTED_CMD     0x92
-#define IMU_TAIL1_POS        (IMU_DATA_LEN - 2)
-#define IMU_TAIL2_POS        (IMU_DATA_LEN - 1)
 
 typedef struct {
     int32_t Roll;
@@ -43,7 +41,15 @@ public:
          volatile uint8_t &data_ready);
 
     void Init();
-    void UartRxCallBack(uint8_t rxdata);
+    bool UartRxCallBack(uint8_t rxdata); // 仅本字节完成有效帧时返回 true。
+
+    // 最新有效帧的单个量；控制使用完整的 ImuControlSnapshot 检查有效性和时戳。
+    float GetRollAngleDeg() const { return float_data_.roll; }
+    float GetPitchAngleDeg() const { return float_data_.pitch; }
+    float GetYawAngleDeg() const { return float_data_.yaw; }
+    float GetRollRateDps() const { return float_data_.gyr_roll; }
+    float GetPitchRateDps() const { return float_data_.gyr_pitch; }
+    float GetYawRateDps() const { return float_data_.gyr_yaw; }
 
 private:
     IMU_Handle_t &handle_;

@@ -19,47 +19,57 @@ namespace BSP::IMU
              * @param huart UART句柄，用于与IMU传感器通信
              */
             HI12_float() 
-                : offset(6), acc{0}, gyro{0}, angle{0}, quaternion{0}, last_angle(0), add_angle(0)
+                : offset(6), acc{0}, gyro{0}, angle{0}, quaternion{0}, last_angle(0), add_angle(0), rx_buffer{0}, rx_size(0)
             {
             }
 
             /**
              * @brief 更新IMU数据
              * @param pData 指向原始数据的指针
+             * @param size 本次实际收到的字节数，允许分包和多帧。
              * 
              * 从原始数据中解析出加速度、角速度、角度和四元数信息
              */
-            void DataUpdate(uint8_t *pData)
+            void DataUpdate(const uint8_t *pData, uint16_t size)
             {
-                this->updateTimestamp();
-                int frame_start = -1;
-                for(int i = 0; i < 82 - 6; i++)  // 在整个缓冲区中搜索
+                if (pData == nullptr) return;
+                for (uint16_t i = 0; i < size; ++i)
                 {
-                    if(pData[i] == 0x5A && pData[i+1] == 0xA5)
+                    rx_buffer[rx_size++] = pData[i];
+                    while (rx_size >= 2U)
                     {
-                        uint8_t len_low = pData[i+2];
-                        uint8_t len_high = pData[i+3];
-                        int possible_len = len_low + (len_high << 8);
-                            
-                        // 检查长度是否合理
-                        if(possible_len == 76)
+                        if (rx_buffer[0] == 0x5A && rx_buffer[1] == 0xA5)
                         {
-                            frame_start = i;
-                            break;
+                            if (rx_size < 4U) break;
+                            if (rx_buffer[2] == 76U && rx_buffer[3] == 0U)
+                            {
+                                if (rx_size < sizeof(rx_buffer)) break;
+                                Verify(rx_buffer); // 长度固定为 76，完整 82 字节后才能校验。
+                                if (GetVerify())
+                                {
+                                    ParseFrame(rx_buffer);
+                                    this->updateTimestamp();
+                                    rx_size = 0U;
+                                    break;
+                                }
+                            }
                         }
+                        // 错位、长度错误或 CRC 错误：逐字节重新寻找帧头。
+                        --rx_size;
+                        memmove(rx_buffer, rx_buffer + 1, rx_size);
                     }
                 }
-                    
-                if(frame_start < 0)
-                {
-                    return;
-                }
-                    
-                // 从找到的帧头位置开始验证
-                Verify(pData + frame_start);
-                    
-                if(GetVerify())
-                {
+            }
+
+            // 接收中断/错误恢复后丢弃半帧，保留最后一次有效测量值。
+            void ResetReceiveBuffer()
+            {
+                rx_size = 0U;
+            }
+
+        private:
+            void ParseFrame(uint8_t *pData)
+            {
                     // 解析加速度数据 (单位: g)
                     acc[0] = this->R4(pData+offset+12);
                     acc[1] = this->R4(pData+offset+16);
@@ -80,10 +90,9 @@ namespace BSP::IMU
                     quaternion[1] = this->R4(pData+offset+64);
                     quaternion[2] = this->R4(pData+offset+68);
                     quaternion[3] = this->R4(pData+offset+72);
-                }
-
             }
 
+        public:
             /**
              * @brief 获取加速度数据
              * @param index 索引值 (0:x轴, 1:y轴, 2:z轴)
@@ -183,6 +192,8 @@ namespace BSP::IMU
             float quaternion[4];     ///< 四元数数据 [w, x, y, z]
             float last_angle;
             float add_angle;
+            uint8_t rx_buffer[82];   ///< 跨接收回调保存未完成帧。
+            uint16_t rx_size;
     };
 
     /**

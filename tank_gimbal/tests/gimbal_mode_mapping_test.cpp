@@ -49,17 +49,11 @@ int main()
     input.s2 = DOWN;
     axis.Update(input, 0.0f);
     assert(axis.Get_Control_Type() == GIMBAL_CONTROL_STOP);
-    assert(axis.Update_Pitch_Start_Gate(true, false, 0.0f, 0.0f) ==
-           Class_Gimbal_FSM::PitchStartDecision::Normal);
 
     input.s1 = DOWN;
     input.s2 = MIDDLE;
     axis.Update(input, 0.0f);
     assert(axis.Get_Control_Type() == GIMBAL_CONTROL_ANGLE);
-    assert(axis.Update_Pitch_Start_Gate(false, false, 0.0f, 0.0f) ==
-           Class_Gimbal_FSM::PitchStartDecision::HoldZero);
-    assert(axis.Update_Pitch_Start_Gate(false, false, 0.5f, 0.0f) ==
-           Class_Gimbal_FSM::PitchStartDecision::ReanchorAndRelease);
 
     input.s1 = UP;
     input.s2 = UP;

@@ -815,10 +815,10 @@ tank_chassis/up_stair.o: ..\RtosTask\up_stair.cpp \
   ..\RtosTask\..\fsm\motor_recovery_fsm.hpp \
   ..\RtosTask\..\fsm\rear_torque_safety.hpp \
   ..\RtosTask\can_send_task.hpp ..\user\core\HAL\FDCAN\fdcan_hal.hpp \
-  ..\RtosTask\..\fsm\control_input_selector.hpp ..\RtosTask\imu_task.hpp \
-  ..\RtosTask\..\user\core\BSP\simple_bmi088\simple_bmi088.hpp \
-  ..\RtosTask\..\user\core\BSP\simple_bmi088\simple_bmi088.h \
-  ..\RtosTask\..\user\core\HAL\UART\uart_hal.hpp \
-  ..\RtosTask\..\user\core\HAL\UART\interface\uart_bus.hpp \
-  ..\RtosTask\..\user\core\HAL\UART\interface\uart_device.hpp \
-  ..\Core\Inc\usart.h
+  ..\RtosTask\..\fsm\control_input_selector.hpp \
+  ..\RtosTask\remote_task.hpp \
+  ..\Middlewares\Third_Party\FreeRTOS\Source\include\queue.h \
+  ..\RtosTask\..\user\core\BSP\RemoteControl\DT7.hpp \
+  ..\communication\..\user\core\BSP\Common\StateWatch\buzzer_manager.hpp \
+  ..\RtosTask\..\user\core\BSP\Hi14\HI14.hpp \
+  ..\RtosTask\..\user\core\Alg\Filter\Filter.hpp

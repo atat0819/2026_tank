@@ -703,6 +703,7 @@ tank_chassis/ui_task.o: ..\RtosTask\UI_task.cpp ..\RtosTask\UI_task.hpp \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__memory\allocator_destructor.h \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\stdexcept \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__memory\uses_allocator_construction.h \
+  ..\RtosTask\..\user\core\BSP\Hi14\HI14.hpp \
   ..\RtosTask\..\user\core\APP\Referee\RM_RefereeSystem.h \
   ..\RtosTask\..\user\core\APP\Referee\..\..\HAL\UART\uart_hal.hpp \
   ..\RtosTask\..\user\core\APP\Referee\..\..\HAL\UART\interface\uart_bus.hpp \

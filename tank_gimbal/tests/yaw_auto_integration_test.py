@@ -20,13 +20,13 @@ class YawAutoIntegrationTest(unittest.TestCase):
             "YawAutoLqrEso_Calc",
         ):
             self.assertIn(value, vision)
-        self.assertNotIn("yaw_version_angle_pid.UpDate", vision)
-        self.assertNotIn("yaw_version_speed_pid.UpDate", vision)
+        self.assertNotIn("yaw_version_angle_imu_pid.UpDate", vision)
+        self.assertNotIn("yaw_version_speed_imu_pid.UpDate", vision)
 
     def test_mode_and_limit_changes_reset_controller_and_keep_final_guard(self):
         self.assertIn("YawAutoLqrEso_Reset(&yaw_auto_ctrl", TASK)
         self.assertIn("yaw_mode_changed != 0U || yaw_limit_reset != 0U", TASK)
-        self.assertIn("yaw_gimbal_fsm.Limit_Yaw_Torque(yaw_control_output)", TASK)
+        self.assertIn("yaw_gimbal_fsm.Limit_Torque(yaw_control_output)", TASK)
 
     def test_keil_compiles_upstream_controller(self):
         self.assertIn("yaw_auto_lqr_eso_controller.c", PROJECT)

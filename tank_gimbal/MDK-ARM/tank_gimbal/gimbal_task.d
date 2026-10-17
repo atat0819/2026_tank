@@ -211,6 +211,8 @@ tank_gimbal/gimbal_task.o: ..\RtosTask\gimbal_task.cpp \
   ..\Drivers\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal_i2c_ex.h \
   ..\Drivers\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal_pwr.h \
   ..\Drivers\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal_pwr_ex.h \
+  ..\Drivers\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal_spi.h \
+  ..\Drivers\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal_spi_ex.h \
   ..\Drivers\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal_tim.h \
   ..\Drivers\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal_tim_ex.h \
   ..\Drivers\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal_uart.h \
@@ -819,6 +821,6 @@ tank_gimbal/gimbal_task.o: ..\RtosTask\gimbal_task.cpp \
   ..\communication_between_boards\boards_communication.hpp \
   ..\user\core\Alg\Filter\Filter.hpp \
   ..\RtosTask\..\communication_between_boards\input_dispatcher.hpp \
-  ..\RtosTask\..\communication_between_boards\refree_receive.hpp \
+  ..\RtosTask\..\communication_between_boards\refree_receive_uart_485.hpp \
   ..\RtosTask\..\user\core\Alg\fire_control\single_shot_heat_limiter.hpp \
   ..\RtosTask\..\user\core\Alg\fire_control\friction_shot_detector.hpp

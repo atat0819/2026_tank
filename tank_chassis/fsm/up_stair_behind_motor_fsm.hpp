@@ -21,7 +21,7 @@ class Class_Up_Stair_Behind_Motor_FSM : public Class_FSM
 public:
     // 后腿生产角度配置：数组下标 0=左腿、1=右腿；实车标定后在此修改。
     // Config() 仍保留未标定的安全默认值，任务必须显式装入这些角度才能启用控制。
-    static constexpr float PITCH_ZERO_DEG = -0.18f; // 车体水平时的 IMU pitch 零偏，度
+    static constexpr float PITCH_ZERO_DEG = 0.0f; // HI14 水平零偏，暂设 0°，待实车标定
     // 机械起止角尚未标定；当前 -π～+π 是调试范围，不提供实际机械限位。
     static constexpr float ANGLE_START_RAD[2] = { // 左右电机机械安全区起始角，弧度
         -3.14159265358979323846f, -3.14159265358979323846f};
@@ -29,12 +29,12 @@ public:
         3.14159265358979323846f, 3.14159265358979323846f};
     static constexpr int8_t MOTOR_DIRECTION[2] = {1, 1}; // 左右电机的 Pitch 力矩方向，只能为 +1 或 -1
     static constexpr float MOTOR_TORQUE_GAIN[2] = {1.0f, 1.0f}; // 左右电机最终力矩倍率，必须大于 0
-    static constexpr float RETRACT_TARGET_RAD[2] = {0.5f, 0.0f}; // 收腿目标角，弧度
-    static constexpr float RETRACT_SPEED_RAD_S = 0.5f; // 收腿规划速度，弧度/秒；未标定时为 0，禁止 V 键收腿
-    static constexpr float RETRACT_POSITION_TOLERANCE_RAD = 0.10f; // 收腿到位容差，弧度
-    static constexpr float BASIC_TARGET_RAD[2] = {0.0f, 0.0f}; // IMU 失效后的基础角，弧度
-    static constexpr float BASIC_SPEED_RAD_S = 0.0f; // IMU 失效后的位置规划速度，弧度/秒；未标定时禁用
-    static constexpr float BASIC_POSITION_TOLERANCE_RAD = 0.0f; // 基础角到位容差，弧度
+    static constexpr float RETRACT_TARGET_RAD[2] = {0.5f, 1.36834f}; // 收腿目标角，弧度；左约 28.65°，右约 78.4°
+    static constexpr float RETRACT_SPEED_RAD_S = 1.8f; // 收腿规划速度，弧度/秒；未标定时为 0，禁止 V 键收腿
+    static constexpr float RETRACT_POSITION_TOLERANCE_RAD = 0.03f; // 收腿到位容差，弧度
+    static constexpr float BASIC_TARGET_RAD[2] = {0.5f, 1.36834f}; // IMU 失效后的基础角，弧度；左约 28.65°，右约 78.4°
+    static constexpr float BASIC_SPEED_RAD_S = 1.8f; // IMU 失效后的位置规划速度，弧度/秒；未标定时禁用
+    static constexpr float BASIC_POSITION_TOLERANCE_RAD = 0.03f; // 基础角到位容差，弧度
 
     struct Config
     {

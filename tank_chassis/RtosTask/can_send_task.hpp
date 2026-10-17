@@ -45,6 +45,8 @@ typedef struct
     float vy;
     float s1;
     float s2;
+    float imu_yaw_deg;      // 云台 IMU Yaw [0,360)，度
+    float imu_gyro_z_deg_s; // 云台 IMU Z 轴角速度，度/秒
 
 } Gimbal_Chassis_communicate_t;
 

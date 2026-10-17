@@ -210,6 +210,8 @@ tank_gimbal/remote_control_task.o: ..\RtosTask\remote_control_task.cpp \
   ..\Drivers\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal_i2c_ex.h \
   ..\Drivers\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal_pwr.h \
   ..\Drivers\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal_pwr_ex.h \
+  ..\Drivers\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal_spi.h \
+  ..\Drivers\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal_spi_ex.h \
   ..\Drivers\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal_tim.h \
   ..\Drivers\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal_tim_ex.h \
   ..\Drivers\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal_uart.h \
@@ -806,6 +808,7 @@ tank_gimbal/remote_control_task.o: ..\RtosTask\remote_control_task.cpp \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__functional\pointer_to_unary_function.h \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__functional\unary_negate.h \
   ..\RtosTask\..\communication_between_boards\input_dispatcher.hpp \
+  ..\RtosTask\..\communication_between_boards\refree_receive_uart_485.hpp \
   ..\RtosTask\gimbal_task.hpp \
   ..\RtosTask\..\user\core\BSP\Motor\Dji\DjiMotor.hpp \
   ..\communication_between_boards\..\user\core\BSP\Motor\MotorBase.hpp \

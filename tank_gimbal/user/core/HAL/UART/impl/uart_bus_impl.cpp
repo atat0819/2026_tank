@@ -24,13 +24,18 @@ UartBus::UartBus()
       // 初始化串口7（功率计）
       uart7_(&huart7),
       // 初始化串口10（VOFA 上位机）
-      uart10_(&huart10)
+      uart10_(&huart10),
+      // RS485 两路，收发方向由 USART 硬件 DE 自动控制
+      uart2_(&huart2),
+      uart3_(&huart3)
 {
     // 注册现有的设备
     register_device(UartDeviceId::HAL_Uart1, &uart1_);
     register_device(UartDeviceId::HAL_Uart5, &uart5_);
     register_device(UartDeviceId::HAL_Uart7, &uart7_);
     register_device(UartDeviceId::HAL_Uart10, &uart10_);
+    register_device(UartDeviceId::HAL_Uart2, &uart2_);
+    register_device(UartDeviceId::HAL_Uart3, &uart3_);
 }
 
 void UartBus::init()

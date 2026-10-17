@@ -807,7 +807,8 @@ tank_chassis/can_send_task.o: ..\RtosTask\can_send_task.cpp \
   ..\RtosTask\..\user\core\BSP\RemoteControl\DT7.hpp \
   ..\communication\..\user\core\BSP\Common\StateWatch\state_watch.hpp \
   ..\communication\..\user\core\BSP\Common\StateWatch\buzzer_manager.hpp \
-  ..\Core\Inc\tim.h ..\RtosTask\up_stair.hpp \
+  ..\Core\Inc\tim.h ..\RtosTask\..\user\core\BSP\Hi14\HI14.hpp \
+  ..\RtosTask\up_stair.hpp \
   ..\RtosTask\..\user\core\BSP\Motor\DM\DmMotor.hpp \
   ..\communication\..\user\core\BSP\Motor\MotorBase.hpp \
   ..\communication\..\user\core\BSP\buzzer\buzzer.hpp \
@@ -826,6 +827,8 @@ tank_chassis/can_send_task.o: ..\RtosTask\can_send_task.cpp \
   ..\RtosTask\..\user\core\HAL\UART\interface\uart_device.hpp \
   ..\RtosTask\..\communication\super_cupacitor.hpp \
   ..\RtosTask\..\communication\gimbal_refree.hpp \
+  ..\RtosTask\..\communication\boards_communication_uart_485.hpp \
+  ..\RtosTask\..\communication\gimbal_refree_uart_485.hpp \
   ..\RtosTask\..\user\core\APP\Referee\RM_RefereeSystem.h \
   ..\RtosTask\..\user\core\APP\Referee\..\..\HAL\UART\uart_hal.hpp \
   ..\RtosTask\..\user\core\APP\Referee\RM_RefereeSystemCRC.h \

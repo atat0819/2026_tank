@@ -34,9 +34,11 @@ typedef struct Struct_Gimbal_FSM_Config
     float speed_scale = 0.0f;          // 遥控器摇杆速度增益
     float mouse_speed_scale = 0.2f;    // 键鼠速度增益 (deg/s per pixel)
     float mouse_angle_scale = 0.02f;   // 键鼠角度增益 (deg per pixel)
-    float min_angle = 0.0f;
-    float max_angle = 0.0f;
-    uint8_t limit_angle = 0U;
+    float min_angle = 0.0f;           // 限位反馈下限，rad（两轴原始编码器）
+    float max_angle = 0.0f;           // 限位反馈上限，rad
+    uint8_t limit_angle = 0U;         // 启用实际边界的目标保护和最终力矩拦截
+    uint8_t limit_upper_torque = 1U;  // 上限拦正力矩；关闭时仍保留上限目标保护及下限力矩拦截
+    uint8_t limit_target_angle = 1U;  // 目标与限位反馈同参考系时，可选额外目标夹紧
     uint8_t normalize_angle = 0U;
     uint8_t continuous_angle = 0U;
 };
@@ -61,8 +63,6 @@ typedef struct Struct_Gimbal_Input
 class Class_Gimbal_FSM : public Class_FSM
 {
 public:
-    enum class PitchStartDecision { Normal, HoldZero, ReanchorAndRelease };
-
     void Init(const Struct_Gimbal_FSM_Config &__config,
               uint8_t __initial_status = GIMBAL_STATUS_STOP);
 
@@ -75,11 +75,10 @@ public:
     void Set_Target_Speed(float speed);
 
     void ReAnchor(float new_angle);
-    PitchStartDecision Update_Pitch_Start_Gate(bool is_double_down, bool is_keymouse,
-                                               float pitch_stick, float mouse_delta_y);
-    void Update_Yaw_Limit(float encoder_deg, float current_imu_angle);
-    float Limit_Yaw_Torque(float torque_nm);
-    uint8_t Take_Yaw_Limit_Reset_Flag();
+    // 两个角均为 rad；限位取原始编码器，控制角取当前选定的 IMU/编码器反馈。
+    void Update_Angle_Limit(float limit_feedback_angle, float current_control_angle);
+    float Limit_Torque(float torque_nm);
+    uint8_t Take_Limit_Reset_Flag();
 
     float   Get_Control_Output() const;
     uint8_t Get_Control_Type() const;
@@ -94,6 +93,7 @@ private:
     void Enter_Speed_State();
     void Enter_Vision_State(float current_angle);
     float Apply_Angle_Rule(float angle) const;
+    bool Would_Push_Outward(float signed_command) const;
 
     /// @brief 根据 s1/s2 和键鼠状态确定当前模式命令
     uint8_t DetermineMode(const Struct_Gimbal_Input &input) const;
@@ -111,12 +111,8 @@ private:
     uint8_t last_mode_command_ = GIMBAL_MODE_STOP;
     uint8_t source_initialized_ = 0U;
     bool last_is_keymouse_ = false;
-    bool pitch_came_from_double_down_ = false;
-    bool pitch_start_locked_ = false;
-    bool pitch_neutral_seen_ = false;
-    bool pitch_unlock_is_keymouse_ = false;
-    float yaw_encoder_deg_ = 0.0f;
-    uint8_t yaw_limit_reset_flag_ = 0U;
+    float limit_feedback_angle_ = 0.0f;
+    uint8_t limit_reset_flag_ = 0U;
 };
 
 #endif

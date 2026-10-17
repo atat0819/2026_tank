@@ -21,6 +21,8 @@
 #include "../user/core/HAL/UART/uart_hal.hpp"
 #include "../communication/super_cupacitor.hpp"
 #include "../communication/gimbal_refree.hpp"
+#include "../communication/boards_communication_uart_485.hpp"
+#include "../communication/gimbal_refree_uart_485.hpp"
 #include "../user/core/APP/Referee/RM_RefereeSystem.h"
 #include "../user/core/Alg/UtilityFunction/SlopePlanning.hpp"
 #include "../fsm/chassis_keyboard_fsm.hpp"
@@ -48,7 +50,7 @@ Gimbal_Chassis_communicate_t gimbalChassis_communicate;
 
 uint8_t gimbalChassisSpeedUpdated = 0;
 
-// 云台 CAN2 -> 底盘的键盘位掩码
+// 云台 RS485 -> 底盘的键盘位掩码
 volatile uint16_t gimbal_keyboard = 0;              // 当前键盘按键位掩码
 volatile uint32_t gimbal_keyboard_last_tick = 0;   // 最近一次合法键盘帧时间
 volatile bool gimbal_keyboard_received = false;    // 键盘通信是否已经建立
@@ -58,6 +60,31 @@ static volatile uint32_t gimbal_speed_last_tick = 0U;
 static volatile bool gimbal_speed_received = false;
 static volatile uint32_t gimbal_yaw_last_tick = 0U;
 static volatile bool gimbal_yaw_received = false;
+
+// UART ISR 已校验完整帧；控制任务读快照时关闭中断，保证所有字段属于同一帧。
+void Chassis485_ApplyData(const Chassis485Data &data)
+{
+    const uint32_t now = HAL_GetTick();
+    gimbalChassis_communicate.yaw_offset_deg = data.yaw_offset_deg;
+    gimbalChassis_communicate.vx = data.vx;
+    gimbalChassis_communicate.vy = data.vy;
+    gimbalChassis_communicate.s1 = data.s1;
+    gimbalChassis_communicate.s2 = data.s2;
+    gimbalChassis_communicate.imu_yaw_deg = data.imu_yaw_deg;
+    gimbalChassis_communicate.imu_gyro_z_deg_s = data.imu_gyro_z_deg_s;
+    gimbal_keyboard = data.keyboard;
+    gimbal_yaw_last_tick = now;
+    gimbal_speed_last_tick = now;
+    gimbal_switch_last_tick = now;
+    gimbal_keyboard_last_tick = now;
+    const bool input_online = data.s1 != 0U && data.s2 != 0U;
+    gimbal_yaw_received = input_online;
+    gimbal_speed_received = input_online;
+    gimbal_switch_received = input_online;
+    gimbal_keyboard_received = input_online;
+    yaw_offset_updated = input_online;
+    gimbalChassisSpeedUpdated = input_online ? 1U : 0U;
+}
 
 ControlInputSnapshot GetControlInputSnapshot(uint32_t now_tick)
 {
@@ -299,10 +326,7 @@ extern "C" void can_send_task(void *argument)
 /************************************************************************************** */
 /************************************************************************************** */
     fdcan1.register_rx_callback([](const HAL::FDCAN::Frame &frame) {
-        if (frame.id >= 0x05 && frame.id <= 0x06) {
-       front_4340.Parse(frame);
-   }
-        else if (frame.id >= 0x201 && frame.id <= 0x204)
+        if (frame.id >= 0x201 && frame.id <= 0x204)
         {
         // 这是底盘电机的数据，交给 chassis_motor 解析
             chassis_motor.Parse(frame);
@@ -313,39 +337,13 @@ extern "C" void can_send_task(void *argument)
         }
 
     });
+    fdcan2.register_rx_callback([](const HAL::FDCAN::Frame &frame) {
+        if (frame.id >= 0x05 && frame.id <= 0x06) {
+            front_4340.Parse(frame);
+        }
+    });
 /************************************************************************************** */
-   fdcan2.register_rx_callback([](const HAL::FDCAN::Frame &frame) {
-    if (frame.id == 0x301 && frame.dlc >= sizeof(float)) {
-       memcpy(&gimbalChassis_communicate.yaw_offset_deg, frame.data, sizeof(float));
-       yaw_offset_updated = true;
-        gimbal_yaw_last_tick = HAL_GetTick();
-        gimbal_yaw_received = true;
-    }
-    else if (frame.id == 0x302 && frame.dlc >= 2U * sizeof(float)) {
-        memcpy(&gimbalChassis_communicate.vx, &frame.data[0], sizeof(float));
-        memcpy(&gimbalChassis_communicate.vy, &frame.data[4], sizeof(float));
-       gimbalChassisSpeedUpdated = 1;
-       gimbal_speed_last_tick = HAL_GetTick();
-       gimbal_speed_received = true;
-    }
-    else if (frame.id == 0x303 && frame.dlc >= 2U &&
-             frame.data[0] >= 1U && frame.data[0] <= 3U &&
-             frame.data[1] >= 1U && frame.data[1] <= 3U) {
-       // 只有同时收到两个档位字节才更新档位和心跳时间戳。
-       gimbalChassis_communicate.s1 = frame.data[0];
-       gimbalChassis_communicate.s2 = frame.data[1];
-       gimbal_switch_last_tick = HAL_GetTick();
-       gimbal_switch_received = true;
-   }
-   else if (frame.id == 0x305 && frame.dlc == sizeof(gimbal_keyboard)) {
-       uint16_t keyboard_value = 0;
-       memcpy(&keyboard_value, frame.data, sizeof(keyboard_value));
-       gimbal_keyboard = keyboard_value;
-       gimbal_keyboard_last_tick = HAL_GetTick();
-       gimbal_keyboard_received = true;
-   }
-
-});
+    // 板间输入改为 USART3；解析和心跳更新由 remote_task 的 UART lambda 接入。
 /************************************************************************************** */
    fdcan3.register_rx_callback([](const HAL::FDCAN::Frame &frame) {
        if (frame.id >= 0x07 && frame.id <= 0x08) {
@@ -701,11 +699,11 @@ if (chassis_fsm.Get_Mode() == CHASSIS_STOP)
        
     }
 
-        // 转发裁判系统枪管热量数据给云台 (英雄机器人: 仅42mm)
-        gimbal_refree.send(
+        // 更新裁判回复快照；只有收到有效 RS485 请求后才由 RX ISR 发送。
+        Referee485_Update(
             ext_power_heat_data_0x0201.shooter_barrel_cooling_value,   // 枪管冷却值
             ext_power_heat_data_0x0201.shooter_barrel_heat_limit,      // 枪管热量上限
-            (heat_42mm = ext_power_heat_data_0x0202.shooter_id1_42mm_cooling_heat), // CAN发送前
+            (heat_42mm = ext_power_heat_data_0x0202.shooter_id1_42mm_cooling_heat), // 最新转发热量
             RM_RefereeSystemDirFlag ? 0 : 1                            // 裁判系统在线标志 (1=在线)
         );
 

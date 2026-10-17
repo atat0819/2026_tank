@@ -4,69 +4,56 @@ class RemoteController { public: enum { UP = 1, DOWN = 2, MIDDLE = 3 }; };
 }
 #include "../feeder_fsm/gimbal_fsm.cpp"
 #include <cassert>
-
-using Decision = Class_Gimbal_FSM::PitchStartDecision;
+#include <cmath>
+#include <initializer_list>
 
 int main()
 {
-    constexpr uint8_t UP = 1;
     constexpr uint8_t DOWN = 2;
     constexpr uint8_t MIDDLE = 3;
-    Class_Gimbal_FSM pitch;
-    Struct_Gimbal_FSM_Config config = {};
-    pitch.Init(config);
+    constexpr float current_angle = 0.3f;
+    for (bool keymouse : {false, true})
+    {
+        for (float movement : {0.0f, -0.5f, 0.5f})
+        {
+            Class_Gimbal_FSM pitch;
+            Struct_Gimbal_FSM_Config config = {};
+            config.angle_step = 0.02f;
+            config.mouse_angle_scale = 0.02f;
+            pitch.Init(config);
+            Struct_Gimbal_Input input = {};
+            input.s1 = DOWN;
+            input.s2 = DOWN;
+            pitch.Update(input, current_angle);
+            assert(pitch.Get_Control_Type() == GIMBAL_CONTROL_STOP);
+            assert(pitch.Get_Control_Output() == 0.0f);
 
-    Struct_Gimbal_Input input = {};
-    auto step = [&](uint8_t s1, uint8_t s2, float stick,
-                    bool keymouse = false, float mouse_y = 0.0f) {
-        input.s1 = s1;
-        input.s2 = s2;
-        input.is_keymouse = keymouse;
-        input.joystick_speed = stick;
-        input.mouse_angle_delta = mouse_y;
-        pitch.Update(input, 0.0f);
-        return pitch.Update_Pitch_Start_Gate(
-            s1 == DOWN && s2 == DOWN, keymouse, stick, mouse_y);
-    };
+            input.s1 = MIDDLE;
+            input.s2 = keymouse ? MIDDLE : DOWN;
+            input.is_keymouse = keymouse;
+            pitch.Update(input, current_angle);
+            assert(pitch.Get_Control_Type() == GIMBAL_CONTROL_ANGLE);
+            assert(std::fabs(pitch.Get_Target_Angle() - current_angle) < 1e-6f);
+            assert(std::fabs(pitch.Get_Control_Output() - current_angle) < 1e-6f);
 
-    assert(step(DOWN, MIDDLE, 0.0f) == Decision::Normal);
-    assert(step(MIDDLE, DOWN, 0.5f) == Decision::Normal); // speed -> angle
+            // Either input direction works without a neutral/upward release sequence.
+            input.joystick_speed = movement;
+            input.mouse_angle_delta = movement * 10.0f;
+            pitch.Update(input, current_angle);
+            const float expected = current_angle + movement *
+                (keymouse ? 10.0f * config.mouse_angle_scale : config.angle_step);
+            assert(std::fabs(pitch.Get_Target_Angle() - expected) < 1e-6f);
 
-    assert(step(DOWN, DOWN, 0.0f) == Decision::Normal);
-    assert(step(MIDDLE, DOWN, 0.0f) == Decision::HoldZero);
-    assert(step(MIDDLE, DOWN, -0.5f) == Decision::HoldZero);
-    assert(step(MIDDLE, DOWN, -0.01f) == Decision::HoldZero);
-    assert(step(MIDDLE, DOWN, 0.005f) == Decision::HoldZero);
-    assert(step(MIDDLE, DOWN, 0.009f) == Decision::HoldZero);
-    assert(step(MIDDLE, DOWN, 0.01f) == Decision::HoldZero);
-    assert(step(MIDDLE, DOWN, 0.02f) == Decision::ReanchorAndRelease);
-    assert(step(MIDDLE, DOWN, 0.0f) == Decision::Normal);
-    assert(step(DOWN, MIDDLE, 0.0f) == Decision::Normal);
-    assert(step(MIDDLE, DOWN, 0.0f) == Decision::Normal); // speed -> angle
-
-    step(DOWN, DOWN, 0.5f);
-    assert(step(UP, DOWN, 0.5f) == Decision::HoldZero);
-    assert(step(UP, DOWN, 0.0f) == Decision::HoldZero);
-    assert(step(UP, DOWN, 0.5f) == Decision::ReanchorAndRelease);
-
-    step(DOWN, DOWN, 0.0f);
-    assert(step(0, 0, 0.0f) == Decision::Normal); // invalid switch position
-    assert(step(MIDDLE, DOWN, 0.0f) == Decision::HoldZero);
-    assert(step(0, 0, 0.5f) == Decision::HoldZero);
-    assert(step(MIDDLE, DOWN, 0.5f) == Decision::ReanchorAndRelease);
-
-    // 双下转键鼠：右摇杆上拨不能解锁；鼠标必须先静止，再上移超过 2 像素。
-    assert(step(DOWN, DOWN, 0.0f) == Decision::Normal);
-    assert(step(MIDDLE, MIDDLE, 0.5f, true, 5.0f) == Decision::HoldZero);
-    assert(step(MIDDLE, MIDDLE, 0.5f, true, -5.0f) == Decision::HoldZero);
-    assert(step(MIDDLE, MIDDLE, 0.5f, true, 2.0f) == Decision::HoldZero);
-    assert(step(MIDDLE, MIDDLE, 0.5f, true, 3.0f) == Decision::ReanchorAndRelease);
-    assert(step(MIDDLE, MIDDLE, 0.0f, true, 0.0f) == Decision::Normal);
-
-    // 遥控器档看过回中后改键鼠档，仍须等待鼠标自身进入死区。
-    assert(step(DOWN, DOWN, 0.0f) == Decision::Normal);
-    assert(step(MIDDLE, DOWN, 0.0f) == Decision::HoldZero);
-    assert(step(MIDDLE, MIDDLE, 0.0f, true, 5.0f) == Decision::HoldZero);
-    assert(step(MIDDLE, MIDDLE, 0.0f, true, 0.0f) == Decision::HoldZero);
-    assert(step(MIDDLE, MIDDLE, 0.0f, true, 3.0f) == Decision::ReanchorAndRelease);
+            input.is_keymouse = false;
+            input.s1 = DOWN;
+            input.s2 = DOWN;
+            pitch.Update(input, current_angle);
+            assert(pitch.Get_Control_Type() == GIMBAL_CONTROL_STOP);
+            assert(pitch.Get_Control_Output() == 0.0f);
+            input.s1 = 0;
+            input.s2 = 0;
+            pitch.Update(input, current_angle);
+            assert(pitch.Get_Control_Type() == GIMBAL_CONTROL_STOP);
+        }
+    }
 }

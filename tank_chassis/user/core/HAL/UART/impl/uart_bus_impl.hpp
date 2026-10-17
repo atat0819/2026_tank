@@ -56,6 +56,7 @@ class UartBus : public IUartBus
     UartDevice uart5_;
     UartDevice uart7_;
     UartDevice uart10_;
+    UartDevice uart3_;
 };
 
 } // namespace HAL::UART

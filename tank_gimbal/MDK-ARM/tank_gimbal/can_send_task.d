@@ -211,6 +211,8 @@ tank_gimbal/can_send_task.o: ..\RtosTask\can_send_task.cpp \
   ..\Drivers\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal_i2c_ex.h \
   ..\Drivers\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal_pwr.h \
   ..\Drivers\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal_pwr_ex.h \
+  ..\Drivers\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal_spi.h \
+  ..\Drivers\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal_spi_ex.h \
   ..\Drivers\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal_tim.h \
   ..\Drivers\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal_tim_ex.h \
   ..\Drivers\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal_uart.h \
@@ -817,8 +819,9 @@ tank_gimbal/can_send_task.o: ..\RtosTask\can_send_task.cpp \
   ..\RtosTask\..\feeder_fsm\feeder_fsm.hpp \
   ..\RtosTask\..\feeder_fsm\..\user\core\Alg\FSM\alg_fsm.hpp \
   ..\RtosTask\..\feeder_fsm\friction_fsm.hpp \
-  ..\user\core\Alg\Filter\Filter.hpp ..\Core\Inc\usart.h \
-  ..\USB_DEVICE\App\usbd_cdc_if.h \
+  ..\user\core\Alg\Filter\Filter.hpp \
+  ..\RtosTask\..\communication_between_boards\boards_communication_uart_485.hpp \
+  ..\Core\Inc\usart.h ..\USB_DEVICE\App\usbd_cdc_if.h \
   ..\Middlewares\ST\STM32_USB_Device_Library\Class\CDC\Inc\usbd_cdc.h \
   ..\Middlewares\ST\STM32_USB_Device_Library\Core\Inc\usbd_ioreq.h \
   ..\Middlewares\ST\STM32_USB_Device_Library\Core\Inc\usbd_def.h \
@@ -826,7 +829,8 @@ tank_gimbal/can_send_task.o: ..\RtosTask\can_send_task.cpp \
   ..\Middlewares\ST\STM32_USB_Device_Library\Core\Inc\usbd_core.h \
   ..\Middlewares\ST\STM32_USB_Device_Library\Core\Inc\usbd_ctlreq.h \
   ..\RtosTask\..\feeder_fsm\gimbal_fsm.hpp \
-  ..\RtosTask\..\communication_between_boards\refree_receive.hpp \
+  ..\RtosTask\..\feeder_fsm\motor_recovery_fsm.hpp \
+  ..\RtosTask\..\feeder_fsm\imu_feedback_fsm.hpp \
   ..\RtosTask\..\communication_between_boards\input_dispatcher.hpp \
   ..\RtosTask\..\user\core\Alg\Feedforward\Feedforward.hpp \
   ..\RtosTask\..\user\core\Alg\Feedforward\..\Filter\Filter.hpp \

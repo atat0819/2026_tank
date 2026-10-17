@@ -5,6 +5,7 @@
 "tank_gimbal\freertos.o"
 "tank_gimbal\dma.o"
 "tank_gimbal\fdcan.o"
+"tank_gimbal\spi.o"
 "tank_gimbal\tim.o"
 "tank_gimbal\usart.o"
 "tank_gimbal\stm32h7xx_it.o"
@@ -36,6 +37,8 @@
 "tank_gimbal\stm32h7xx_hal_i2c_ex.o"
 "tank_gimbal\stm32h7xx_hal_exti.o"
 "tank_gimbal\stm32h7xx_hal_fdcan.o"
+"tank_gimbal\stm32h7xx_hal_spi.o"
+"tank_gimbal\stm32h7xx_hal_spi_ex.o"
 "tank_gimbal\stm32h7xx_hal_uart.o"
 "tank_gimbal\stm32h7xx_hal_uart_ex.o"
 "tank_gimbal\system_stm32h7xx.o"
@@ -76,6 +79,8 @@
 "tank_gimbal\can_send_task.o"
 "tank_gimbal\gimbal_task.o"
 "tank_gimbal\remote_control_task.o"
+"tank_gimbal\refree_receive_uart_485.o"
+"tank_gimbal\boards_communication_uart_485.o"
 "tank_gimbal\boards_communication.o"
 "tank_gimbal\hi14.o"
 "tank_gimbal\input_dispatcher.o"
@@ -83,7 +88,7 @@
 "tank_gimbal\feeder_fsm.o"
 "tank_gimbal\friction_fsm.o"
 "tank_gimbal\gimbal_fsm.o"
---strict --scatter "tank_gimbal\tank_gimbal.sct"
+--library_type=microlib --strict --scatter "tank_gimbal\tank_gimbal.sct"
 --summary_stderr --info summarysizes --map --load_addr_map_info --xref --callgraph --symbols
 --info sizes --info totals --info unused --info veneers
 --list "tank_gimbal.map" -o tank_gimbal\tank_gimbal.axf

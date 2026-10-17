@@ -40,6 +40,37 @@
 
 ## 使用方法
 
+### RS485 板间通信（USART2 / USART3）
+
+`get_uart2()` 对应第二路接口 P4，`get_uart3()` 对应第一路接口 P5。
+两路当前均为 1000000 baud、8N1，CubeMX 使用 `HAL_RS485Ex_Init()` 初始化，
+PD4 / PB14 为高有效硬件 DE，不需要手动控制 GPIO。
+
+在串口初始化完成后的任务初始化阶段注册回调、启动接收，例如：
+
+```cpp
+auto &rs485 = HAL::UART::get_uart_bus_instance().get_uart3();
+static uint8_t rs485_rx_buffer[256];
+rs485.register_rx_callback([](const HAL::UART::Data &data) {
+    // 在这里处理 data.buffer 中的 data.size 字节。
+    // 中断上下文中不要阻塞；若交给任务处理，应先复制数据。
+});
+HAL::UART::Data rx{rs485_rx_buffer, sizeof(rs485_rx_buffer)};
+bool receiving = rs485.receive_dma_idle(rx);
+
+static uint8_t rs485_tx_buffer[] = {0x55, 0xAA};
+HAL::UART::Data tx{rs485_tx_buffer, sizeof(rs485_tx_buffer)};
+bool sending = rs485.transmit_dma(tx);
+```
+
+检查 `receiving` / `sending` 的返回值；非阻塞发送完成前不能修改或释放发送缓冲区。
+现有全局 `HAL_UARTEx_RxEventCallback()` 已接入两路 RS485 的普通 DMA+Idle 接收：
+忽略半传输事件，转发实际接收长度，并在回调返回后用原缓冲区重新启动接收。
+使用方不应在注册的接收回调里重复启动接收，也不要在其他文件重复定义全局 HAL 回调。
+上述自动转发与重启仅用于 `receive_dma_idle()`，不适用于定长 `receive()` / `receive_dma()`。
+UART 空闲事件不保证正好对应一个协议帧，使用方仍需处理拆帧、粘帧及校验。
+两块板应约定轮流发送，避免同时驱动总线。
+
 ### 初始化UART总线
 
 采用懒汉模式，在第一次获取实例时自动初始化：

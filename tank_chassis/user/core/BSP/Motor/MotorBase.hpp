@@ -76,7 +76,7 @@ namespace BSP::Motor
                 state_watch_[id_state - 1].CheckStatus();
                 const bool online =
                     state_watch_[id_state - 1].GetStatus() == BSP::WATCH_STATE::Status::ONLINE;
-                BSP::BUZZER::setMotorOnline(id_ring, online);
+                //BSP::BUZZER::setMotorOnline(id_ring, online);
                 return online;
             }
             return false;

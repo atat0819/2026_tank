@@ -40,7 +40,7 @@ if ($source -notmatch 'rear_6248_pitch_pid\[0\]\.reset\(\)[\s\S]*?rear_6248_pitc
 if ($source -notmatch 'Uses_Attitude_Control\(\)[\s\S]*?rear_6248_left_retract_pid\[0\]\.reset\(\)[\s\S]*?rear_6248_right_retract_pid\[1\]\.reset\(\)') { throw 'attitude branch must reset inactive retract PIDs' }
 $positionBranch = [regex]::Match($source, 'else if \(up_stair_behind_motor_fsm\.Uses_Position_Control\(\)\)\s*\{(?<body>[\s\S]*?)\}\s*(?://[^\r\n]*\r?\n\s*)*else if \(up_stair_behind_motor_fsm\.Uses_Attitude_Control\(\)\)')
 if (-not $positionBranch.Success) { throw 'unable to isolate rear position branch' }
-if ($positionBranch.Groups['body'].Value -notmatch 'left_retract_torque[\s\S]*?ClampJ6248Torque') { throw 'position torque must use the existing safety clamp' }
+if ($positionBranch.Groups['body'].Value -notmatch 'left_6248_retract_torque[\s\S]*?ClampJ6248Torque') { throw 'position torque must use the existing safety clamp' }
 if ($positionBranch.Groups['body'].Value -match 'Get_Motor_Direction') { throw 'position branch must not apply motor direction correction' }
 if ($rearFsmHeader -notmatch 'static constexpr float PITCH_ZERO_DEG' -or
     $rearFsmHeader -notmatch 'static constexpr float RETRACT_TARGET_RAD\[2\]' -or

@@ -5,16 +5,15 @@
 #include "../fsm/motor_recovery_fsm.hpp"
 #include "../fsm/rear_torque_safety.hpp"
 #include "can_send_task.hpp"
-#include "imu_task.hpp"
+#include "remote_task.hpp"
 #include "FreeRTOS.h"
-#include "../user/core/HAL/UART/uart_hal.hpp"
+#include "../user/core/Alg/Filter/Filter.hpp"
 
 #include <math.h>
-#include <string.h>
 
 // 前部两台 J4340：负责卡住台阶、返回初始位置以及正常姿态保持。
 BSP::Motor::DM::J4340<2> front_4340(
-    0x00, {0x05, 0x06}, {0x05, 0x06}, HAL::FDCAN::FdcanDeviceId::HAL_Fdcan1);
+    0x00, {0x05, 0x06}, {0x05, 0x06}, HAL::FDCAN::FdcanDeviceId::HAL_Fdcan2);
 // 后部两台 J6248：通过连杆支撑车尾，并执行 pitch 水平控制。
 BSP::Motor::DM::J6248<2> rear_6248(
     0x00, {0x07, 0x08}, {0x07, 0x08}, HAL::FDCAN::FdcanDeviceId::HAL_Fdcan3);
@@ -52,35 +51,9 @@ ALG::PID::PID rear_6248_right_retract_pid[2] = {
 
 namespace
 {
-// VOFA+：UART10，115200，8N1，JustFloat；x1~x9 对应通道 0~8。
-// 返回 true 表示成功启动 DMA；仅由上台阶任务调用，共用一个静态发送缓冲区。
-bool vofa_send(float x1, float x2, float x3, float x4, float x5,
-               float x6, float x7, float x8, float x9)
-{
-    HAL::UART::IUartDevice &uart =
-        HAL::UART::get_uart_bus_instance().get_uart10();
-    static float vofa_frame[10]; // DMA 使用静态缓冲区：9 个 float + 帧尾。
-    // DMA 忙时不能覆盖缓冲区，直接跳过本帧。
-    if (uart.get_handle()->gState != HAL_UART_STATE_READY)
-    {
-        return false;
-    }
-
-    vofa_frame[0] = x1;
-    vofa_frame[1] = x2;
-    vofa_frame[2] = x3;
-    vofa_frame[3] = x4;
-    vofa_frame[4] = x5;
-    vofa_frame[5] = x6;
-    vofa_frame[6] = x7;
-    vofa_frame[7] = x8;
-    vofa_frame[8] = x9;
-    const uint32_t vofa_tail = 0x7F800000U; // 小端帧尾：00 00 80 7F。
-    memcpy(&vofa_frame[9], &vofa_tail, sizeof(vofa_tail));
-    HAL::UART::Data tx_data{reinterpret_cast<uint8_t *>(vofa_frame),
-                           static_cast<uint16_t>(sizeof(vofa_frame))};
-    return uart.transmit_dma(tx_data);
-}
+// 后腿 IMU 一阶低通固定权重：越小越平滑；角速度保留更快的阻尼响应。
+LPFFilter rear_6248_pitch_filter(0.09f);
+LPFFilter rear_6248_pitch_rate_filter(0.25f);
 
 // 对电机反馈角度做有限值保护，避免 NaN 进入 MIT 位置字段。
 float SafeMotorAngle(float angle)
@@ -120,8 +93,12 @@ void SendAllStairMotorsZero(float front_left_angle, float front_right_angle,
 }
 }  // namespace
 
+
+
 float front_left_target_velocity = 0.0f; // 前左位置环输出的目标角速度
 float front_left_target_torque = 0.0f;   // 前左速度环输出的目标力矩
+float left_6248_retract_torque = 0.0f;  // 后左 6248 的收腿目标力矩
+float right_6248_retract_torque = 0.0f; // 后右 6248 的收腿目标力矩
 Class_Up_Stair_FSM up_stair_fsm;          // 前 4340 上台阶状态机
 Class_Up_Stair_Behind_Motor_FSM up_stair_behind_motor_fsm(Class_Up_Stair_Behind_Motor_FSM::Config::WithAngleConstants()); // 后 6248 状态机
 MotorRecoveryFSM front_recovery_fsm[2];  // 前左右电机通信恢复状态机
@@ -147,8 +124,8 @@ extern "C" void up_stair_task(void *argument)
     rear_recovery_fsm[1].Init(init_tick);
     ResetAllStairPid();
     ControlInputSource last_input_source = ControlInputSource::NONE;
-    uint32_t vofa_last_send_tick = init_tick;
-    uint32_t vofa_last_sample_tick = init_tick;
+    bool rear_imu_filter_initialized = false;
+    uint32_t rear_imu_filter_tick = 0U;
 
     for (;;)
     {
@@ -180,34 +157,6 @@ extern "C" void up_stair_task(void *argument)
         ImuControlSnapshot imu_snapshot;
         GetImuControlSnapshot(imu_snapshot);
 
-        // 在控制权限判断前发送，停车或遥控离线时仍可观察有效 IMU 数据。
-        // 一帧 40 字节约需 3.47 ms；至少间隔 5 ms，只上报有效的新快照。
-        if ((now_tick - vofa_last_send_tick >= 5U) &&
-            imu_snapshot.tick != vofa_last_sample_tick &&
-            imu_snapshot.valid && (now_tick - imu_snapshot.tick < 20U) &&
-            std::isfinite(imu_snapshot.roll_deg) &&
-            std::isfinite(imu_snapshot.roll_rate_dps) &&
-            std::isfinite(imu_snapshot.accel_x_mps2) &&
-            std::isfinite(imu_snapshot.accel_y_mps2) &&
-            std::isfinite(imu_snapshot.accel_z_mps2) &&
-            std::isfinite(imu_snapshot.yaw_rate_dps))
-        {
-            if (vofa_send(
-                    imu_snapshot.pitch_deg,       // 通道 0：Pitch，度
-                    imu_snapshot.pitch_rate_dps,  // 通道 1：陀螺 Y，度/秒，已减零偏
-                    imu_snapshot.roll_deg,        // 通道 2：Roll，度
-                    imu_snapshot.roll_rate_dps,   // 通道 3：陀螺 X，度/秒，已减零偏
-                    imu_snapshot.accel_x_mps2,    // 通道 4：加速度 X，米/秒²
-                    imu_snapshot.accel_y_mps2,    // 通道 5：加速度 Y，米/秒²
-                    imu_snapshot.accel_z_mps2,    // 通道 6：加速度 Z，米/秒²
-                    imu_snapshot.yaw_rate_dps,    // 通道 7：陀螺 Z，度/秒，已减零偏
-                    static_cast<float>(imu_snapshot.tick - init_tick))) // 通道 8：读取完成时间，毫秒
-            {
-                vofa_last_send_tick = now_tick;
-                vofa_last_sample_tick = imu_snapshot.tick;
-            }
-        }
-
         const bool control_link_online =
             input.source != ControlInputSource::NONE && !source_changed;
         const bool keyboard_online = input.keyboard_online && !source_changed;
@@ -219,6 +168,7 @@ extern "C" void up_stair_task(void *argument)
         // 双下属于主动停车；链路掉线或档位非法是异常停车，只有异常状态跳过本周期后续逻辑。
         if (policy.zero_all_torque)
         {
+            rear_imu_filter_initialized = false;
             // 安全门生效期间不发送 On；重新预备四个恢复状态机，确保恢复后的
             // 首个正常周期分别补发一次使能帧。
             front_recovery_fsm[0].Force_Enable_On_Next_Check();
@@ -281,7 +231,39 @@ extern "C" void up_stair_task(void *argument)
 
         // 后 6248 只接受完整且不超过 20 ms 的 IMU 快照。
         const bool imu_valid = imu_snapshot.valid &&
-                               (now_tick - imu_snapshot.tick < 20U);
+                               (now_tick - imu_snapshot.tick < 20U) &&
+                               std::isfinite(imu_snapshot.pitch_deg) &&
+                               std::isfinite(imu_snapshot.pitch_rate_dps);
+        float filtered_pitch_deg = 0.0f;
+        float filtered_pitch_rate_dps = 0.0f;
+        if (imu_valid)
+        {
+            if (!rear_imu_filter_initialized)
+            {
+                // LPFFilter 无 reset 接口；权重 1 将两路历史直接置为当前测量。
+                rear_6248_pitch_filter.setRatio(1.0f);
+                rear_6248_pitch_rate_filter.setRatio(1.0f);
+                rear_6248_pitch_filter.filter(imu_snapshot.pitch_deg);
+                rear_6248_pitch_rate_filter.filter(imu_snapshot.pitch_rate_dps);
+                rear_6248_pitch_filter.setRatio(0.09f);
+                rear_6248_pitch_rate_filter.setRatio(0.25f);
+                rear_imu_filter_initialized = true;
+            }
+            else if (imu_snapshot.tick != rear_imu_filter_tick)
+            {
+                // 每帧仅更新一次，使用固定权重。
+                rear_6248_pitch_filter.filter(imu_snapshot.pitch_deg);
+                rear_6248_pitch_rate_filter.filter(imu_snapshot.pitch_rate_dps);
+            }
+            rear_imu_filter_tick = imu_snapshot.tick;
+            filtered_pitch_deg = rear_6248_pitch_filter.getOutput();
+            filtered_pitch_rate_dps = rear_6248_pitch_rate_filter.getOutput();
+        }
+        else
+        {
+            // 失效时仍走原 FSM 降级路径，下次有效数据重新建立滤波历史。
+            rear_imu_filter_initialized = false;
+        }
 
         // 更新后部 6248 状态机：校验 IMU/编码器，并管理姿态力矩软启动和限幅。
         up_stair_behind_motor_fsm.Update(
@@ -289,8 +271,8 @@ extern "C" void up_stair_task(void *argument)
             imu_valid,
             rear_left_online,
             rear_right_online,
-            imu_snapshot.pitch_deg,
-            imu_snapshot.pitch_rate_dps,
+            filtered_pitch_deg,
+            filtered_pitch_rate_dps,
             rear_left_angle,
             rear_right_angle,
             now_tick,
@@ -365,6 +347,8 @@ extern "C" void up_stair_task(void *argument)
                                 0.0f, 0.0f, 0.0f);
         }
 
+
+
         const bool rear_both_controllable =
             up_stair_behind_motor_fsm.Is_Motor_Controllable(1U) &&
             up_stair_behind_motor_fsm.Is_Motor_Controllable(2U);
@@ -396,7 +380,7 @@ extern "C" void up_stair_task(void *argument)
                 rear_6248_left_retract_pid[0].UpDate(
                     up_stair_behind_motor_fsm.Get_Position_Target_Angle(1U),
                     up_stair_behind_motor_fsm.Get_Position_Feedback(1U));
-            const float left_retract_torque =
+            left_6248_retract_torque =
                 rear_6248_left_retract_pid[1].UpDate(
                     left_target_velocity, rear_left_velocity);
 
@@ -404,7 +388,7 @@ extern "C" void up_stair_task(void *argument)
                 rear_6248_right_retract_pid[0].UpDate(
                     up_stair_behind_motor_fsm.Get_Position_Target_Angle(2U),
                     up_stair_behind_motor_fsm.Get_Position_Feedback(2U));
-            const float right_retract_torque =
+            right_6248_retract_torque =
                 rear_6248_right_retract_pid[1].UpDate(
                     right_target_velocity, rear_right_velocity);
 
@@ -412,12 +396,12 @@ extern "C" void up_stair_task(void *argument)
                 1, SafeMotorAngle(rear_left_angle), 0.0f, 0.0f, 0.0f,
                 StairTorqueSafety::ClampJ6248Torque(
                     up_stair_behind_motor_fsm.Limit_Torque(
-                        1U, left_retract_torque)));
+                        1U, left_6248_retract_torque)));
             rear_6248.ctrl_Mit(
                 2, SafeMotorAngle(rear_right_angle), 0.0f, 0.0f, 0.0f,
                 StairTorqueSafety::ClampJ6248Torque(
                     up_stair_behind_motor_fsm.Limit_Torque(
-                        2U, 0.0f)));
+                        2U, right_6248_retract_torque)));
         }
         // 前两种分支均未命中，且后部 FSM 正处于恢复或姿态保持状态时，执行 Pitch 姿态串级控制。
         else if (up_stair_behind_motor_fsm.Uses_Attitude_Control())
@@ -452,7 +436,7 @@ extern "C" void up_stair_task(void *argument)
           rear_6248.ctrl_Mit(
               2, SafeMotorAngle(rear_right_angle), 0.0f, 0.0f, 0.0f,
               StairTorqueSafety::ClampJ6248Torque(
-                  up_stair_behind_motor_fsm.Limit_Torque(2, 0.0f)));
+                  up_stair_behind_motor_fsm.Limit_Torque(2, right_pitch_torque)));
         }
 
         else
