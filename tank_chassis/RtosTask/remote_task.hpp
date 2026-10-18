@@ -9,6 +9,9 @@
 #ifdef __cplusplus
 #include "../user/core/BSP/Hi14/HI14.hpp"
 
+// 后腿 IMU 数据最大年龄，单位 ms；快照接口和控制任务共用此门限。
+constexpr uint32_t IMU_CONTROL_TIMEOUT_MS = 100U;
+
 // HI14 后腿控制反馈接口，实现在 remote_task.cpp；不创建 IMU 任务。
 struct ImuControlSnapshot
 {
@@ -20,7 +23,7 @@ struct ImuControlSnapshot
 
 // 仅供 UART7 接收/错误中断调用。
 void PublishHi14ImuFromISR(const IMU_Float_t &data, uint32_t sample_tick, bool valid);
-// 在临界区复制整帧；超过 20 ms 未更新时返回 valid=false。
+// 在临界区复制整帧；数据年龄达到 IMU_CONTROL_TIMEOUT_MS 时返回 valid=false。
 void GetImuControlSnapshot(ImuControlSnapshot &snapshot);
 
 extern "C" {

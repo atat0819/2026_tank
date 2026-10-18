@@ -1,4 +1,5 @@
 #include "up_stair_behind_motor_fsm.hpp"
+#include "rear_torque_safety.hpp"
 
 #include <math.h>
 
@@ -6,7 +7,7 @@
  * 后部上台阶电机状态机的实现。
  *
  * 本文件只负责检查 IMU、左右电机反馈和机械角度，维护后部状态，执行
- * 300 ms 力矩软启动，并对最终力矩进行机械边界和反馈安全保护。
+ * 2000 ms 力矩软启动，并对最终力矩进行机械边界和反馈安全保护。
  * 本文件不执行姿态 PID，也不直接发送电机命令；任务层读取本文件提供的
  * 姿态反馈，完成 pitch 串级 PID 和左右电机方向修正后，再调用 Limit_Torque()。
  *
@@ -22,16 +23,17 @@ const float PI_RAD = 3.14159265358979323846f;
 }
 
 constexpr float Class_Up_Stair_Behind_Motor_FSM::PITCH_ZERO_DEG;
+constexpr float Class_Up_Stair_Behind_Motor_FSM::PITCH_TARGET_DEG;
+constexpr float Class_Up_Stair_Behind_Motor_FSM::MIT_SPEED_LIMIT_RAD_S;
 constexpr float Class_Up_Stair_Behind_Motor_FSM::ANGLE_START_RAD[2];
 constexpr float Class_Up_Stair_Behind_Motor_FSM::ANGLE_END_RAD[2];
+constexpr float Class_Up_Stair_Behind_Motor_FSM::ANGLE_LIMIT_TOLERANCE_RAD;
 constexpr int8_t Class_Up_Stair_Behind_Motor_FSM::MOTOR_DIRECTION[2];
 constexpr float Class_Up_Stair_Behind_Motor_FSM::MOTOR_TORQUE_GAIN[2];
+constexpr float Class_Up_Stair_Behind_Motor_FSM::RETRACT_MARGIN_RAD;
 constexpr float Class_Up_Stair_Behind_Motor_FSM::RETRACT_TARGET_RAD[2];
 constexpr float Class_Up_Stair_Behind_Motor_FSM::RETRACT_SPEED_RAD_S;
 constexpr float Class_Up_Stair_Behind_Motor_FSM::RETRACT_POSITION_TOLERANCE_RAD;
-constexpr float Class_Up_Stair_Behind_Motor_FSM::BASIC_TARGET_RAD[2];
-constexpr float Class_Up_Stair_Behind_Motor_FSM::BASIC_SPEED_RAD_S;
-constexpr float Class_Up_Stair_Behind_Motor_FSM::BASIC_POSITION_TOLERANCE_RAD;
 
 /*
  * 构造默认配置。
@@ -40,16 +42,14 @@ constexpr float Class_Up_Stair_Behind_Motor_FSM::BASIC_POSITION_TOLERANCE_RAD;
  */
 Class_Up_Stair_Behind_Motor_FSM::Config::Config()
     : pitch_zero_deg(0.0f),
+      pitch_target_deg(0.0f),
       angle_start_rad{0.0f, 0.0f},
       angle_end_rad{0.0f, 0.0f},
       motor_direction{1, 1},
       motor_torque_gain{1.0f, 1.0f},
       retract_target_rad{0.0f, 0.0f},
       retract_speed_rad_s(0.0f),
-      retract_position_tolerance_rad(0.0f),
-      basic_target_rad{0.0f, 0.0f},
-      basic_speed_rad_s(0.0f),
-      basic_position_tolerance_rad(0.0f)
+      retract_position_tolerance_rad(0.0f)
 {
 }
 
@@ -58,6 +58,7 @@ Class_Up_Stair_Behind_Motor_FSM::Config::WithAngleConstants()
 {
     Config config;
     config.pitch_zero_deg = PITCH_ZERO_DEG;
+    config.pitch_target_deg = PITCH_TARGET_DEG;
     for (int i = 0; i < 2; ++i)
     {
         config.angle_start_rad[i] = ANGLE_START_RAD[i];
@@ -65,12 +66,9 @@ Class_Up_Stair_Behind_Motor_FSM::Config::WithAngleConstants()
         config.motor_direction[i] = MOTOR_DIRECTION[i];
         config.motor_torque_gain[i] = MOTOR_TORQUE_GAIN[i];
         config.retract_target_rad[i] = RETRACT_TARGET_RAD[i];
-        config.basic_target_rad[i] = BASIC_TARGET_RAD[i];
     }
     config.retract_speed_rad_s = RETRACT_SPEED_RAD_S;
     config.retract_position_tolerance_rad = RETRACT_POSITION_TOLERANCE_RAD;
-    config.basic_speed_rad_s = BASIC_SPEED_RAD_S;
-    config.basic_position_tolerance_rad = BASIC_POSITION_TOLERANCE_RAD;
     return config;
 }
 
@@ -81,17 +79,11 @@ Class_Up_Stair_Behind_Motor_FSM::Config::WithAngleConstants()
  */
 Class_Up_Stair_Behind_Motor_FSM::Class_Up_Stair_Behind_Motor_FSM()
     : retract_config_valid_(false),
-      basic_config_valid_(false),
       position_feedback_rad_{0.0f, 0.0f},
       retract_target_angle_rad_{0.0f, 0.0f},
       retract_planner_{Alg::Utility::SlopePlanning(0.0f, 0.0f),
                       Alg::Utility::SlopePlanning(0.0f, 0.0f)},
       retract_last_tick_(0U),
-      basic_target_angle_rad_{0.0f, 0.0f},
-      basic_planner_{Alg::Utility::SlopePlanning(0.0f, 0.0f),
-                    Alg::Utility::SlopePlanning(0.0f, 0.0f)},
-      basic_last_tick_(0U),
-      last_action_sequence_(0U),
       pending_resume_(false),
       config_(),
       config_valid_(false),
@@ -110,7 +102,6 @@ Class_Up_Stair_Behind_Motor_FSM::Class_Up_Stair_Behind_Motor_FSM()
                     UP_STAIR_BEHIND_MOTOR_DISABLED);
     config_valid_ = Validate_Config();
     retract_config_valid_ = Validate_Retract_Config();
-    basic_config_valid_ = Validate_Basic_Config();
 }
 
 /*
@@ -121,17 +112,11 @@ Class_Up_Stair_Behind_Motor_FSM::Class_Up_Stair_Behind_Motor_FSM()
 Class_Up_Stair_Behind_Motor_FSM::Class_Up_Stair_Behind_Motor_FSM(
     const Config &config)
     : retract_config_valid_(false),
-      basic_config_valid_(false),
       position_feedback_rad_{0.0f, 0.0f},
       retract_target_angle_rad_{0.0f, 0.0f},
       retract_planner_{Alg::Utility::SlopePlanning(0.0f, 0.0f),
                       Alg::Utility::SlopePlanning(0.0f, 0.0f)},
       retract_last_tick_(0U),
-      basic_target_angle_rad_{0.0f, 0.0f},
-      basic_planner_{Alg::Utility::SlopePlanning(0.0f, 0.0f),
-                    Alg::Utility::SlopePlanning(0.0f, 0.0f)},
-      basic_last_tick_(0U),
-      last_action_sequence_(0U),
       pending_resume_(false),
       config_(config),
       config_valid_(false),
@@ -150,7 +135,6 @@ Class_Up_Stair_Behind_Motor_FSM::Class_Up_Stair_Behind_Motor_FSM(
                     UP_STAIR_BEHIND_MOTOR_DISABLED);
     config_valid_ = Validate_Config();
     retract_config_valid_ = Validate_Retract_Config();
-    basic_config_valid_ = Validate_Basic_Config();
 }
 
 /*
@@ -170,10 +154,6 @@ void Class_Up_Stair_Behind_Motor_FSM::Reset()
     recovery_planner_.SetTarget(0.0f);
     recovery_planner_.TIM_Calculate_PeriodElapsedCallback(0.0f, 0.0f);
     retract_last_tick_ = 0U;
-    basic_last_tick_ = 0U;
-    basic_target_angle_rad_[0] = 0.0f;
-    basic_target_angle_rad_[1] = 0.0f;
-    last_action_sequence_ = 0U;
     pending_resume_ = false;
     motor_controllable_[0] = false;
     motor_controllable_[1] = false;
@@ -220,7 +200,7 @@ bool Class_Up_Stair_Behind_Motor_FSM::Validate_Config() const
             return false;
         }
     }
-    return std::isfinite(config_.pitch_zero_deg);
+    return std::isfinite(config_.pitch_zero_deg) && std::isfinite(config_.pitch_target_deg);
 }
 
 /*
@@ -232,18 +212,6 @@ float Class_Up_Stair_Behind_Motor_FSM::To_Unwrapped_Retract_Target(
     uint8_t index) const
 {
     float target = config_.retract_target_rad[index];
-    if (config_.angle_start_rad[index] > config_.angle_end_rad[index] &&
-        target < config_.angle_start_rad[index])
-    {
-        target += TWO_PI_RAD;
-    }
-    return target;
-}
-
-float Class_Up_Stair_Behind_Motor_FSM::To_Unwrapped_Basic_Target(
-    uint8_t index) const
-{
-    float target = config_.basic_target_rad[index];
     if (config_.angle_start_rad[index] > config_.angle_end_rad[index] &&
         target < config_.angle_start_rad[index])
     {
@@ -285,44 +253,11 @@ bool Class_Up_Stair_Behind_Motor_FSM::Validate_Retract_Config() const
     return true;
 }
 
-bool Class_Up_Stair_Behind_Motor_FSM::Validate_Basic_Config() const
-{
-    if (!config_valid_ || !std::isfinite(config_.basic_speed_rad_s) ||
-        config_.basic_speed_rad_s <= 0.0f ||
-        !std::isfinite(config_.basic_position_tolerance_rad) ||
-        config_.basic_position_tolerance_rad <= 0.0f)
-    {
-        return false;
-    }
-
-    for (uint8_t index = 0U; index < 2U; ++index)
-    {
-        const float raw_target = config_.basic_target_rad[index];
-        if (!std::isfinite(raw_target) || raw_target < -PI_RAD ||
-            raw_target > PI_RAD)
-        {
-            return false;
-        }
-
-        const float target = To_Unwrapped_Basic_Target(index);
-        const float lower = config_.angle_start_rad[index];
-        const float upper = config_.angle_start_rad[index] <
-                                    config_.angle_end_rad[index]
-                                ? config_.angle_end_rad[index]
-                                : config_.angle_end_rad[index] + TWO_PI_RAD;
-        if (target < lower || target > upper)
-        {
-            return false;
-        }
-    }
-    return true;
-}
-
 float Class_Up_Stair_Behind_Motor_FSM::To_Unwrapped_Angle(
     uint8_t index, float raw_angle_rad) const
 {
     if (config_.angle_start_rad[index] > config_.angle_end_rad[index] &&
-        raw_angle_rad < config_.angle_start_rad[index])
+        raw_angle_rad < config_.angle_start_rad[index] - ANGLE_LIMIT_TOLERANCE_RAD)
     {
         return raw_angle_rad + TWO_PI_RAD;
     }
@@ -332,7 +267,7 @@ float Class_Up_Stair_Behind_Motor_FSM::To_Unwrapped_Angle(
 /*
  * 判断指定逻辑电机的编码器角度是否可用于控制。
  * 除了检查编号、配置和有限值外，还要求原始角度位于 [-π, +π]，并落在当前
- * 电机配置的普通安全区间或跨 ±π 安全区间内，起止边界均包含在内。
+ * 电机配置的普通安全区间或跨 ±π 安全区间内，包含端点外侧 0.5° 标定容差。
  */
 bool Class_Up_Stair_Behind_Motor_FSM::Is_Angle_Valid(
     uint8_t id, float raw_angle_rad) const
@@ -347,12 +282,12 @@ bool Class_Up_Stair_Behind_Motor_FSM::Is_Angle_Valid(
 
     if (config_.angle_start_rad[index] < config_.angle_end_rad[index])
     {
-        return raw_angle_rad >= config_.angle_start_rad[index] &&
-               raw_angle_rad <= config_.angle_end_rad[index];
+        return raw_angle_rad >= config_.angle_start_rad[index] - ANGLE_LIMIT_TOLERANCE_RAD &&
+               raw_angle_rad <= config_.angle_end_rad[index] + ANGLE_LIMIT_TOLERANCE_RAD;
     }
 
-    return raw_angle_rad >= config_.angle_start_rad[index] ||
-           raw_angle_rad <= config_.angle_end_rad[index];
+    return raw_angle_rad >= config_.angle_start_rad[index] - ANGLE_LIMIT_TOLERANCE_RAD ||
+           raw_angle_rad <= config_.angle_end_rad[index] + ANGLE_LIMIT_TOLERANCE_RAD;
 }
 
 /*
@@ -371,7 +306,6 @@ void Class_Up_Stair_Behind_Motor_FSM::Disable()
     recovery_planner_.SetTarget(0.0f);
     recovery_planner_.TIM_Calculate_PeriodElapsedCallback(0.0f, 0.0f);
     retract_last_tick_ = 0U;
-    basic_last_tick_ = 0U;
     pending_resume_ = false;
     motor_controllable_[0] = false;
     motor_controllable_[1] = false;
@@ -401,7 +335,7 @@ void Class_Up_Stair_Behind_Motor_FSM::Start_Recovery(uint32_t now_tick)
 /*
  * 更新恢复斜坡输出比例。
  * 使用当前 tick 与上次 tick 的差值计算本周期增量，而不是假设 Update() 固定
- * 周期调用。输出比例在 300 ms 内由 0 增加到 1，达到目标后切换到
+ * 周期调用。输出比例在 2000 ms 内由 0 增加到 1，达到目标后切换到
  * ATTITUDE_HOLD。
  */
 void Class_Up_Stair_Behind_Motor_FSM::Update_Recovery_Scale(uint32_t now_tick)
@@ -410,7 +344,7 @@ void Class_Up_Stair_Behind_Motor_FSM::Update_Recovery_Scale(uint32_t now_tick)
     const uint32_t delta_tick = now_tick - recovery_last_tick_;
     recovery_last_tick_ = now_tick;
 
-    // 根据真实经过时间设置本周期增量，SlopePlanning 输出约 300 ms 内从 0 到 1。
+    // 根据真实经过时间设置本周期增量，SlopePlanning 输出约 2000 ms 内从 0 到 1。
     float step = static_cast<float>(delta_tick) /
                  static_cast<float>(RECOVERY_TIME_MS);
     if (step > 1.0f)
@@ -424,7 +358,10 @@ void Class_Up_Stair_Behind_Motor_FSM::Update_Recovery_Scale(uint32_t now_tick)
 
     if (elapsed >= RECOVERY_TIME_MS || output_scale_ >= 1.0f)
     {
-        Set_Status(UP_STAIR_BEHIND_MOTOR_ATTITUDE_HOLD);
+        if (Get_State() == UP_STAIR_BEHIND_MOTOR_RECOVERING)
+        {
+            Set_Status(UP_STAIR_BEHIND_MOTOR_ATTITUDE_HOLD);
+        }
         output_scale_ = 1.0f;
     }
 }
@@ -447,8 +384,12 @@ void Class_Up_Stair_Behind_Motor_FSM::Update_Recovery_Scale(uint32_t now_tick)
  */
 void Class_Up_Stair_Behind_Motor_FSM::Start_Retracting(uint32_t now_tick)
 {
+    // 从禁用/断线恢复时重新软启动；调平恢复中切入收腿则沿用当前比例。
+    if (Get_State() == UP_STAIR_BEHIND_MOTOR_DISABLED)
+    {
+        Start_Recovery(now_tick);
+    }
     Set_Status(UP_STAIR_BEHIND_MOTOR_RETRACTING);
-    output_scale_ = 1.0f;
     retract_last_tick_ = now_tick;
     pending_resume_ = false;
     for (uint8_t index = 0U; index < 2U; ++index)
@@ -505,51 +446,6 @@ bool Class_Up_Stair_Behind_Motor_FSM::Both_Retract_Targets_Reached() const
     return true;
 }
 
-void Class_Up_Stair_Behind_Motor_FSM::Start_Basic_Angle_Control(
-    uint32_t now_tick)
-{
-    Set_Status(UP_STAIR_BEHIND_MOTOR_BASIC_ANGLE_CONTROL);
-    output_scale_ = 1.0f;
-    basic_last_tick_ = now_tick;
-    pending_resume_ = false;
-    for (uint8_t index = 0U; index < 2U; ++index)
-    {
-        const float target = To_Unwrapped_Basic_Target(index);
-        basic_planner_[index].SetNowReal(position_feedback_rad_[index]);
-        basic_planner_[index].SetIncreaseValue(0.0f);
-        basic_planner_[index].SetDecreaseValue(0.0f);
-        basic_planner_[index].TIM_Calculate_PeriodElapsedCallback(
-            position_feedback_rad_[index], position_feedback_rad_[index]);
-        basic_planner_[index].SetTarget(target);
-        basic_planner_[index].TIM_Calculate_PeriodElapsedCallback(
-            target, position_feedback_rad_[index]);
-        basic_target_angle_rad_[index] = basic_planner_[index].GetOut();
-    }
-}
-
-void Class_Up_Stair_Behind_Motor_FSM::Update_Basic_Targets(
-    uint32_t now_tick)
-{
-    const uint32_t delta_tick = now_tick - basic_last_tick_;
-    basic_last_tick_ = now_tick;
-    float step = config_.basic_speed_rad_s *
-                 static_cast<float>(delta_tick) / 1000.0f;
-    if (!std::isfinite(step) || step < 0.0f)
-    {
-        step = 0.0f;
-    }
-
-    for (uint8_t index = 0U; index < 2U; ++index)
-    {
-        const float target = To_Unwrapped_Basic_Target(index);
-        basic_planner_[index].SetIncreaseValue(step);
-        basic_planner_[index].SetDecreaseValue(step);
-        basic_planner_[index].TIM_Calculate_PeriodElapsedCallback(
-            target, position_feedback_rad_[index]);
-        basic_target_angle_rad_[index] = basic_planner_[index].GetOut();
-    }
-}
-
 void Class_Up_Stair_Behind_Motor_FSM::Update(
     bool control_enabled,
     bool imu_valid,
@@ -560,9 +456,12 @@ void Class_Up_Stair_Behind_Motor_FSM::Update(
     float left_angle_rad,
     float right_angle_rad,
     uint32_t now_tick,
-    bool retract_command_enabled,
-    uint32_t retract_action_sequence)
+    bool retract_requested,
+    float left_velocity_rad_s,
+    float right_velocity_rad_s)
 {
+    motor_velocity_rad_s_[0] = left_velocity_rad_s;
+    motor_velocity_rad_s_[1] = right_velocity_rad_s;
     const bool retract_state =
         Get_State() == UP_STAIR_BEHIND_MOTOR_RETRACTING ||
         Get_State() == UP_STAIR_BEHIND_MOTOR_RETRACTED_HOLD;
@@ -576,8 +475,10 @@ void Class_Up_Stair_Behind_Motor_FSM::Update(
     motor_angle_rad_[0] = left_angle_rad;
     motor_angle_rad_[1] = right_angle_rad;
     motor_controllable_[0] = config_valid_ && left_feedback_valid &&
+                              std::isfinite(left_velocity_rad_s) &&
                               Is_Angle_Valid(1U, left_angle_rad);
     motor_controllable_[1] = config_valid_ && right_feedback_valid &&
+                              std::isfinite(right_velocity_rad_s) &&
                               Is_Angle_Valid(2U, right_angle_rad);
     if (motor_controllable_[0])
     {
@@ -594,7 +495,8 @@ void Class_Up_Stair_Behind_Motor_FSM::Update(
     feedback_valid_previous_[0] = motor_controllable_[0];
     feedback_valid_previous_[1] = motor_controllable_[1];
 
-    if (!control_enabled || !config_valid_)
+    // IMU 无效优先于调平、收腿和位置保持，两台后腿统一禁用。
+    if (!control_enabled || !config_valid_ || !imu_ready)
     {
         Disable();
         return;
@@ -602,9 +504,7 @@ void Class_Up_Stair_Behind_Motor_FSM::Update(
 
     const bool both_feedback_valid = motor_controllable_[0] &&
                                      motor_controllable_[1];
-    const bool basic_state =
-        Get_State() == UP_STAIR_BEHIND_MOTOR_BASIC_ANGLE_CONTROL;
-    if ((retract_state || basic_state) && !both_feedback_valid)
+    if (retract_state && !both_feedback_valid)
     {
         Disable();
         return;
@@ -615,104 +515,45 @@ void Class_Up_Stair_Behind_Motor_FSM::Update(
         feedback_degraded_ = true;
     }
 
-    const bool new_retract_action =
-        retract_action_sequence != 0U &&
-        retract_action_sequence != last_action_sequence_;
-
-    if (retract_state)
+    // 收腿是持续目标，不再依赖独立 V 事件；恢复中也可立即切入。
+    if (retract_requested)
     {
-        if (new_retract_action)
+        if (!retract_config_valid_ || !both_feedback_valid)
         {
-            last_action_sequence_ = retract_action_sequence;
-            if (imu_ready)
-            {
-                Start_Recovery(now_tick);
-            }
-            else if (basic_config_valid_ && both_feedback_valid)
-            {
-                Start_Basic_Angle_Control(now_tick);
-            }
-            else
-            {
-                Disable();
-            }
+            Disable();
             return;
         }
-
-        if (Get_State() == UP_STAIR_BEHIND_MOTOR_RETRACTING)
+        if (feedback_recovered && !retract_state)
+        {
+            Start_Recovery(now_tick);
+        }
+        if (!retract_state)
+        {
+            Start_Retracting(now_tick);
+        }
+        else if (Get_State() == UP_STAIR_BEHIND_MOTOR_RETRACTING)
         {
             Update_Retract_Targets(now_tick);
             if (Both_Retract_Targets_Reached())
             {
-                retract_target_angle_rad_[0] =
-                    To_Unwrapped_Retract_Target(0U);
-                retract_target_angle_rad_[1] =
-                    To_Unwrapped_Retract_Target(1U);
+                retract_target_angle_rad_[0] = To_Unwrapped_Retract_Target(0U);
+                retract_target_angle_rad_[1] = To_Unwrapped_Retract_Target(1U);
                 Set_Status(UP_STAIR_BEHIND_MOTOR_RETRACTED_HOLD);
             }
         }
-        return;
-    }
-
-    if (basic_state)
-    {
-        if (new_retract_action)
+        if (output_scale_ < 1.0f)
         {
-            last_action_sequence_ = retract_action_sequence;
-        }
-        if (imu_ready)
-        {
-            Start_Recovery(now_tick);
-        }
-        else
-        {
-            Update_Basic_Targets(now_tick);
+            Update_Recovery_Scale(now_tick);
         }
         return;
     }
 
-    if (!imu_ready)
+    // B 反向或 V 重启时，退出收腿并重新软启动姿态力矩。
+    if (retract_state ||
+        Get_State() == UP_STAIR_BEHIND_MOTOR_DISABLED)
     {
-        if (basic_config_valid_ && both_feedback_valid)
-        {
-            if (new_retract_action)
-            {
-                last_action_sequence_ = retract_action_sequence;
-            }
-            Start_Basic_Angle_Control(now_tick);
-        }
-        else
-        {
-            Disable();
-        }
-        return;
-    }
-
-    if (Get_State() == UP_STAIR_BEHIND_MOTOR_DISABLED)
-    {
-        if (new_retract_action)
-        {
-            last_action_sequence_ = retract_action_sequence;
-        }
         Start_Recovery(now_tick);
         return;
-    }
-
-    if (Get_State() == UP_STAIR_BEHIND_MOTOR_ATTITUDE_HOLD &&
-        new_retract_action)
-    {
-        last_action_sequence_ = retract_action_sequence;
-        if (retract_command_enabled && retract_config_valid_ &&
-            both_feedback_valid)
-        {
-            Start_Retracting(now_tick);
-        }
-        return;
-    }
-
-    if (new_retract_action)
-    {
-        last_action_sequence_ = retract_action_sequence;
     }
 
     if (feedback_recovered)
@@ -745,16 +586,26 @@ float Class_Up_Stair_Behind_Motor_FSM::Get_Output_Scale() const
     return output_scale_;
 }
 
-/* 后部姿态控制的目标 pitch；当前设计目标为水平姿态 0°。 */
+/* IMU 工作偏角与传感器水平零偏分开标定。 */
 float Class_Up_Stair_Behind_Motor_FSM::Get_Target_Pitch_Deg() const
 {
-    return 0.0f;
+    return config_.pitch_target_deg;
 }
 
 /* 返回去除 IMU pitch 零偏后的角度反馈，单位为度。 */
 float Class_Up_Stair_Behind_Motor_FSM::Get_Feedback_Pitch_Deg() const
 {
     return feedback_pitch_deg_;
+}
+
+float Class_Up_Stair_Behind_Motor_FSM::Get_Target_Pitch_Rad() const
+{
+    return Get_Target_Pitch_Deg() * (PI_RAD / 180.0f);
+}
+
+float Class_Up_Stair_Behind_Motor_FSM::Get_Feedback_Pitch_Rad() const
+{
+    return Get_Feedback_Pitch_Deg() * (PI_RAD / 180.0f);
 }
 
 /* 返回最近一次保存的 pitch 角速度反馈，单位为度/秒。 */
@@ -777,8 +628,7 @@ bool Class_Up_Stair_Behind_Motor_FSM::Uses_Retract_Position_Control() const
 
 bool Class_Up_Stair_Behind_Motor_FSM::Uses_Position_Control() const
 {
-    return Uses_Retract_Position_Control() ||
-           Get_State() == UP_STAIR_BEHIND_MOTOR_BASIC_ANGLE_CONTROL;
+    return Uses_Retract_Position_Control();
 }
 
 float Class_Up_Stair_Behind_Motor_FSM::Get_Retract_Target_Angle(
@@ -796,9 +646,7 @@ float Class_Up_Stair_Behind_Motor_FSM::Get_Position_Target_Angle(
     {
         return 0.0f;
     }
-    return Get_State() == UP_STAIR_BEHIND_MOTOR_BASIC_ANGLE_CONTROL
-               ? basic_target_angle_rad_[index]
-               : retract_target_angle_rad_[index];
+    return retract_target_angle_rad_[index];
 }
 
 float Class_Up_Stair_Behind_Motor_FSM::Get_Position_Feedback(uint8_t id) const
@@ -830,17 +678,7 @@ bool Class_Up_Stair_Behind_Motor_FSM::Is_Motor_Controllable(uint8_t id) const
            motor_controllable_[index];
 }
 
-/*
- * 对任务层生成的原始力矩执行最终安全限制。
- *
- * raw_torque_nm 已经包含 pitch 力矩和方向修正。本函数继续检查电机
- * 编号、反馈状态、状态机状态和有限值，然后：
- * 1. 在机械下限附近禁止继续向负方向施力；
- * 2. 在机械上限附近禁止继续向正方向施力；
- * 3. 乘以恢复斜坡比例 output_scale_ 和该侧最终力矩校准增益。
- *
- * 远离机械边界时，允许“逃离限位”的反方向力矩通过。
- */
+// 先应用软启动/增益，再拦截端点向外的力矩；不减速、不生成回退力矩。
 float Class_Up_Stair_Behind_Motor_FSM::Limit_Torque(
     uint8_t id, float raw_torque_nm) const
 {
@@ -849,16 +687,18 @@ float Class_Up_Stair_Behind_Motor_FSM::Limit_Torque(
         (Get_State() != UP_STAIR_BEHIND_MOTOR_RECOVERING &&
          Get_State() != UP_STAIR_BEHIND_MOTOR_ATTITUDE_HOLD &&
          Get_State() != UP_STAIR_BEHIND_MOTOR_RETRACTING &&
-         Get_State() != UP_STAIR_BEHIND_MOTOR_RETRACTED_HOLD &&
-         Get_State() != UP_STAIR_BEHIND_MOTOR_BASIC_ANGLE_CONTROL) ||
+         Get_State() != UP_STAIR_BEHIND_MOTOR_RETRACTED_HOLD) ||
         !std::isfinite(raw_torque_nm))
     {
         return 0.0f;
     }
 
-    // 调试期 -π～+π 覆盖完整编码器圆周，不把 ±π 接缝当作机械限位。
-    if (config_.angle_start_rad[index] != -PI_RAD ||
-        config_.angle_end_rad[index] != PI_RAD)
+    const float torque = raw_torque_nm * output_scale_ * config_.motor_torque_gain[index];
+    if (!std::isfinite(torque))
+    {
+        return 0.0f;
+    }
+    if (Has_Mechanical_Limit(index))
     {
         const float angle = To_Unwrapped_Angle(index, motor_angle_rad_[index]);
         const float lower = config_.angle_start_rad[index];
@@ -866,16 +706,40 @@ float Class_Up_Stair_Behind_Motor_FSM::Limit_Torque(
                                     config_.angle_end_rad[index]
                                 ? config_.angle_end_rad[index]
                                 : config_.angle_end_rad[index] + TWO_PI_RAD;
-        const bool at_lower_margin = angle <= lower + LIMIT_MARGIN_RAD;
-        const bool at_upper_margin = angle >= upper - LIMIT_MARGIN_RAD;
-        if ((at_lower_margin && raw_torque_nm < 0.0f) ||
-            (at_upper_margin && raw_torque_nm > 0.0f))
+        const bool at_lower_margin = angle <= lower + ANGLE_LIMIT_TOLERANCE_RAD;
+        const bool at_upper_margin = angle >= upper - ANGLE_LIMIT_TOLERANCE_RAD;
+        if ((at_lower_margin && torque < 0.0f) ||
+            (at_upper_margin && torque > 0.0f))
         {
             return 0.0f;
         }
     }
-    // 确认机械方向安全后，再对左、右终端力矩分别做校准。
-    return raw_torque_nm * output_scale_ * config_.motor_torque_gain[index];
+    return torque;
+}
+
+float Class_Up_Stair_Behind_Motor_FSM::Limit_Velocity(
+    uint8_t id, float target_velocity_rad_s, float kd) const
+{
+    const uint8_t index = To_Index(id);
+    if (index > 1U || !Is_Motor_Controllable(id) ||
+        !std::isfinite(target_velocity_rad_s) ||
+        !std::isfinite(kd) || kd <= 0.0f || kd > 5.0f)
+    {
+        return 0.0f;
+    }
+    const float target = fmaxf(-MIT_SPEED_LIMIT_RAD_S,
+                              fminf(MIT_SPEED_LIMIT_RAD_S, target_velocity_rad_s));
+    const float velocity = motor_velocity_rad_s_[index];
+    const float torque = StairTorqueSafety::ClampJ6248Torque(
+        Limit_Torque(id, kd * (target - velocity)));
+    const float limited_target = velocity + torque / kd;
+    return fmaxf(-MIT_SPEED_LIMIT_RAD_S, fminf(MIT_SPEED_LIMIT_RAD_S, limited_target));
+}
+
+bool Class_Up_Stair_Behind_Motor_FSM::Has_Mechanical_Limit(uint8_t index) const
+{
+    return config_.angle_start_rad[index] != -PI_RAD ||
+           config_.angle_end_rad[index] != PI_RAD;
 }
 
 /* 返回构造时完成的机械配置安全校验结果。 */

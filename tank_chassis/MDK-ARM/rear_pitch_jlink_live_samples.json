@@ -1,0 +1,629 @@
+{
+  "flash_bytes_matched": 172120,
+  "samples": [
+    {
+      "utc": "2026-10-18T12:58:08.401676+00:00",
+      "tick": 208541,
+      "halted": 0,
+      "mode": 1,
+      "front_target": 0,
+      "rear_retract": 0,
+      "fsm_state": 2,
+      "config_valid": true,
+      "controllable": [
+        1,
+        1
+      ],
+      "config_pitch_zero_deg": 1.2999999523162842,
+      "config_pitch_target_deg": -8.300000190734863,
+      "calibrated_pitch_deg": -0.47709375619888306,
+      "pitch_rate_dps": 1.0325303945180053e-09,
+      "scale": 1.0,
+      "fsm_tick": 208529,
+      "recovery_start": 206121,
+      "limits": [
+        {
+          "state": 0,
+          "outward_direction": 0,
+          "target_rad": 0.0,
+          "blend": 1.0,
+          "settling": false
+        },
+        {
+          "state": 1,
+          "outward_direction": -1,
+          "target_rad": 0.2209586799144745,
+          "blend": 0.0,
+          "settling": false
+        }
+      ],
+      "pitch_pid": {
+        "kp": 2.5,
+        "output": -0.3413390517234802,
+        "max": 0.5235987901687622,
+        "target": -0.1448623239994049,
+        "feedback": -0.00832671020179987
+      },
+      "velocity_globals": [
+        -0.3413471579551697,
+        0.5
+      ],
+      "imu": {
+        "pitch_deg": 0.8240000605583191,
+        "rate_dps": 0.0,
+        "tick": 208535,
+        "valid": true
+      },
+      "motors": [
+        {
+          "angle_rad": 1.6447868347167969,
+          "speed_rad_s": -0.0048847198486328125,
+          "torque_Nm": -1.3028106689453125,
+          "id": 7,
+          "status": 1,
+          "mos_temp": 30,
+          "rotor_temp": 26
+        },
+        {
+          "angle_rad": 0.1133723258972168,
+          "speed_rad_s": -0.0048847198486328125,
+          "torque_Nm": 1.871307373046875,
+          "id": 8,
+          "status": 1,
+          "mos_temp": 28,
+          "rotor_temp": 26
+        }
+      ],
+      "fdcan3_handle": [
+        2,
+        0
+      ]
+    },
+    {
+      "utc": "2026-10-18T12:58:08.722573+00:00",
+      "tick": 208863,
+      "halted": 0,
+      "mode": 1,
+      "front_target": 0,
+      "rear_retract": 0,
+      "fsm_state": 2,
+      "config_valid": true,
+      "controllable": [
+        1,
+        1
+      ],
+      "config_pitch_zero_deg": 1.2999999523162842,
+      "config_pitch_target_deg": -8.300000190734863,
+      "calibrated_pitch_deg": -0.47101259231567383,
+      "pitch_rate_dps": 0.030052170157432556,
+      "scale": 1.0,
+      "fsm_tick": 208851,
+      "recovery_start": 206121,
+      "limits": [
+        {
+          "state": 0,
+          "outward_direction": 0,
+          "target_rad": 0.0,
+          "blend": 1.0,
+          "settling": false
+        },
+        {
+          "state": 1,
+          "outward_direction": -1,
+          "target_rad": 0.2209586799144745,
+          "blend": 0.0,
+          "settling": false
+        }
+      ],
+      "pitch_pid": {
+        "kp": 2.5,
+        "output": -0.3416040241718292,
+        "max": 0.5235987901687622,
+        "target": -0.1448623239994049,
+        "feedback": -0.00822072010487318
+      },
+      "velocity_globals": [
+        -0.3416265845298767,
+        0.5
+      ],
+      "imu": {
+        "pitch_deg": 0.8320000171661377,
+        "rate_dps": 0.0572957806289196,
+        "tick": 208860,
+        "valid": true
+      },
+      "motors": [
+        {
+          "angle_rad": 1.644690990447998,
+          "speed_rad_s": -0.0048847198486328125,
+          "torque_Nm": -1.113311767578125,
+          "id": 7,
+          "status": 1,
+          "mos_temp": 29,
+          "rotor_temp": 26
+        },
+        {
+          "angle_rad": 0.1133723258972168,
+          "speed_rad_s": -0.0048847198486328125,
+          "torque_Nm": 1.3975601196289062,
+          "id": 8,
+          "status": 1,
+          "mos_temp": 28,
+          "rotor_temp": 26
+        }
+      ],
+      "fdcan3_handle": [
+        2,
+        0
+      ]
+    },
+    {
+      "utc": "2026-10-18T12:58:09.041420+00:00",
+      "tick": 209181,
+      "halted": 0,
+      "mode": 1,
+      "front_target": 0,
+      "rear_retract": 0,
+      "fsm_state": 2,
+      "config_valid": true,
+      "controllable": [
+        1,
+        1
+      ],
+      "config_pitch_zero_deg": 1.2999999523162842,
+      "config_pitch_target_deg": -8.300000190734863,
+      "calibrated_pitch_deg": -0.4612950086593628,
+      "pitch_rate_dps": 3.9691389247309417e-05,
+      "scale": 1.0,
+      "fsm_tick": 209169,
+      "recovery_start": 206121,
+      "limits": [
+        {
+          "state": 0,
+          "outward_direction": 0,
+          "target_rad": 0.0,
+          "blend": 1.0,
+          "settling": false
+        },
+        {
+          "state": 1,
+          "outward_direction": -1,
+          "target_rad": 0.2209586799144745,
+          "blend": 0.0,
+          "settling": false
+        }
+      ],
+      "pitch_pid": {
+        "kp": 2.5,
+        "output": -0.34202802181243896,
+        "max": 0.5235987901687622,
+        "target": -0.1448623239994049,
+        "feedback": -0.008051116950809956
+      },
+      "velocity_globals": [
+        -0.34203022718429565,
+        0.5
+      ],
+      "imu": {
+        "pitch_deg": 0.8390000462532043,
+        "rate_dps": 0.0,
+        "tick": 209175,
+        "valid": true
+      },
+      "motors": [
+        {
+          "angle_rad": 1.644690990447998,
+          "speed_rad_s": -0.0048847198486328125,
+          "torque_Nm": -1.9660568237304688,
+          "id": 7,
+          "status": 1,
+          "mos_temp": 30,
+          "rotor_temp": 26
+        },
+        {
+          "angle_rad": 0.1133723258972168,
+          "speed_rad_s": -0.0048847198486328125,
+          "torque_Nm": 2.4871826171875,
+          "id": 8,
+          "status": 1,
+          "mos_temp": 28,
+          "rotor_temp": 26
+        }
+      ],
+      "fdcan3_handle": [
+        2,
+        0
+      ]
+    },
+    {
+      "utc": "2026-10-18T12:58:09.360863+00:00",
+      "tick": 209501,
+      "halted": 0,
+      "mode": 1,
+      "front_target": 0,
+      "rear_retract": 0,
+      "fsm_state": 2,
+      "config_valid": true,
+      "controllable": [
+        1,
+        1
+      ],
+      "config_pitch_zero_deg": 1.2999999523162842,
+      "config_pitch_target_deg": -8.300000190734863,
+      "calibrated_pitch_deg": -0.4625951051712036,
+      "pitch_rate_dps": -5.975402928015683e-07,
+      "scale": 1.0,
+      "fsm_tick": 209488,
+      "recovery_start": 206121,
+      "limits": [
+        {
+          "state": 0,
+          "outward_direction": 0,
+          "target_rad": 0.0,
+          "blend": 1.0,
+          "settling": false
+        },
+        {
+          "state": 1,
+          "outward_direction": -1,
+          "target_rad": 0.2209586799144745,
+          "blend": 0.0,
+          "settling": false
+        }
+      ],
+      "pitch_pid": {
+        "kp": 2.5,
+        "output": -0.34196579456329346,
+        "max": 0.5235987901687622,
+        "target": -0.1448623239994049,
+        "feedback": -0.008076013997197151
+      },
+      "velocity_globals": [
+        -0.3419601321220398,
+        0.5
+      ],
+      "imu": {
+        "pitch_deg": 0.8360000252723694,
+        "rate_dps": 0.0,
+        "tick": 209495,
+        "valid": true
+      },
+      "motors": [
+        {
+          "angle_rad": 1.644690990447998,
+          "speed_rad_s": -0.0048847198486328125,
+          "torque_Nm": -1.3028106689453125,
+          "id": 7,
+          "status": 1,
+          "mos_temp": 29,
+          "rotor_temp": 26
+        },
+        {
+          "angle_rad": 0.11327648162841797,
+          "speed_rad_s": -0.0048847198486328125,
+          "torque_Nm": 2.5819320678710938,
+          "id": 8,
+          "status": 1,
+          "mos_temp": 28,
+          "rotor_temp": 26
+        }
+      ],
+      "fdcan3_handle": [
+        2,
+        0
+      ]
+    },
+    {
+      "utc": "2026-10-18T12:58:09.679003+00:00",
+      "tick": 209820,
+      "halted": 0,
+      "mode": 1,
+      "front_target": 0,
+      "rear_retract": 0,
+      "fsm_state": 2,
+      "config_valid": true,
+      "controllable": [
+        1,
+        1
+      ],
+      "config_pitch_zero_deg": 1.2999999523162842,
+      "config_pitch_target_deg": -8.300000190734863,
+      "calibrated_pitch_deg": -0.4679892659187317,
+      "pitch_rate_dps": -4.882662096861168e-07,
+      "scale": 1.0,
+      "fsm_tick": 209807,
+      "recovery_start": 206121,
+      "limits": [
+        {
+          "state": 0,
+          "outward_direction": 0,
+          "target_rad": 0.0,
+          "blend": 1.0,
+          "settling": false
+        },
+        {
+          "state": 1,
+          "outward_direction": -1,
+          "target_rad": 0.2209586799144745,
+          "blend": 0.0,
+          "settling": false
+        }
+      ],
+      "pitch_pid": {
+        "kp": 2.5,
+        "output": -0.3417358994483948,
+        "max": 0.5235987901687622,
+        "target": -0.1448623239994049,
+        "feedback": -0.008167970925569534
+      },
+      "velocity_globals": [
+        -0.3417358100414276,
+        0.5
+      ],
+      "imu": {
+        "pitch_deg": 0.8320000171661377,
+        "rate_dps": 0.0,
+        "tick": 209815,
+        "valid": true
+      },
+      "motors": [
+        {
+          "angle_rad": 1.644690990447998,
+          "speed_rad_s": -0.0048847198486328125,
+          "torque_Nm": -1.5870590209960938,
+          "id": 7,
+          "status": 1,
+          "mos_temp": 29,
+          "rotor_temp": 26
+        },
+        {
+          "angle_rad": 0.11327648162841797,
+          "speed_rad_s": -0.0048847198486328125,
+          "torque_Nm": 2.3450546264648438,
+          "id": 8,
+          "status": 1,
+          "mos_temp": 28,
+          "rotor_temp": 26
+        }
+      ],
+      "fdcan3_handle": [
+        2,
+        0
+      ]
+    },
+    {
+      "utc": "2026-10-18T12:58:09.998399+00:00",
+      "tick": 210138,
+      "halted": 0,
+      "mode": 1,
+      "front_target": 0,
+      "rear_retract": 0,
+      "fsm_state": 2,
+      "config_valid": true,
+      "controllable": [
+        1,
+        1
+      ],
+      "config_pitch_zero_deg": 1.2999999523162842,
+      "config_pitch_target_deg": -8.300000190734863,
+      "calibrated_pitch_deg": -0.46971583366394043,
+      "pitch_rate_dps": -4.9269424735247196e-15,
+      "scale": 1.0,
+      "fsm_tick": 210126,
+      "recovery_start": 206121,
+      "limits": [
+        {
+          "state": 0,
+          "outward_direction": 0,
+          "target_rad": 0.0,
+          "blend": 1.0,
+          "settling": false
+        },
+        {
+          "state": 1,
+          "outward_direction": -1,
+          "target_rad": 0.2209586799144745,
+          "blend": 0.0,
+          "settling": false
+        }
+      ],
+      "pitch_pid": {
+        "kp": 2.5,
+        "output": -0.34166061878204346,
+        "max": 0.5235987901687622,
+        "target": -0.1448623239994049,
+        "feedback": -0.008196963928639889
+      },
+      "velocity_globals": [
+        -0.34166598320007324,
+        0.5
+      ],
+      "imu": {
+        "pitch_deg": 0.831000030040741,
+        "rate_dps": 0.0,
+        "tick": 210135,
+        "valid": true
+      },
+      "motors": [
+        {
+          "angle_rad": 1.644690990447998,
+          "speed_rad_s": -0.0048847198486328125,
+          "torque_Nm": -1.113311767578125,
+          "id": 7,
+          "status": 1,
+          "mos_temp": 29,
+          "rotor_temp": 26
+        },
+        {
+          "angle_rad": 0.11327648162841797,
+          "speed_rad_s": -0.0048847198486328125,
+          "torque_Nm": 2.2029266357421875,
+          "id": 8,
+          "status": 1,
+          "mos_temp": 28,
+          "rotor_temp": 26
+        }
+      ],
+      "fdcan3_handle": [
+        2,
+        0
+      ]
+    },
+    {
+      "utc": "2026-10-18T12:58:10.318864+00:00",
+      "tick": 210458,
+      "halted": 0,
+      "mode": 1,
+      "front_target": 0,
+      "rear_retract": 0,
+      "fsm_state": 2,
+      "config_valid": true,
+      "controllable": [
+        1,
+        1
+      ],
+      "config_pitch_zero_deg": 1.2999999523162842,
+      "config_pitch_target_deg": -8.300000190734863,
+      "calibrated_pitch_deg": -0.4674171209335327,
+      "pitch_rate_dps": -4.971625145655537e-23,
+      "scale": 1.0,
+      "fsm_tick": 210445,
+      "recovery_start": 206121,
+      "limits": [
+        {
+          "state": 0,
+          "outward_direction": 0,
+          "target_rad": 0.0,
+          "blend": 1.0,
+          "settling": false
+        },
+        {
+          "state": 1,
+          "outward_direction": -1,
+          "target_rad": 0.2209586799144745,
+          "blend": 0.0,
+          "settling": false
+        }
+      ],
+      "pitch_pid": {
+        "kp": 2.5,
+        "output": -0.34176087379455566,
+        "max": 0.5235987901687622,
+        "target": -0.1448623239994049,
+        "feedback": -0.00815796758979559
+      },
+      "velocity_globals": [
+        -0.34176403284072876,
+        0.5
+      ],
+      "imu": {
+        "pitch_deg": 0.8330000638961792,
+        "rate_dps": 0.0,
+        "tick": 210455,
+        "valid": true
+      },
+      "motors": [
+        {
+          "angle_rad": 1.644690990447998,
+          "speed_rad_s": -0.0048847198486328125,
+          "torque_Nm": -2.2976837158203125,
+          "id": 7,
+          "status": 1,
+          "mos_temp": 29,
+          "rotor_temp": 26
+        },
+        {
+          "angle_rad": 0.11327648162841797,
+          "speed_rad_s": -0.0048847198486328125,
+          "torque_Nm": 1.3028106689453125,
+          "id": 8,
+          "status": 1,
+          "mos_temp": 28,
+          "rotor_temp": 26
+        }
+      ],
+      "fdcan3_handle": [
+        2,
+        0
+      ]
+    },
+    {
+      "utc": "2026-10-18T12:58:10.638125+00:00",
+      "tick": 210779,
+      "halted": 0,
+      "mode": 1,
+      "front_target": 0,
+      "rear_retract": 0,
+      "fsm_state": 2,
+      "config_valid": true,
+      "controllable": [
+        1,
+        1
+      ],
+      "config_pitch_zero_deg": 1.2999999523162842,
+      "config_pitch_target_deg": -8.300000190734863,
+      "calibrated_pitch_deg": -0.4608069658279419,
+      "pitch_rate_dps": -0.04609347879886627,
+      "scale": 1.0,
+      "fsm_tick": 210765,
+      "recovery_start": 206121,
+      "limits": [
+        {
+          "state": 0,
+          "outward_direction": 0,
+          "target_rad": 0.0,
+          "blend": 1.0,
+          "settling": false
+        },
+        {
+          "state": 1,
+          "outward_direction": -1,
+          "target_rad": 0.2209586799144745,
+          "blend": 0.0,
+          "settling": false
+        }
+      ],
+      "pitch_pid": {
+        "kp": 2.5,
+        "output": -0.3420493006706238,
+        "max": 0.5235987901687622,
+        "target": -0.1448623239994049,
+        "feedback": -0.008042599074542522
+      },
+      "velocity_globals": [
+        -0.34204718470573425,
+        0.5
+      ],
+      "imu": {
+        "pitch_deg": 0.8370000123977661,
+        "rate_dps": -0.2291831225156784,
+        "tick": 210775,
+        "valid": true
+      },
+      "motors": [
+        {
+          "angle_rad": 1.6448826789855957,
+          "speed_rad_s": -0.0048847198486328125,
+          "torque_Nm": -1.634429931640625,
+          "id": 7,
+          "status": 1,
+          "mos_temp": 29,
+          "rotor_temp": 26
+        },
+        {
+          "angle_rad": 0.11327648162841797,
+          "speed_rad_s": -0.0048847198486328125,
+          "torque_Nm": 1.4449310302734375,
+          "id": 8,
+          "status": 1,
+          "mos_temp": 28,
+          "rotor_temp": 26
+        }
+      ],
+      "fdcan3_handle": [
+        2,
+        0
+      ]
+    }
+  ]
+}

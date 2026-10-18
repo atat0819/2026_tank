@@ -398,8 +398,8 @@ namespace ALG::PowerControl
              */
             PowerControlStrategy(float abundanceline)
             {
-                last_valid_limit = 60.0f; // 默认功率限制 (W)
-                input_limit = 60.0f;      // 初始功率限制 (W)
+                last_valid_limit = 62.5f; // 默认功率限制 (W)
+                input_limit = 62.5f;      // 初始功率限制 (W)
                 input_energy = 0.0f;      // 初始能量反馈 (J)
                 AbundanceLine = abundanceline;
             }

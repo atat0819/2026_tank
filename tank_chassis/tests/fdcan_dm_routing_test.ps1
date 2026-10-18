@@ -12,11 +12,11 @@ if ($dmMotor -notmatch 'class J4340[\s\S]*?Parameters\(-3\.14159f,\s*3\.14159f,\
     throw 'J4340 MIT ranges must match P=-3.14159..3.14159, V=+/-10, T=+/-27.'
 }
 
-$leftPid = [regex]::Match($upStair, 'front_4340_left_pid\[2\]\s*=\s*\{(?<body>[\s\S]*?)\};')
-$rightPid = [regex]::Match($upStair, 'front_4340_right_pid\[2\]\s*=\s*\{(?<body>[\s\S]*?)\};')
-if (-not $leftPid.Success -or -not $rightPid.Success) { throw 'front 4340 PID arrays are missing.' }
-if ($leftPid.Groups['body'].Value -notmatch '\{15\.0f,\s*0\.0f,\s*0\.0f,\s*10\.0f[\s\S]*?\{3\.0f,\s*0\.0f,\s*0\.0f,\s*27\.0f') { throw 'left front PID limits must be velocity 10 and torque 27.' }
-if ($rightPid.Groups['body'].Value -notmatch '\{8\.0f,\s*0\.0f,\s*0\.0f,\s*10\.0f[\s\S]*?\{0\.8f,\s*0\.0f,\s*0\.0f,\s*27\.0f') { throw 'right front PID limits must be velocity 10 and torque 27.' }
+$leftPid = [regex]::Match($upStair, 'front_4340_left_pid\s*=\s*\{(?<body>[\s\S]*?)\};')
+$rightPid = [regex]::Match($upStair, 'front_4340_right_pid\s*=\s*\{(?<body>[\s\S]*?)\};')
+if (-not $leftPid.Success -or -not $rightPid.Success) { throw 'front 4340 angle outer PIDs are missing.' }
+if ($leftPid.Groups['body'].Value -notmatch '15\.0f,\s*0\.0f,\s*0\.0f,\s*10\.0f') { throw 'left front angle Kp and velocity limit must remain 15 and 10.' }
+if ($rightPid.Groups['body'].Value -notmatch '8\.0f,\s*0\.0f,\s*0\.0f,\s*10\.0f') { throw 'right front angle Kp and velocity limit must remain 8 and 10.' }
 
 $fdcan1Rx = [regex]::Match($canTask, 'fdcan1\.register_rx_callback\([\s\S]*?\n\s*\}\);').Value
 $fdcan2Rx = [regex]::Match($canTask, 'fdcan2\.register_rx_callback\([\s\S]*?\n\s*\}\);').Value

@@ -7,6 +7,30 @@ static constexpr uint8_t UP = 1;
 static constexpr uint8_t DOWN = 2;
 static constexpr uint8_t MIDDLE = 3;
 
+enum class StairMode : uint8_t { NORMAL, IMU };
+
+// 只协调目标命令；前后电机仍由各自独立的 FSM 执行。
+struct StairCommand {
+  StairMode mode = StairMode::NORMAL;
+  bool front_target_requested = false;
+  bool rear_retract_requested = false;
+};
+
+inline void UpdateStairCommand(StairCommand &command, bool control_enabled,
+                               bool imu_request, bool normal_request,
+                               bool b_pressed) {
+  // 安全停车和 C 优先；V 重新开始初始位/调平阶段。
+  if (!control_enabled || normal_request) {
+    command = StairCommand{};
+  } else if (imu_request) {
+    command = StairCommand{};
+    command.mode = StairMode::IMU;
+  } else if (b_pressed && command.mode == StairMode::IMU) {
+    command.front_target_requested = !command.front_target_requested;
+    command.rear_retract_requested = !command.front_target_requested;
+  }
+}
+
 struct StairModePolicy {
   bool zero_all_torque;              // 双下、失联或非法档位：四电机零力矩
   bool control_fault;                // 失联或非法档位：异常安全停车

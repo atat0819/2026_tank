@@ -806,7 +806,8 @@ tank_chassis/freertos.o: ..\Core\Src\freertos.c \
   ..\communication\..\user\core\BSP\Common\StateWatch\state_watch.hpp \
   ..\communication\..\user\core\BSP\buzzer\buzzer.hpp ..\Core\Inc\tim.h \
   ..\communication\..\user\core\HAL\FDCAN\fdcan_hal.hpp \
-  ..\RtosTask\..\user\core\Alg\PID\pid.hpp ..\RtosTask\remote_task.hpp \
+  ..\RtosTask\..\user\core\Alg\PID\pid.hpp \
+  ..\RtosTask\..\fsm\stair_mode_policy.hpp ..\RtosTask\remote_task.hpp \
   ..\Middlewares\Third_Party\FreeRTOS\Source\include\queue.h \
   ..\RtosTask\..\user\core\BSP\RemoteControl\DT7.hpp \
   ..\communication\..\user\core\BSP\Common\StateWatch\buzzer_manager.hpp \

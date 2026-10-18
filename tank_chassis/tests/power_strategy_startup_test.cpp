@@ -5,13 +5,13 @@
 int main() {
     ALG::PowerControl::PowerControlStrategy strategy(1600.0f);
 
-    // 启动就离线时使用默认 60 W；在线标志先于有效裁判帧出现时也保持默认值。
+    // 启动就离线时使用默认 50 W；在线标志先于有效裁判帧出现时也保持默认值。
     strategy.Update(false, false, 0.0f, 0.0f, 0.0f);
-    assert(strategy.GetInputLimit() == 60.0f);
+    assert(strategy.GetInputLimit() == 50.0f);
     strategy.Update(false, true, 0.0f, 0.0f, 0.0f);
-    assert(strategy.GetInputLimit() == 60.0f);
+    assert(strategy.GetInputLimit() == 50.0f);
     strategy.Update(false, false, 0.0f, 0.0f, 0.0f);
-    assert(strategy.GetInputLimit() == 60.0f);
+    assert(strategy.GetInputLimit() == 50.0f);
 
     strategy.Update(false, true, 80.0f, 0.0f, 0.0f);
     assert(strategy.GetInputLimit() == 80.0f);

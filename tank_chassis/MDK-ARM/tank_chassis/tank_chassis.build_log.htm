@@ -22,32 +22,32 @@ Dialog DLL:      TCM.DLL V1.56.4.0
  
 <h2>Project:</h2>
 C:\Users\hp\Desktop\2026_tank\tank_chassis\MDK-ARM\tank_chassis.uvprojx
-Project File Date:  10/13/2026
+Project File Date:  10/18/2026
 
 <h2>Output:</h2>
 *** Using Compiler 'V6.21', folder: 'D:\Keil5\Core\ARM\ARMCLANG\Bin'
 *** Warning: You are compiling one or more files of source type C++ and have selected 'use MicroLIB'. MicroLIB does not support C++!
   
 Build target 'tank_chassis'
-compiling uart_bus.cpp...
-compiling super_cupacitor.cpp...
-compiling gimbal_refree.cpp...
 compiling fdcan_bus.cpp...
-../RtosTask/up_stair.cpp(8): warning: In file included from...
-../RtosTask/remote_task.hpp(29): warning: anonymous non-C-compatible type given name for linkage purposes by typedef declaration; add a tag name here [-Wnon-c-typedef-for-linkage]
-   29 | typedef struct
+compiling uart_bus.cpp...
+compiling gimbal_refree.cpp...
+compiling super_cupacitor.cpp...
+../RtosTask/up_stair.cpp(7): warning: In file included from...
+../RtosTask/remote_task.hpp(32): warning: anonymous non-C-compatible type given name for linkage purposes by typedef declaration; add a tag name here [-Wnon-c-typedef-for-linkage]
+   32 | typedef struct
       |               ^
       |                RemoteData_t
-../RtosTask/remote_task.hpp(31): note: type is not C-compatible due to this default member initializer
-   31 |     float vx = 0.0f; // 前后速度，单位 m/s
+../RtosTask/remote_task.hpp(34): note: type is not C-compatible due to this default member initializer
+   34 |     float vx = 0.0f; // 前后速度，单位 m/s
       |                ^~~~
-../RtosTask/remote_task.hpp(36): note: type is given name 'RemoteData_t' for linkage purposes by this typedef declaration
-   36 | } RemoteData_t;
+../RtosTask/remote_task.hpp(39): note: type is given name 'RemoteData_t' for linkage purposes by this typedef declaration
+   39 | } RemoteData_t;
       |   ^
 1 warning generated.
 compiling up_stair.cpp...
 linking...
-Program Size: Code=166644 RO-data=3208 RW-data=460 ZI-data=249564  
+Program Size: Code=165900 RO-data=3208 RW-data=468 ZI-data=249188  
 FromELF: creating hex file...
 "tank_chassis\tank_chassis.axf" - 0 Error(s), 1 Warning(s).
 

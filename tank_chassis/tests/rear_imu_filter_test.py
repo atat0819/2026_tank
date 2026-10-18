@@ -9,7 +9,10 @@ source = (ROOT / "RtosTask/up_stair.cpp").read_text(encoding="utf-8")
 start = source.index("        const bool imu_valid = imu_snapshot.valid")
 end = source.index("        // 前左反馈从离线恢复", start)
 preprocess = source[start:end]
-declarations = "\n".join(re.findall(
+timeout_header = (ROOT / "RtosTask/remote_task.hpp").read_text(encoding="utf-8")
+timeout_declaration = re.search(
+    r"constexpr uint32_t IMU_CONTROL_TIMEOUT_MS\s*=\s*\d+U;", timeout_header).group(0)
+declarations = timeout_declaration + "\n" + "\n".join(re.findall(
     r"(?:constexpr float REAR_(?:PITCH|PITCH_RATE)_FILTER_(?:RATIO|TIME_CONSTANT_MS)\s*=\s*[^;]+;"
     r"|LPFFilter rear_6248_pitch(?:_rate)?_filter\([^;]*\);)", source))
 
@@ -21,17 +24,20 @@ HOST = r'''
 #include "fsm/up_stair_behind_motor_fsm.hpp"
 struct Snapshot { bool valid; uint32_t tick; float pitch_deg, pitch_rate_dps; };
 Class_Up_Stair_Behind_Motor_FSM up_stair_behind_motor_fsm(
-    Class_Up_Stair_Behind_Motor_FSM::Config::WithAngleConstants());
+    [] {
+        auto config = Class_Up_Stair_Behind_Motor_FSM::Config::WithAngleConstants();
+        config.pitch_zero_deg = 0; // Isolate filter behavior from sensor calibration.
+        return config;
+    }());
 bool rear_imu_filter_initialized = false;
 uint32_t rear_imu_filter_tick = 0U;
 '''
 WRAPPER = r'''
-void update(uint32_t now_tick, const Snapshot &imu_snapshot) {
-    struct { bool rear_attitude_enabled = true;
-             bool rear_retract_command_enabled = false; } policy;
+void update(uint32_t now_tick, const Snapshot &imu_snapshot, bool rear_control_enabled = true) {
+    struct { bool rear_retract_requested = false; } command;
     const bool rear_left_online = true, rear_right_online = true;
-    const float rear_left_angle = 0.0f, rear_right_angle = 0.0f;
-    const uint32_t rear_action_sequence = 0U;
+    const float rear_left_angle = 1.0f, rear_right_angle = 1.0f;
+    const float rear_left_velocity = 0.0f, rear_right_velocity = 0.0f;
 '''
 MAIN = r'''
 }
@@ -58,25 +64,39 @@ int main() {
     assert(near(pitch(), p + (15-p)*0.09f));
     assert(near(rate(), r + (12-r)*0.25f));
 
-    // Exactly 20 ms old must retain the existing basic-angle fallback.
+    // Repeated samples remain valid at 20/99 ms; expire at exactly 100 ms.
     update(140, {true, 120, 15, 12});
+    assert(up_stair_behind_motor_fsm.Uses_Attitude_Control());
+    update(219, {true, 120, 15, 12});
+    assert(up_stair_behind_motor_fsm.Uses_Attitude_Control());
+    update(220, {true, 120, 15, 12});
     assert(up_stair_behind_motor_fsm.Get_State() ==
-           UP_STAIR_BEHIND_MOTOR_BASIC_ANGLE_CONTROL);
-    update(141, {true, 141, 9, -5});
+           UP_STAIR_BEHIND_MOTOR_DISABLED);
+    assert(!up_stair_behind_motor_fsm.Uses_Position_Control());
+    assert(up_stair_behind_motor_fsm.Limit_Torque(1U, 20.0f) == 0.0f);
+    assert(up_stair_behind_motor_fsm.Limit_Torque(2U, -20.0f) == 0.0f);
+    update(221, {true, 221, 9, -5});
     assert(near(pitch(), 9) && near(rate(), -5));
     // Neither NaN channel may contaminate subsequent valid filter state.
-    update(142, {true, 142, NAN, 1});
+    update(222, {true, 222, NAN, 1});
     assert(!up_stair_behind_motor_fsm.Uses_Attitude_Control());
-    update(143, {true, 143, -3, 4});
+    update(223, {true, 223, -3, 4});
     assert(near(pitch(), -3) && near(rate(), 4));
-    update(144, {true, 144, 1, NAN});
+    update(224, {true, 224, 1, NAN});
     assert(!up_stair_behind_motor_fsm.Uses_Attitude_Control());
-    update(145, {true, 145, 2, -6});
+    update(225, {true, 225, 2, -6});
     assert(near(pitch(), 2) && near(rate(), -6));
 
+    // NORMAL disables the rear FSM and clears history even with a valid IMU.
+    update(230, {true, 230, 30, 10}, false);
+    assert(!rear_imu_filter_initialized);
+    assert(up_stair_behind_motor_fsm.Limit_Torque(1U, 20.0f) == 0.0f);
+    update(231, {true, 231, -10, -4});
+    assert(near(pitch(), -10) && near(rate(), -4));
+
     // Frame spacing does not change weights; tick rollover still accepts new frames.
-    reseed(200, 0, 0);
-    update(205, {true, 205, 10, 10});
+    reseed(300, 0, 0);
+    update(305, {true, 305, 10, 10});
     assert(near(pitch(), 0.9f) && near(rate(), 2.5f));
     reseed(0xfffffff0U, 0, 0);
     update(0xfffffffaU, {true, 0xfffffffaU, 10, 10});

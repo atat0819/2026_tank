@@ -27,10 +27,13 @@ int main() {
     GetImuControlSnapshot(s);
     assert(s.valid && s.pitch_deg==12.5f && s.pitch_rate_dps==-7.25f && s.tick==200);
     tick=219; GetImuControlSnapshot(s); assert(s.valid);
-    tick=220; GetImuControlSnapshot(s); assert(!s.valid && s.tick==200);
+    tick=220; GetImuControlSnapshot(s); assert(s.valid);
+    tick=299; GetImuControlSnapshot(s); assert(s.valid);
+    tick=300; GetImuControlSnapshot(s); assert(!s.valid && s.tick==200);
     tick=0xfffffff8U; PublishHi14ImuFromISR(data,tick,true);
     tick=5; GetImuControlSnapshot(s); assert(s.valid);
-    tick=12; GetImuControlSnapshot(s); assert(!s.valid);
+    tick=91; GetImuControlSnapshot(s); assert(s.valid);
+    tick=92; GetImuControlSnapshot(s); assert(!s.valid);
     PublishHi14ImuFromISR(data,tick,true);
     PublishHi14ImuFromISR(data,tick,false);
     GetImuControlSnapshot(s); assert(!s.valid);

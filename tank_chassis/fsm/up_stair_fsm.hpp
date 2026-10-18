@@ -19,31 +19,33 @@ class Class_Up_Stair_FSM : public Class_FSM
 public:
     // 编码器和机械限位配置：下标 0 对应电机 1，下标 1 对应电机 2。
     // 起始角大于终止角时，表示有效区间跨过 ±π 接缝。
+    // 左前：139° -> -160°，连续控制为 139° -> 200°；两端各放宽 15°。
+    // 右前：-109° -> 172°，连续控制为 251° -> 172°；安全区间为 157° -> -94°。
     static constexpr float LIMIT_START_RAD[2] = {   // 两侧电机的机械限位起始角
-        10.0f * 3.14159265359f / 180.0f,
-        -60.0f * 3.14159265359f / 180.0f};
+        124.0f * 3.14159265359f / 180.0f,
+        157.0f * 3.14159265359f / 180.0f};
     static constexpr float LIMIT_END_RAD[2] = {    // 两侧电机的机械限位终止角
-        178.0f * 3.14159265359f / 180.0f,
-        70.0f * 3.14159265359f / 180.0f};
+        -145.0f * 3.14159265359f / 180.0f,
+        -94.0f * 3.14159265359f / 180.0f};
     static constexpr float HOME_ANGLE_RAD[2] = {    // 两侧电机的机械初始角
-        34.0f * 3.14159265359f / 180.0f,
-        -20.0f * 3.14159265359f / 180.0f};
+        139.0f * 3.14159265359f / 180.0f,
+        -109.0f * 3.14159265359f / 180.0f};
     static constexpr float TARGET_ANGLE_RAD[2] = {    // 两侧电机的上台阶目标角
-        122.0f * 3.14159265359f / 180.0f,
-        60.0f * 3.14159265359f / 180.0f};
+        -160.0f * 3.14159265359f / 180.0f,
+        172.0f * 3.14159265359f / 180.0f};
 
-    // 初始化状态机、动作序号和角度配置；通常在上台阶任务启动时调用一次。
-    void Init(uint32_t action_sequence);
+    // 初始化状态机和角度配置；启动后默认保持初始位置。
+    void Init();
 
     // 输入两侧编码器反馈和当前控制权限，推进前 4340 状态机。
-    // action_sequence 每变化一次表示检测到一次经过消抖的 B 按键动作。
+    // target_requested 是协调层给出的明确目标；false=初始位，true=目标位。
     void Update(float current_left_angle,
                 float current_right_angle,
                 bool left_feedback_valid,
                 bool right_feedback_valid,
                 bool mechanism_enabled,
                 bool stair_command_enabled,
-                uint32_t action_sequence);
+                bool target_requested);
 
     // 获取指定电机当前状态对应的目标角度，单位：弧度。
     float Get_Target_Angle(uint8_t id) const;
@@ -79,7 +81,7 @@ private:
     float control_angle_[2] = {0.0f, 0.0f};   // 展开后的连续控制角度
     float target_angle_[2] = {0.0f, 0.0f};    // 状态机当前要求的目标角度
 
-    uint32_t last_action_sequence_ = 0U;      // 已处理的 B 动作序号
+    bool last_target_requested_ = false;    // 恢复时同步目标，避免重放故障前动作
     bool config_valid_ = false;               // 静态机械配置是否有效
 };
 

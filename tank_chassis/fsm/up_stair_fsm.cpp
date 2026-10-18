@@ -32,21 +32,16 @@ constexpr float POSITION_TOLERANCE_RAD = 2.0f * 3.14159265359f / 180.0f;
 /*
  * 初始化前部上台阶状态机。
  *
- * 参数 action_sequence：
- *   当前已经产生的 B 动作序号。初始化时保存该值，避免把初始化之前
- *   的旧动作误认为是一次新的 B 动作。
- *
  * 初始化后的状态为 UP_STAIR_DISABLED。后续第一次 Update() 时，只有在
  * 机构被允许控制且两侧反馈都有效的情况下，状态机才会尝试回到
  * 机械初始位置。
  */
-void Class_Up_Stair_FSM::Init(uint32_t action_sequence)
+void Class_Up_Stair_FSM::Init()
 {
     // 初始化父类中的状态数组和当前状态编号。
     Class_FSM::Init(UP_STAIR_STATUS_COUNT, UP_STAIR_DISABLED);
 
-    // 记录当前动作序号，防止重启后重复执行旧的 B 动作。
-    last_action_sequence_ = action_sequence;
+    last_target_requested_ = false;
 
     // 检查机械限位、初始角度和目标角度配置是否相互匹配。
     config_valid_ = Validate_Configuration();
@@ -199,7 +194,7 @@ void Class_Up_Stair_FSM::Refresh_Target()
                                       ? TARGET_ANGLE_RAD[i]
                                       : HOME_ANGLE_RAD[i];
 
-        // 目标角也经过机械区间展开；当前电机 2 的 -60°～70° 区间保持原值。
+        // 目标角也经过机械区间展开；右前初始位 -109°展开为 251°，目标位为 172°。
         target_angle_[i] = To_Control_Angle(i, raw_target);
     }
 }
@@ -251,7 +246,7 @@ bool Class_Up_Stair_FSM::Both_Motors_At_Target(bool left_valid,
  *   left_feedback_valid/right_feedback_valid：对应反馈链路是否有效。
  *   mechanism_enabled：上层是否允许前部位置控制。
  *   stair_command_enabled：当前是否允许执行上台阶动作；为 false 时回初始位。
- *   action_sequence：经过消抖的 B 动作序号，每变化一次表示一次新动作。
+ *   target_requested：明确目标请求，true 去目标位，false 回初始位。
  *
  * 本函数每次调用的大致顺序：
  * 1. 检查反馈链路和机械角度是否有效；
@@ -259,7 +254,7 @@ bool Class_Up_Stair_FSM::Both_Motors_At_Target(bool left_valid,
  * 3. 更新有效的角度缓存；
  * 4. 从 DISABLED 重新启用时先回 HOME；
  * 5. 没有上台阶命令时回 HOME；
- * 6. 根据新的 action_sequence 在 HOME 和 TARGET 之间切换；
+ * 6. 根据新的目标请求在 HOME 和 TARGET 之间切换；
  * 7. 检查是否到达 HOME 或 TARGET，并切换到对应 HOLD 状态。
  */
 void Class_Up_Stair_FSM::Update(float current_left_angle,
@@ -268,7 +263,7 @@ void Class_Up_Stair_FSM::Update(float current_left_angle,
                                 bool right_feedback_valid,
                                 bool mechanism_enabled,
                                 bool stair_command_enabled,
-                                uint32_t action_sequence)
+                                bool target_requested)
 {
     // 反馈必须同时满足“链路有效”和“角度位于机械安全范围”。
     const bool left_valid = left_feedback_valid &&
@@ -278,11 +273,11 @@ void Class_Up_Stair_FSM::Update(float current_left_angle,
 
     // 机构未授权、静态配置错误，或者任一侧反馈失效时，关闭整个前部控制。
     // 任务层据 Is_Enabled() 清空两侧 PID，并向两台 4340 发送零力矩。
-    // 此时同步动作序号，避免恢复后重复处理旧的 B 动作。
+    // 此时同步目标请求，避免恢复后重复处理故障前的动作。
     if (!mechanism_enabled || !config_valid_ || !left_valid || !right_valid)
     {
         Set_Status(UP_STAIR_DISABLED);
-        last_action_sequence_ = action_sequence;
+        last_target_requested_ = target_requested;
         Refresh_Target();
         return;
     }
@@ -304,7 +299,7 @@ void Class_Up_Stair_FSM::Update(float current_left_angle,
     {
         Set_Status(UP_STAIR_RETURNING_HOME);
         Refresh_Target();
-        last_action_sequence_ = action_sequence;
+        last_target_requested_ = target_requested;
 
         // 如果重新启用时已经在初始位置，可以直接进入初始位置保持。
         if (Both_Motors_At_Home(left_valid, right_valid))
@@ -330,26 +325,20 @@ void Class_Up_Stair_FSM::Update(float current_left_angle,
         {
             Set_Status(UP_STAIR_HOME_HOLD);
         }
-        last_action_sequence_ = action_sequence;
+        last_target_requested_ = target_requested;
         return;
     }
 
-    // 每次经过消抖的 B 按键都会递增动作序号，状态机据此在初始位置
-    // 和上台阶目标位置之间切换；任务只传递动作序号，不直接改状态。
-    if (action_sequence != last_action_sequence_)
+    // 协调层已决定去目标位还是回初始位；运动中改变请求立即改目标。
+    if (target_requested != last_target_requested_)
     {
-        // 先保存序号，保证同一个动作只处理一次。
-        last_action_sequence_ = action_sequence;
-
-        // 在初始位或正在回初始位时，B 动作表示开始去上台阶目标位。
-        if (Get_Now_Status_Serial() == UP_STAIR_HOME_HOLD ||
-            Get_Now_Status_Serial() == UP_STAIR_RETURNING_HOME)
+        last_target_requested_ = target_requested;
+        if (target_requested)
         {
             Set_Status(UP_STAIR_MOVING_TO_TARGET);
         }
         else
         {
-            // 在去目标位或目标保持状态时，B 动作表示返回初始位。
             Set_Status(UP_STAIR_RETURNING_HOME);
         }
 

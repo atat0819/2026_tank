@@ -1078,7 +1078,8 @@ I (..\communication\..\user\core\BSP\Motor\MotorBase.hpp)(0x6AC6CCCB)
 I (..\communication\..\user\core\BSP\Common\StateWatch\state_watch.hpp)(0x69B413FC)
 I (..\communication\..\user\core\BSP\buzzer\buzzer.hpp\.\Core\Inc\tim.h)(0x00000000)
 I (..\communication\..\user\core\HAL\FDCAN\fdcan_hal.hpp)(0x6AA8CDE4)
-I (..\RtosTask\..\user\core\Alg\PID\pid.hppf.\RtosTask\remote_task.hpp)(0x00000000)
+I (..\RtosTask\..\user\core\Alg\PID\pid.hpp)(0x69B413FC)
+I (..\RtosTask\..\fsm\stair_mode_policy.hpp)(0x6AD4A23D)
 I (..\Middlewares\Third_Party\FreeRTOS\Source\include\queue.h)(0x6AA7D663)
 I (..\RtosTask\..\user\core\BSP\RemoteControl\DT7.hpp)(0x69B413FC)
 I (..\communication\..\user\core\BSP\Common\StateWatch\buzzer_manager.hpp)(0x69B413FC)
@@ -4236,7 +4237,7 @@ I (D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__memory\allocator_destructor.h)(0x
 I (D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\stdexcept)(0x6569B010)
 I (D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__memory\uses_allocator_construction.h)(0x6569B00C)
 F (..\user\core\Alg\PID\pid.hpp)(0x69B413FC)()
-F (..\user\core\Alg\PowerControl\PowerControl.hpp)(0x6AB45DE1)()
+F (..\user\core\Alg\PowerControl\PowerControl.hpp)(0x6AD47959)()
 F (..\user\core\Alg\PowerControl\PowerControlBase.hpp)(0x6AB45DDE)()
 F (..\user\core\Alg\UtilityFunction\drv_math.h)(0x6A8196F3)()
 F (..\user\core\Alg\UtilityFunction\SlopPlanning.cpp)(0x69B413FC)(-xc++ -std=c++17 --target=arm-arm-none-eabi -mcpu=cortex-m7 -mfpu=fpv5-d16 -mfloat-abi=hard -c-fno-rtti -funsigned-char -fshort-enums -fshort-wchar -fno-exceptions-D__MICROLIB -gdwarf-4 -ffunction-sections -Wno-packed -Wno-missing-variable-declarations -Wno-missing-prototypes -Wno-missing-noreturn -Wno-sign-conversion -Wno-nonportable-include-path -Wno-reserved-id-macro -Wno-unused-macros -Wno-documentation-unknown-command -Wno-documentation -Wno-license-management -Wno-parentheses-equality -Wno-reserved-identifier -I ../Core/Inc -I ../Drivers/STM32H7xx_HAL_Driver/Inc -I ../Drivers/STM32H7xx_HAL_Driver/Inc/Legacy -I ../Drivers/CMSIS/Device/ST/STM32H7xx/Include -I ../Drivers/CMSIS/Include -I ../USB_DEVICE/App -I ../USB_DEVICE/Target -I ../Middlewares/Third_Party/FreeRTOS/Source/include -I ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2 -I ../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM4F -I ../Middlewares/ST/STM32_USB_Device_Library/Core/Inc -I ../Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Inc -I ../user/core -I ../communication -I ../fsm -I ../RtosTask-I./RTE/_tank_chassis-ID:/Keil5/Pack/ARM/CMSIS/5.9.0/CMSIS/Core/Include-D__UVISION_VERSION="539" -D_RTE_ -DSTM32H723xx -D_RTE_ -DUSE_PWR_LDO_SUPPLY -DUSE_HAL_DRIVER -DSTM32H723xx-o tank_chassis/slopplanning.o -MD)
@@ -9004,7 +9005,7 @@ I (D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__functional\pointer_to_unary_funct
 I (D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__functional\unary_negate.h)(0x64F96428)
 F (..\user\core\HAL\FDCAN\interface\fdcan_bus.cpp)(0x6AA8CDC7)(-xc++ -std=c++17 --target=arm-arm-none-eabi -mcpu=cortex-m7 -mfpu=fpv5-d16 -mfloat-abi=hard -c-fno-rtti -funsigned-char -fshort-enums -fshort-wchar -fno-exceptions-D__MICROLIB -gdwarf-4 -ffunction-sections -Wno-packed -Wno-missing-variable-declarations -Wno-missing-prototypes -Wno-missing-noreturn -Wno-sign-conversion -Wno-nonportable-include-path -Wno-reserved-id-macro -Wno-unused-macros -Wno-documentation-unknown-command -Wno-documentation -Wno-license-management -Wno-parentheses-equality -Wno-reserved-identifier -I ../Core/Inc -I ../Drivers/STM32H7xx_HAL_Driver/Inc -I ../Drivers/STM32H7xx_HAL_Driver/Inc/Legacy -I ../Drivers/CMSIS/Device/ST/STM32H7xx/Include -I ../Drivers/CMSIS/Include -I ../USB_DEVICE/App -I ../USB_DEVICE/Target -I ../Middlewares/Third_Party/FreeRTOS/Source/include -I ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2 -I ../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM4F -I ../Middlewares/ST/STM32_USB_Device_Library/Core/Inc -I ../Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Inc -I ../user/core -I ../communication -I ../fsm -I ../RtosTask-I./RTE/_tank_chassis-ID:/Keil5/Pack/ARM/CMSIS/5.9.0/CMSIS/Core/Include-D__UVISION_VERSION="539" -D_RTE_ -DSTM32H723xx -D_RTE_ -DUSE_PWR_LDO_SUPPLY -DUSE_HAL_DRIVER -DSTM32H723xx-o tank_chassis/fdcan_bus.o -MD)
 I (..\user\core\HAL\FDCAN\interface\fdcan_bus.hpp)(0x6AA8D41A)
-I (..\user\core\HAL\FDCAN\interface\fdcan_device.hppw.\Core\Inc\fdcan.h)(0x00000000)
+I (..\user\core\HAL\FDCAN\interface\fdcan_device.hppi.\Core\Inc\fdcan.h)(0x00000000)
 I (..\Core\Inc\main.hD.\Drivers\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal.h)(0x00000000)
 I (..\Core\Inc\stm32h7xx_hal_conf.h)(0x6AAA5067)
 I (..\Drivers\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal_rcc.h)(0x6AA7D752)
@@ -12972,8 +12973,8 @@ I (..\user\core\HAL\UART\interface\..\impl\uart_device_impl.hpp)(0x6A47D5E6)
 I (..\user\core\HAL\UART\interface\..\impl\..\interface\uart_device.hpp)(0x69B413FC)
 F (..\user\core\HAL\UART\interface\uart_bus.hpp)(0x6AC6BEF9)()
 F (..\user\core\HAL\UART\interface\uart_device.hpp)(0x69B413FC)()
-F (..\RtosTask\can_send_task.cpp)(0x6ACE14F7)(-xc++ -std=c++17 --target=arm-arm-none-eabi -mcpu=cortex-m7 -mfpu=fpv5-d16 -mfloat-abi=hard -c-fno-rtti -funsigned-char -fshort-enums -fshort-wchar -fno-exceptions-D__MICROLIB -gdwarf-4 -ffunction-sections -Wno-packed -Wno-missing-variable-declarations -Wno-missing-prototypes -Wno-missing-noreturn -Wno-sign-conversion -Wno-nonportable-include-path -Wno-reserved-id-macro -Wno-unused-macros -Wno-documentation-unknown-command -Wno-documentation -Wno-license-management -Wno-parentheses-equality -Wno-reserved-identifier -I ../Core/Inc -I ../Drivers/STM32H7xx_HAL_Driver/Inc -I ../Drivers/STM32H7xx_HAL_Driver/Inc/Legacy -I ../Drivers/CMSIS/Device/ST/STM32H7xx/Include -I ../Drivers/CMSIS/Include -I ../USB_DEVICE/App -I ../USB_DEVICE/Target -I ../Middlewares/Third_Party/FreeRTOS/Source/include -I ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2 -I ../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM4F -I ../Middlewares/ST/STM32_USB_Device_Library/Core/Inc -I ../Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Inc -I ../user/core -I ../communication -I ../fsm -I ../RtosTask-I./RTE/_tank_chassis-ID:/Keil5/Pack/ARM/CMSIS/5.9.0/CMSIS/Core/Include-D__UVISION_VERSION="539" -D_RTE_ -DSTM32H723xx -D_RTE_ -DUSE_PWR_LDO_SUPPLY -DUSE_HAL_DRIVER -DSTM32H723xx-o tank_chassis/can_send_task.o -MD)
-I (..\RtosTask\can_send_task.hpp)(0x6AC6BEF9)
+F (..\RtosTask\can_send_task.cpp)(0x6AD47A8F)(-xc++ -std=c++17 --target=arm-arm-none-eabi -mcpu=cortex-m7 -mfpu=fpv5-d16 -mfloat-abi=hard -c-fno-rtti -funsigned-char -fshort-enums -fshort-wchar -fno-exceptions-D__MICROLIB -gdwarf-4 -ffunction-sections -Wno-packed -Wno-missing-variable-declarations -Wno-missing-prototypes -Wno-missing-noreturn -Wno-sign-conversion -Wno-nonportable-include-path -Wno-reserved-id-macro -Wno-unused-macros -Wno-documentation-unknown-command -Wno-documentation -Wno-license-management -Wno-parentheses-equality -Wno-reserved-identifier -I ../Core/Inc -I ../Drivers/STM32H7xx_HAL_Driver/Inc -I ../Drivers/STM32H7xx_HAL_Driver/Inc/Legacy -I ../Drivers/CMSIS/Device/ST/STM32H7xx/Include -I ../Drivers/CMSIS/Include -I ../USB_DEVICE/App -I ../USB_DEVICE/Target -I ../Middlewares/Third_Party/FreeRTOS/Source/include -I ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2 -I ../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM4F -I ../Middlewares/ST/STM32_USB_Device_Library/Core/Inc -I ../Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Inc -I ../user/core -I ../communication -I ../fsm -I ../RtosTask-I./RTE/_tank_chassis-ID:/Keil5/Pack/ARM/CMSIS/5.9.0/CMSIS/Core/Include-D__UVISION_VERSION="539" -D_RTE_ -DSTM32H723xx -D_RTE_ -DUSE_PWR_LDO_SUPPLY -DUSE_HAL_DRIVER -DSTM32H723xx-o tank_chassis/can_send_task.o -MD)
+I (..\RtosTask\can_send_task.hpp)(0x6AD4ADB5)
 I (..\Middlewares\Third_Party\FreeRTOS\Source\CMSIS_RTOS_V2\cmsis_os.h)(0x6AA7D663)
 I (..\Middlewares\Third_Party\FreeRTOS\Source\include\FreeRTOS.h)(0x6AA7D663)
 I (D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\stddef.h)(0x64F9642C)
@@ -13775,26 +13776,27 @@ I (D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__functional\not_fn.h)(0x6569AFF6)
 I (D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__functional\pointer_to_binary_function.h)(0x64F96428)
 I (D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__functional\pointer_to_unary_function.h)(0x64F96428)
 I (D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__functional\unary_negate.h)(0x64F96428)
-I (..\RtosTask\..\fsm\control_input_selector.hpp)(0x6AB452D5)
-I (..\RtosTask\remote_task.hpp)(0x6ACE4056)
+I (..\RtosTask\..\fsm\control_input_selector.hpp)(0x6AD3A86B)
+I (..\RtosTask\remote_task.hpp)(0x6AD3A862)
 I (..\Middlewares\Third_Party\FreeRTOS\Source\include\queue.h)(0x6AA7D663)
 I (..\RtosTask\..\user\core\BSP\RemoteControl\DT7.hpp)(0x69B413FC)
 I (..\communication\..\user\core\BSP\Common\StateWatch\state_watch.hpp)(0x69B413FC)
 I (..\communication\..\user\core\BSP\Common\StateWatch\buzzer_manager.hpp)(0x69B413FC)
 I (..\Core\Inc\tim.h..\RtosTask\..\user\core\BSP\Hi14\HI14.hpp)(0x00000000)
-I (..\RtosTask\up_stair.hpp)(0x6AB848E4)
+I (..\RtosTask\up_stair.hpp)(0x6AD4CF18)
 I (..\RtosTask\..\user\core\BSP\Motor\DM\DmMotor.hpp)(0x6AB3B1DE)
 I (..\communication\..\user\core\BSP\Motor\MotorBase.hpp)(0x6AC6CCCB)
 I (..\communication\..\user\core\BSP\buzzer\buzzer.hpp)(0x6ABDB4CF)
 I (..\communication\..\user\core\HAL\FDCAN\fdcan_hal.hpp)(0x6AA8CDE4)
-I (..\RtosTask\..\user\core\Alg\PID\pid.hppf.\user\core\Alg\PID\pid.hpp)(0x00000000)
-I (..\Core\Inc\usart.h\.\user\core\Alg\Filter\Filter.hpp)(0x00000000)
+I (..\RtosTask\..\user\core\Alg\PID\pid.hpp)(0x69B413FC)
+I (..\RtosTask\..\fsm\stair_mode_policy.hpp)(0x6AD4A23D)
+I (..\Core\Inc\usart.hs.\user\core\Alg\Filter\Filter.hpp)(0x00000000)
 I (..\RtosTask\..\user\core\Alg\ChassisCalculation\OmniCalculation.hpp)(0x6A031DCC)
 I (..\communication\..\user\core\Alg\ChassisCalculation\CalculationBase.hpp)(0x69B413FC)
 I (..\RtosTask\..\user\core\BSP\Motor\Dji\DjiMotor.hpp)(0x6AA8D0BF)
 I (..\RtosTask\..\fsm\chassis_fsm.hpp\.\user\core\Alg\FSM\alg_fsm.hpp)(0x00000000)
 I (..\RtosTask\..\user\core\Alg\PowerControl-TestVersion\PowerControlTestVersion.hpp)(0x6A5E195F)
-I (..\RtosTask\..\user\core\Alg\PowerControl\PowerControl.hpp)(0x6AB45DE1)
+I (..\RtosTask\..\user\core\Alg\PowerControl\PowerControl.hpp)(0x6AD47959)
 I (..\communication\..\User\core\Alg\PowerControl\PowerControlBase.hpp)(0x6AB45DDE)
 I (..\RtosTask\..\user\core\HAL\UART\uart_hal.hpp)(0x69B413FC)
 I (..\RtosTask\..\user\core\HAL\UART\interface\uart_bus.hpp)(0x6AC6BEF9)
@@ -13807,10 +13809,10 @@ I (..\RtosTask\..\user\core\APP\Referee\RM_RefereeSystem.h)(0x6AA10CB0)
 I (..\RtosTask\..\user\core\APP\Referee\..\..\HAL\UART\uart_hal.hpp)(0x69B413FC)
 I (..\RtosTask\..\user\core\APP\Referee\RM_RefereeSystemCRC.h)(0x69B413FC)
 I (..\RtosTask\..\user\core\Alg\UtilityFunction\SlopePlanning.hpp)(0x6AAD2907)
-I (..\RtosTask\..\fsm\chassis_keyboard_fsm.hpp)(0x6AB0D07E)
-F (..\RtosTask\can_send_task.hpp)(0x6AC6BEF9)()
-F (..\RtosTask\remote_task.cpp)(0x6ACE4056)(-xc++ -std=c++17 --target=arm-arm-none-eabi -mcpu=cortex-m7 -mfpu=fpv5-d16 -mfloat-abi=hard -c-fno-rtti -funsigned-char -fshort-enums -fshort-wchar -fno-exceptions-D__MICROLIB -gdwarf-4 -ffunction-sections -Wno-packed -Wno-missing-variable-declarations -Wno-missing-prototypes -Wno-missing-noreturn -Wno-sign-conversion -Wno-nonportable-include-path -Wno-reserved-id-macro -Wno-unused-macros -Wno-documentation-unknown-command -Wno-documentation -Wno-license-management -Wno-parentheses-equality -Wno-reserved-identifier -I ../Core/Inc -I ../Drivers/STM32H7xx_HAL_Driver/Inc -I ../Drivers/STM32H7xx_HAL_Driver/Inc/Legacy -I ../Drivers/CMSIS/Device/ST/STM32H7xx/Include -I ../Drivers/CMSIS/Include -I ../USB_DEVICE/App -I ../USB_DEVICE/Target -I ../Middlewares/Third_Party/FreeRTOS/Source/include -I ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2 -I ../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM4F -I ../Middlewares/ST/STM32_USB_Device_Library/Core/Inc -I ../Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Inc -I ../user/core -I ../communication -I ../fsm -I ../RtosTask-I./RTE/_tank_chassis-ID:/Keil5/Pack/ARM/CMSIS/5.9.0/CMSIS/Core/Include-D__UVISION_VERSION="539" -D_RTE_ -DSTM32H723xx -D_RTE_ -DUSE_PWR_LDO_SUPPLY -DUSE_HAL_DRIVER -DSTM32H723xx-o tank_chassis/remote_task.o -MD)
-I (..\RtosTask\remote_task.hpp)(0x6ACE4056)
+I (..\RtosTask\..\fsm\chassis_keyboard_fsm.hpp)(0x6AD3958C)
+F (..\RtosTask\can_send_task.hpp)(0x6AD4ADB5)()
+F (..\RtosTask\remote_task.cpp)(0x6AD3A861)(-xc++ -std=c++17 --target=arm-arm-none-eabi -mcpu=cortex-m7 -mfpu=fpv5-d16 -mfloat-abi=hard -c-fno-rtti -funsigned-char -fshort-enums -fshort-wchar -fno-exceptions-D__MICROLIB -gdwarf-4 -ffunction-sections -Wno-packed -Wno-missing-variable-declarations -Wno-missing-prototypes -Wno-missing-noreturn -Wno-sign-conversion -Wno-nonportable-include-path -Wno-reserved-id-macro -Wno-unused-macros -Wno-documentation-unknown-command -Wno-documentation -Wno-license-management -Wno-parentheses-equality -Wno-reserved-identifier -I ../Core/Inc -I ../Drivers/STM32H7xx_HAL_Driver/Inc -I ../Drivers/STM32H7xx_HAL_Driver/Inc/Legacy -I ../Drivers/CMSIS/Device/ST/STM32H7xx/Include -I ../Drivers/CMSIS/Include -I ../USB_DEVICE/App -I ../USB_DEVICE/Target -I ../Middlewares/Third_Party/FreeRTOS/Source/include -I ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2 -I ../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM4F -I ../Middlewares/ST/STM32_USB_Device_Library/Core/Inc -I ../Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Inc -I ../user/core -I ../communication -I ../fsm -I ../RtosTask-I./RTE/_tank_chassis-ID:/Keil5/Pack/ARM/CMSIS/5.9.0/CMSIS/Core/Include-D__UVISION_VERSION="539" -D_RTE_ -DSTM32H723xx -D_RTE_ -DUSE_PWR_LDO_SUPPLY -DUSE_HAL_DRIVER -DSTM32H723xx-o tank_chassis/remote_task.o -MD)
+I (..\RtosTask\remote_task.hpp)(0x6AD3A862)
 I (..\Middlewares\Third_Party\FreeRTOS\Source\include\FreeRTOS.h)(0x6AA7D663)
 I (D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\stddef.h)(0x64F9642C)
 I (D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__config)(0x6569B00C)
@@ -14622,7 +14624,7 @@ I (..\RtosTask\..\user\core\APP\Referee\RM_RefereeSystem.h)(0x6AA10CB0)
 I (..\RtosTask\..\user\core\APP\Referee\..\..\HAL\UART\uart_hal.hpp)(0x69B413FC)
 I (..\RtosTask\..\user\core\APP\Referee\RM_RefereeSystemCRC.h)(0x69B413FC)
 I (..\RtosTask\..\communication\boards_communication_uart_485.hpp)(0x6AC6C5BF)
-F (..\RtosTask\remote_task.hpp)(0x6ACE4056)()
+F (..\RtosTask\remote_task.hpp)(0x6AD3A862)()
 F (..\RtosTask\UI_task.cpp)(0x6AA1581E)(-xc++ -std=c++17 --target=arm-arm-none-eabi -mcpu=cortex-m7 -mfpu=fpv5-d16 -mfloat-abi=hard -c-fno-rtti -funsigned-char -fshort-enums -fshort-wchar -fno-exceptions-D__MICROLIB -gdwarf-4 -ffunction-sections -Wno-packed -Wno-missing-variable-declarations -Wno-missing-prototypes -Wno-missing-noreturn -Wno-sign-conversion -Wno-nonportable-include-path -Wno-reserved-id-macro -Wno-unused-macros -Wno-documentation-unknown-command -Wno-documentation -Wno-license-management -Wno-parentheses-equality -Wno-reserved-identifier -I ../Core/Inc -I ../Drivers/STM32H7xx_HAL_Driver/Inc -I ../Drivers/STM32H7xx_HAL_Driver/Inc/Legacy -I ../Drivers/CMSIS/Device/ST/STM32H7xx/Include -I ../Drivers/CMSIS/Include -I ../USB_DEVICE/App -I ../USB_DEVICE/Target -I ../Middlewares/Third_Party/FreeRTOS/Source/include -I ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2 -I ../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM4F -I ../Middlewares/ST/STM32_USB_Device_Library/Core/Inc -I ../Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Inc -I ../user/core -I ../communication -I ../fsm -I ../RtosTask-I./RTE/_tank_chassis-ID:/Keil5/Pack/ARM/CMSIS/5.9.0/CMSIS/Core/Include-D__UVISION_VERSION="539" -D_RTE_ -DSTM32H723xx -D_RTE_ -DUSE_PWR_LDO_SUPPLY -DUSE_HAL_DRIVER -DSTM32H723xx-o tank_chassis/ui_task.o -MD)
 I (..\Middlewares\Third_Party\FreeRTOS\Source\CMSIS_RTOS_V2\cmsis_os.h)(0x6AA7D663)
 I (..\Middlewares\Third_Party\FreeRTOS\Source\include\FreeRTOS.h)(0x6AA7D663)
@@ -14640,7 +14642,7 @@ I (..\Middlewares\Third_Party\FreeRTOS\Source\include\mpu_wrappers.h)(0x6AA7D663
 I (..\Middlewares\Third_Party\FreeRTOS\Source\include\task.h)(0x6AA7D663)
 I (..\Middlewares\Third_Party\FreeRTOS\Source\include\list.h)(0x6AA7D663)
 I (..\Middlewares\Third_Party\FreeRTOS\Source\CMSIS_RTOS_V2\cmsis_os2.h)(0x6AA7D663)
-I (..\RtosTask\remote_task.hpp)(0x6ACE4056)
+I (..\RtosTask\remote_task.hpp)(0x6AD3A862)
 I (..\Middlewares\Third_Party\FreeRTOS\Source\include\queue.h)(0x6AA7D663)
 I (..\RtosTask\..\user\core\BSP\RemoteControl\DT7.hpp)(0x69B413FC)
 I (..\communication\..\user\core\BSP\Common\StateWatch\state_watch.hpp)(0x69B413FC)
@@ -15436,8 +15438,8 @@ I (D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__functional\unary_negate.h)(0x64F9
 I (..\RtosTask\..\user\core\APP\Referee\RM_RefereeSystemCRC.h)(0x69B413FC)
 I (..\RtosTask\..\user\core\APP\Referee\RMRefereeSystemUI.hpp)(0x6AA15448)
 F (..\RtosTask\UI_task.hpp)(0x6AA157AB)()
-F (..\RtosTask\up_stair.cpp)(0x6AD1A3C5)(-xc++ -std=c++17 --target=arm-arm-none-eabi -mcpu=cortex-m7 -mfpu=fpv5-d16 -mfloat-abi=hard -c-fno-rtti -funsigned-char -fshort-enums -fshort-wchar -fno-exceptions-D__MICROLIB -gdwarf-4 -ffunction-sections -Wno-packed -Wno-missing-variable-declarations -Wno-missing-prototypes -Wno-missing-noreturn -Wno-sign-conversion -Wno-nonportable-include-path -Wno-reserved-id-macro -Wno-unused-macros -Wno-documentation-unknown-command -Wno-documentation -Wno-license-management -Wno-parentheses-equality -Wno-reserved-identifier -I ../Core/Inc -I ../Drivers/STM32H7xx_HAL_Driver/Inc -I ../Drivers/STM32H7xx_HAL_Driver/Inc/Legacy -I ../Drivers/CMSIS/Device/ST/STM32H7xx/Include -I ../Drivers/CMSIS/Include -I ../USB_DEVICE/App -I ../USB_DEVICE/Target -I ../Middlewares/Third_Party/FreeRTOS/Source/include -I ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2 -I ../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM4F -I ../Middlewares/ST/STM32_USB_Device_Library/Core/Inc -I ../Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Inc -I ../user/core -I ../communication -I ../fsm -I ../RtosTask-I./RTE/_tank_chassis-ID:/Keil5/Pack/ARM/CMSIS/5.9.0/CMSIS/Core/Include-D__UVISION_VERSION="539" -D_RTE_ -DSTM32H723xx -D_RTE_ -DUSE_PWR_LDO_SUPPLY -DUSE_HAL_DRIVER -DSTM32H723xx-o tank_chassis/up_stair.o -MD)
-I (..\RtosTask\up_stair.hpp)(0x6AB848E4)
+F (..\RtosTask\up_stair.cpp)(0x6AD4D611)(-xc++ -std=c++17 --target=arm-arm-none-eabi -mcpu=cortex-m7 -mfpu=fpv5-d16 -mfloat-abi=hard -c-fno-rtti -funsigned-char -fshort-enums -fshort-wchar -fno-exceptions-D__MICROLIB -gdwarf-4 -ffunction-sections -Wno-packed -Wno-missing-variable-declarations -Wno-missing-prototypes -Wno-missing-noreturn -Wno-sign-conversion -Wno-nonportable-include-path -Wno-reserved-id-macro -Wno-unused-macros -Wno-documentation-unknown-command -Wno-documentation -Wno-license-management -Wno-parentheses-equality -Wno-reserved-identifier -I ../Core/Inc -I ../Drivers/STM32H7xx_HAL_Driver/Inc -I ../Drivers/STM32H7xx_HAL_Driver/Inc/Legacy -I ../Drivers/CMSIS/Device/ST/STM32H7xx/Include -I ../Drivers/CMSIS/Include -I ../USB_DEVICE/App -I ../USB_DEVICE/Target -I ../Middlewares/Third_Party/FreeRTOS/Source/include -I ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2 -I ../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM4F -I ../Middlewares/ST/STM32_USB_Device_Library/Core/Inc -I ../Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Inc -I ../user/core -I ../communication -I ../fsm -I ../RtosTask-I./RTE/_tank_chassis-ID:/Keil5/Pack/ARM/CMSIS/5.9.0/CMSIS/Core/Include-D__UVISION_VERSION="539" -D_RTE_ -DSTM32H723xx -D_RTE_ -DUSE_PWR_LDO_SUPPLY -DUSE_HAL_DRIVER -DSTM32H723xx-o tank_chassis/up_stair.o -MD)
+I (..\RtosTask\up_stair.hpp)(0x6AD4CF18)
 I (..\Middlewares\Third_Party\FreeRTOS\Source\CMSIS_RTOS_V2\cmsis_os.h)(0x6AA7D663)
 I (..\Middlewares\Third_Party\FreeRTOS\Source\include\FreeRTOS.h)(0x6AA7D663)
 I (D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\stddef.h)(0x64F9642C)
@@ -16245,22 +16247,21 @@ I (D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__functional\pointer_to_binary_func
 I (D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__functional\pointer_to_unary_function.h)(0x64F96428)
 I (D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__functional\unary_negate.h)(0x64F96428)
 I (..\RtosTask\..\user\core\Alg\PID\pid.hpp)(0x69B413FC)
-I (..\RtosTask\..\fsm\stair_mode_policy.hpp)(0x6AB14DCC)
-I (..\RtosTask\..\fsm\up_stair_fsm.hpp)(0x6AB3B1E1)
+I (..\RtosTask\..\fsm\stair_mode_policy.hpp)(0x6AD4A23D)
+I (..\RtosTask\..\fsm\up_stair_fsm.hpp)(0x6AD4CF14)
 I (..\RtosTask\..\fsm\..\user\core\Alg\FSM\alg_fsm.hpp)(0x69B413FC)
-I (..\RtosTask\..\fsm\up_stair_behind_motor_fsm.hpp)(0x6ACE16A6)
+I (..\RtosTask\..\fsm\up_stair_behind_motor_fsm.hpp)(0x6AD4D5AE)
 I (..\RtosTask\..\fsm\..\user\core\Alg\UtilityFunction\SlopePlanning.hpp)(0x6AAD2907)
-I (..\RtosTask\..\fsm\motor_recovery_fsm.hpp)(0x6AB265B2)
-I (..\RtosTask\..\fsm\rear_torque_safety.hpp)(0x6AAD3720)
-I (..\RtosTask\can_send_task.hppe.\user\core\HAL\FDCAN\fdcan_hal.hpp)(0x00000000)
-I (..\RtosTask\..\fsm\control_input_selector.hpp)(0x6AB452D5)
-I (..\RtosTask\remote_task.hpp)(0x6ACE4056)
+I (..\RtosTask\..\fsm\motor_recovery_fsm.hpp)(0x6AD3A868)
+I (..\RtosTask\can_send_task.hppv.\user\core\HAL\FDCAN\fdcan_hal.hpp)(0x00000000)
+I (..\RtosTask\..\fsm\control_input_selector.hpp)(0x6AD3A86B)
+I (..\RtosTask\remote_task.hpp)(0x6AD3A862)
 I (..\Middlewares\Third_Party\FreeRTOS\Source\include\queue.h)(0x6AA7D663)
 I (..\RtosTask\..\user\core\BSP\RemoteControl\DT7.hpp)(0x69B413FC)
 I (..\communication\..\user\core\BSP\Common\StateWatch\buzzer_manager.hpp)(0x69B413FC)
 I (..\RtosTask\..\user\core\BSP\Hi14\HI14.hpp)(0x6ACE1D59)
 I (..\RtosTask\..\user\core\Alg\Filter\Filter.hpp)(0x6A8297F1)
-F (..\RtosTask\up_stair.hpp)(0x6AB848E4)()
+F (..\RtosTask\up_stair.hpp)(0x6AD4CF18)()
 F (..\fsm\chassis_fsm.cpp)(0x6AA65E6F)(-xc++ -std=c++17 --target=arm-arm-none-eabi -mcpu=cortex-m7 -mfpu=fpv5-d16 -mfloat-abi=hard -c-fno-rtti -funsigned-char -fshort-enums -fshort-wchar -fno-exceptions-D__MICROLIB -gdwarf-4 -ffunction-sections -Wno-packed -Wno-missing-variable-declarations -Wno-missing-prototypes -Wno-missing-noreturn -Wno-sign-conversion -Wno-nonportable-include-path -Wno-reserved-id-macro -Wno-unused-macros -Wno-documentation-unknown-command -Wno-documentation -Wno-license-management -Wno-parentheses-equality -Wno-reserved-identifier -I ../Core/Inc -I ../Drivers/STM32H7xx_HAL_Driver/Inc -I ../Drivers/STM32H7xx_HAL_Driver/Inc/Legacy -I ../Drivers/CMSIS/Device/ST/STM32H7xx/Include -I ../Drivers/CMSIS/Include -I ../USB_DEVICE/App -I ../USB_DEVICE/Target -I ../Middlewares/Third_Party/FreeRTOS/Source/include -I ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2 -I ../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM4F -I ../Middlewares/ST/STM32_USB_Device_Library/Core/Inc -I ../Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Inc -I ../user/core -I ../communication -I ../fsm -I ../RtosTask-I./RTE/_tank_chassis-ID:/Keil5/Pack/ARM/CMSIS/5.9.0/CMSIS/Core/Include-D__UVISION_VERSION="539" -D_RTE_ -DSTM32H723xx -D_RTE_ -DUSE_PWR_LDO_SUPPLY -DUSE_HAL_DRIVER -DSTM32H723xx-o tank_chassis/chassis_fsm.o -MD)
 I (..\user\core\Alg\FSM\alg_fsm.hpp)(0x69B413FC)
 I (D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\stdint.h)(0x64F9642C)
@@ -16470,14 +16471,14 @@ I (..\Drivers\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal_pcd.h)(0x6AA7D752)
 I (..\Drivers\STM32H7xx_HAL_Driver\Inc\stm32h7xx_ll_usb.h)(0x6AA7D752)
 I (..\Drivers\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal_pcd_ex.h)(0x6AA7D752)
 F (..\fsm\chassis_fsm.hpp)(0x6AA818D2)()
-F (..\fsm\chassis_keyboard_fsm.cpp)(0x6AB0D07E)(-xc++ -std=c++17 --target=arm-arm-none-eabi -mcpu=cortex-m7 -mfpu=fpv5-d16 -mfloat-abi=hard -c-fno-rtti -funsigned-char -fshort-enums -fshort-wchar -fno-exceptions-D__MICROLIB -gdwarf-4 -ffunction-sections -Wno-packed -Wno-missing-variable-declarations -Wno-missing-prototypes -Wno-missing-noreturn -Wno-sign-conversion -Wno-nonportable-include-path -Wno-reserved-id-macro -Wno-unused-macros -Wno-documentation-unknown-command -Wno-documentation -Wno-license-management -Wno-parentheses-equality -Wno-reserved-identifier -I ../Core/Inc -I ../Drivers/STM32H7xx_HAL_Driver/Inc -I ../Drivers/STM32H7xx_HAL_Driver/Inc/Legacy -I ../Drivers/CMSIS/Device/ST/STM32H7xx/Include -I ../Drivers/CMSIS/Include -I ../USB_DEVICE/App -I ../USB_DEVICE/Target -I ../Middlewares/Third_Party/FreeRTOS/Source/include -I ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2 -I ../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM4F -I ../Middlewares/ST/STM32_USB_Device_Library/Core/Inc -I ../Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Inc -I ../user/core -I ../communication -I ../fsm -I ../RtosTask-I./RTE/_tank_chassis-ID:/Keil5/Pack/ARM/CMSIS/5.9.0/CMSIS/Core/Include-D__UVISION_VERSION="539" -D_RTE_ -DSTM32H723xx -D_RTE_ -DUSE_PWR_LDO_SUPPLY -DUSE_HAL_DRIVER -DSTM32H723xx-o tank_chassis/chassis_keyboard_fsm.o -MD)
-I (..\fsm\chassis_keyboard_fsm.hpp)(0x6AB0D07E)
+F (..\fsm\chassis_keyboard_fsm.cpp)(0x6AD3962E)(-xc++ -std=c++17 --target=arm-arm-none-eabi -mcpu=cortex-m7 -mfpu=fpv5-d16 -mfloat-abi=hard -c-fno-rtti -funsigned-char -fshort-enums -fshort-wchar -fno-exceptions-D__MICROLIB -gdwarf-4 -ffunction-sections -Wno-packed -Wno-missing-variable-declarations -Wno-missing-prototypes -Wno-missing-noreturn -Wno-sign-conversion -Wno-nonportable-include-path -Wno-reserved-id-macro -Wno-unused-macros -Wno-documentation-unknown-command -Wno-documentation -Wno-license-management -Wno-parentheses-equality -Wno-reserved-identifier -I ../Core/Inc -I ../Drivers/STM32H7xx_HAL_Driver/Inc -I ../Drivers/STM32H7xx_HAL_Driver/Inc/Legacy -I ../Drivers/CMSIS/Device/ST/STM32H7xx/Include -I ../Drivers/CMSIS/Include -I ../USB_DEVICE/App -I ../USB_DEVICE/Target -I ../Middlewares/Third_Party/FreeRTOS/Source/include -I ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2 -I ../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM4F -I ../Middlewares/ST/STM32_USB_Device_Library/Core/Inc -I ../Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Inc -I ../user/core -I ../communication -I ../fsm -I ../RtosTask-I./RTE/_tank_chassis-ID:/Keil5/Pack/ARM/CMSIS/5.9.0/CMSIS/Core/Include-D__UVISION_VERSION="539" -D_RTE_ -DSTM32H723xx -D_RTE_ -DUSE_PWR_LDO_SUPPLY -DUSE_HAL_DRIVER -DSTM32H723xx-o tank_chassis/chassis_keyboard_fsm.o -MD)
+I (..\fsm\chassis_keyboard_fsm.hpp)(0x6AD3958C)
 I (D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\stdint.h)(0x64F9642C)
 I (D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__config)(0x6569B00C)
 I (D:\Keil5\Core\ARM\ARMCLANG\include\stdint.h)(0x6569B012)
-F (..\fsm\chassis_keyboard_fsm.hpp)(0x6AB0D07E)()
-F (..\fsm\up_stair_fsm.cpp)(0x6ABD9F4E)(-xc++ -std=c++17 --target=arm-arm-none-eabi -mcpu=cortex-m7 -mfpu=fpv5-d16 -mfloat-abi=hard -c-fno-rtti -funsigned-char -fshort-enums -fshort-wchar -fno-exceptions-D__MICROLIB -gdwarf-4 -ffunction-sections -Wno-packed -Wno-missing-variable-declarations -Wno-missing-prototypes -Wno-missing-noreturn -Wno-sign-conversion -Wno-nonportable-include-path -Wno-reserved-id-macro -Wno-unused-macros -Wno-documentation-unknown-command -Wno-documentation -Wno-license-management -Wno-parentheses-equality -Wno-reserved-identifier -I ../Core/Inc -I ../Drivers/STM32H7xx_HAL_Driver/Inc -I ../Drivers/STM32H7xx_HAL_Driver/Inc/Legacy -I ../Drivers/CMSIS/Device/ST/STM32H7xx/Include -I ../Drivers/CMSIS/Include -I ../USB_DEVICE/App -I ../USB_DEVICE/Target -I ../Middlewares/Third_Party/FreeRTOS/Source/include -I ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2 -I ../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM4F -I ../Middlewares/ST/STM32_USB_Device_Library/Core/Inc -I ../Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Inc -I ../user/core -I ../communication -I ../fsm -I ../RtosTask-I./RTE/_tank_chassis-ID:/Keil5/Pack/ARM/CMSIS/5.9.0/CMSIS/Core/Include-D__UVISION_VERSION="539" -D_RTE_ -DSTM32H723xx -D_RTE_ -DUSE_PWR_LDO_SUPPLY -DUSE_HAL_DRIVER -DSTM32H723xx-o tank_chassis/up_stair_fsm.o -MD)
-I (..\fsm\up_stair_fsm.hpp)(0x6AB3B1E1)
+F (..\fsm\chassis_keyboard_fsm.hpp)(0x6AD3958C)()
+F (..\fsm\up_stair_fsm.cpp)(0x6AD4CF12)(-xc++ -std=c++17 --target=arm-arm-none-eabi -mcpu=cortex-m7 -mfpu=fpv5-d16 -mfloat-abi=hard -c-fno-rtti -funsigned-char -fshort-enums -fshort-wchar -fno-exceptions-D__MICROLIB -gdwarf-4 -ffunction-sections -Wno-packed -Wno-missing-variable-declarations -Wno-missing-prototypes -Wno-missing-noreturn -Wno-sign-conversion -Wno-nonportable-include-path -Wno-reserved-id-macro -Wno-unused-macros -Wno-documentation-unknown-command -Wno-documentation -Wno-license-management -Wno-parentheses-equality -Wno-reserved-identifier -I ../Core/Inc -I ../Drivers/STM32H7xx_HAL_Driver/Inc -I ../Drivers/STM32H7xx_HAL_Driver/Inc/Legacy -I ../Drivers/CMSIS/Device/ST/STM32H7xx/Include -I ../Drivers/CMSIS/Include -I ../USB_DEVICE/App -I ../USB_DEVICE/Target -I ../Middlewares/Third_Party/FreeRTOS/Source/include -I ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2 -I ../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM4F -I ../Middlewares/ST/STM32_USB_Device_Library/Core/Inc -I ../Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Inc -I ../user/core -I ../communication -I ../fsm -I ../RtosTask-I./RTE/_tank_chassis-ID:/Keil5/Pack/ARM/CMSIS/5.9.0/CMSIS/Core/Include-D__UVISION_VERSION="539" -D_RTE_ -DSTM32H723xx -D_RTE_ -DUSE_PWR_LDO_SUPPLY -DUSE_HAL_DRIVER -DSTM32H723xx-o tank_chassis/up_stair_fsm.o -MD)
+I (..\fsm\up_stair_fsm.hpp)(0x6AD4CF14)
 I (D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\stdint.h)(0x64F9642C)
 I (D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__config)(0x6569B00C)
 I (D:\Keil5\Core\ARM\ARMCLANG\include\stdint.h)(0x6569B012)
@@ -16643,14 +16644,15 @@ I (D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__math\traits.h)(0x6569B004)
 I (D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__math\trigonometric_functions.h)(0x6569B004)
 I (D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\stdlib.h)(0x6569B010)
 I (D:\Keil5\Core\ARM\ARMCLANG\include\stdlib.h)(0x6569B012)
-F (..\fsm\up_stair_fsm.hpp)(0x6AB3B1E1)()
-F (..\fsm\up_stair_behind_motor_fsm.cpp)(0x6AB8687A)(-xc++ -std=c++17 --target=arm-arm-none-eabi -mcpu=cortex-m7 -mfpu=fpv5-d16 -mfloat-abi=hard -c-fno-rtti -funsigned-char -fshort-enums -fshort-wchar -fno-exceptions-D__MICROLIB -gdwarf-4 -ffunction-sections -Wno-packed -Wno-missing-variable-declarations -Wno-missing-prototypes -Wno-missing-noreturn -Wno-sign-conversion -Wno-nonportable-include-path -Wno-reserved-id-macro -Wno-unused-macros -Wno-documentation-unknown-command -Wno-documentation -Wno-license-management -Wno-parentheses-equality -Wno-reserved-identifier -I ../Core/Inc -I ../Drivers/STM32H7xx_HAL_Driver/Inc -I ../Drivers/STM32H7xx_HAL_Driver/Inc/Legacy -I ../Drivers/CMSIS/Device/ST/STM32H7xx/Include -I ../Drivers/CMSIS/Include -I ../USB_DEVICE/App -I ../USB_DEVICE/Target -I ../Middlewares/Third_Party/FreeRTOS/Source/include -I ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2 -I ../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM4F -I ../Middlewares/ST/STM32_USB_Device_Library/Core/Inc -I ../Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Inc -I ../user/core -I ../communication -I ../fsm -I ../RtosTask-I./RTE/_tank_chassis-ID:/Keil5/Pack/ARM/CMSIS/5.9.0/CMSIS/Core/Include-D__UVISION_VERSION="539" -D_RTE_ -DSTM32H723xx -D_RTE_ -DUSE_PWR_LDO_SUPPLY -DUSE_HAL_DRIVER -DSTM32H723xx-o tank_chassis/up_stair_behind_motor_fsm.o -MD)
-I (..\fsm\up_stair_behind_motor_fsm.hpp)(0x6ACE16A6)
+F (..\fsm\up_stair_fsm.hpp)(0x6AD4CF14)()
+F (..\fsm\up_stair_behind_motor_fsm.cpp)(0x6AD4CF0E)(-xc++ -std=c++17 --target=arm-arm-none-eabi -mcpu=cortex-m7 -mfpu=fpv5-d16 -mfloat-abi=hard -c-fno-rtti -funsigned-char -fshort-enums -fshort-wchar -fno-exceptions-D__MICROLIB -gdwarf-4 -ffunction-sections -Wno-packed -Wno-missing-variable-declarations -Wno-missing-prototypes -Wno-missing-noreturn -Wno-sign-conversion -Wno-nonportable-include-path -Wno-reserved-id-macro -Wno-unused-macros -Wno-documentation-unknown-command -Wno-documentation -Wno-license-management -Wno-parentheses-equality -Wno-reserved-identifier -I ../Core/Inc -I ../Drivers/STM32H7xx_HAL_Driver/Inc -I ../Drivers/STM32H7xx_HAL_Driver/Inc/Legacy -I ../Drivers/CMSIS/Device/ST/STM32H7xx/Include -I ../Drivers/CMSIS/Include -I ../USB_DEVICE/App -I ../USB_DEVICE/Target -I ../Middlewares/Third_Party/FreeRTOS/Source/include -I ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2 -I ../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM4F -I ../Middlewares/ST/STM32_USB_Device_Library/Core/Inc -I ../Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Inc -I ../user/core -I ../communication -I ../fsm -I ../RtosTask-I./RTE/_tank_chassis-ID:/Keil5/Pack/ARM/CMSIS/5.9.0/CMSIS/Core/Include-D__UVISION_VERSION="539" -D_RTE_ -DSTM32H723xx -D_RTE_ -DUSE_PWR_LDO_SUPPLY -DUSE_HAL_DRIVER -DSTM32H723xx-o tank_chassis/up_stair_behind_motor_fsm.o -MD)
+I (..\fsm\up_stair_behind_motor_fsm.hpp)(0x6AD4D5AE)
 I (..\fsm\..\user\core\Alg\FSM\alg_fsm.hpp)(0x69B413FC)
 I (D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\stdint.h)(0x64F9642C)
 I (D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__config)(0x6569B00C)
 I (D:\Keil5\Core\ARM\ARMCLANG\include\stdint.h)(0x6569B012)
 I (..\fsm\..\user\core\Alg\UtilityFunction\SlopePlanning.hpp)(0x6AAD2907)
+I (..\fsm\rear_torque_safety.hpp)(0x6AD3A867)
 I (D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\math.h)(0x6569B010)
 I (D:\Keil5\Core\ARM\ARMCLANG\include\math.h)(0x6569B012)
 I (D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__math\abs.h)(0x6569B004)
@@ -16813,8 +16815,11 @@ I (D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__math\traits.h)(0x6569B004)
 I (D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__math\trigonometric_functions.h)(0x6569B004)
 I (D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\stdlib.h)(0x6569B010)
 I (D:\Keil5\Core\ARM\ARMCLANG\include\stdlib.h)(0x6569B012)
-F (..\fsm\up_stair_behind_motor_fsm.hpp)(0x6ACE16A6)()
-F (..\fsm\motor_recovery_fsm.hpp)(0x6AB265B2)()
+F (..\fsm\up_stair_behind_motor_fsm.hpp)(0x6AD4D5AE)()
+F (..\fsm\motor_recovery_fsm.hpp)(0x6AD3A868)()
+F (..\fsm\control_input_selector.hpp)(0x6AD3A86B)()
+F (..\fsm\rear_torque_safety.hpp)(0x6AD3A867)()
+F (..\fsm\stair_mode_policy.hpp)(0x6AD4A23D)()
 F (..\communication\boards_communication_uart_485.cpp)(0x6AC6BEB4)(-xc++ -std=c++17 --target=arm-arm-none-eabi -mcpu=cortex-m7 -mfpu=fpv5-d16 -mfloat-abi=hard -c-fno-rtti -funsigned-char -fshort-enums -fshort-wchar -fno-exceptions-D__MICROLIB -gdwarf-4 -ffunction-sections -Wno-packed -Wno-missing-variable-declarations -Wno-missing-prototypes -Wno-missing-noreturn -Wno-sign-conversion -Wno-nonportable-include-path -Wno-reserved-id-macro -Wno-unused-macros -Wno-documentation-unknown-command -Wno-documentation -Wno-license-management -Wno-parentheses-equality -Wno-reserved-identifier -I ../Core/Inc -I ../Drivers/STM32H7xx_HAL_Driver/Inc -I ../Drivers/STM32H7xx_HAL_Driver/Inc/Legacy -I ../Drivers/CMSIS/Device/ST/STM32H7xx/Include -I ../Drivers/CMSIS/Include -I ../USB_DEVICE/App -I ../USB_DEVICE/Target -I ../Middlewares/Third_Party/FreeRTOS/Source/include -I ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2 -I ../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM4F -I ../Middlewares/ST/STM32_USB_Device_Library/Core/Inc -I ../Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Inc -I ../user/core -I ../communication -I ../fsm -I ../RtosTask-I./RTE/_tank_chassis-ID:/Keil5/Pack/ARM/CMSIS/5.9.0/CMSIS/Core/Include-D__UVISION_VERSION="539" -D_RTE_ -DSTM32H723xx -D_RTE_ -DUSE_PWR_LDO_SUPPLY -DUSE_HAL_DRIVER -DSTM32H723xx-o tank_chassis/boards_communication_uart_485.o -MD)
 I (..\communication\boards_communication_uart_485.hpp)(0x6AC6C5BF)
 I (D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\stdint.h)(0x64F9642C)
@@ -18624,7 +18629,7 @@ F (..\communication\super_cupacitor.cpp)(0x6AA8D025)(-xc++ -std=c++17 --target=a
 I (..\communication\super_cupacitor.hpp)(0x6AA8D013)
 I (..\user\core\HAL\FDCAN\fdcan_hal.hpp)(0x6AA8CDE4)
 I (..\user\core\HAL\FDCAN\interface\fdcan_bus.hpp)(0x6AA8D41A)
-I (..\user\core\HAL\FDCAN\interface\fdcan_device.hppi.\Core\Inc\fdcan.h)(0x00000000)
+I (..\user\core\HAL\FDCAN\interface\fdcan_device.hpp¶.\Core\Inc\fdcan.h)(0x00000000)
 I (..\Core\Inc\main.hD.\Drivers\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal.h)(0x00000000)
 I (..\Core\Inc\stm32h7xx_hal_conf.h)(0x6AAA5067)
 I (..\Drivers\STM32H7xx_HAL_Driver\Inc\stm32h7xx_hal_rcc.h)(0x6AA7D752)

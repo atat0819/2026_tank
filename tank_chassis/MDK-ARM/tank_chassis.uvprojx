@@ -3059,6 +3059,21 @@
               <FileType>5</FileType>
               <FilePath>..\fsm\motor_recovery_fsm.hpp</FilePath>
             </File>
+            <File>
+              <FileName>control_input_selector.hpp</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\fsm\control_input_selector.hpp</FilePath>
+            </File>
+            <File>
+              <FileName>rear_torque_safety.hpp</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\fsm\rear_torque_safety.hpp</FilePath>
+            </File>
+            <File>
+              <FileName>stair_mode_policy.hpp</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\fsm\stair_mode_policy.hpp</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>

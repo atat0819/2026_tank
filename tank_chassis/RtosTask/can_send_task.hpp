@@ -63,6 +63,7 @@ extern volatile bool gimbal_keyboard_received;      // 是否收到过合法键�
 extern volatile uint32_t gimbal_switch_last_tick;   // 最近一次合法档位帧时间
 extern volatile bool gimbal_switch_received;  // 是否收到过合法档位帧
 
+extern void vofa_send(float x1, float x2, float x3, float x4, float x5, float x6);
 
 #ifdef __cplusplus
 }

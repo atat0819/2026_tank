@@ -6,6 +6,7 @@ tank_chassis/up_stair_behind_motor_fsm.o: \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__config \
   D:\Keil5\Core\ARM\ARMCLANG\include\stdint.h \
   ..\fsm\..\user\core\Alg\UtilityFunction\SlopePlanning.hpp \
+  ..\fsm\rear_torque_safety.hpp \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\math.h \
   D:\Keil5\Core\ARM\ARMCLANG\include\math.h \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__math\abs.h \

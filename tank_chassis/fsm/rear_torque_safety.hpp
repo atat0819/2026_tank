@@ -3,13 +3,13 @@
 
 namespace StairTorqueSafety
 {
-// J6248 的应用层最大力矩。此处先限制混控后的结果，避免进入
-// 达妙协议编码器之前发生超范围编码；驱动层还有最终通用钳位。
-static constexpr float J6248_TORQUE_LIMIT_NM = 40.0f;
+// J6248 的应用层最大力矩，限制状态机增益修正后的最终输出。
+// 达妙协议量程保持 ±97 N·m；驱动层还有通用钳位。
+static constexpr float J6248_TORQUE_LIMIT_NM = 30.0f;
 
 inline float ClampJ6248Torque(float torque_nm)
 {
-    // 对 pitch/roll 混控后的总力矩执行 J6248 的应用层饱和。
+    // 对调平/收腿的最终力矩执行应用层饱和。
     if (torque_nm > J6248_TORQUE_LIMIT_NM)
     {
         return J6248_TORQUE_LIMIT_NM;

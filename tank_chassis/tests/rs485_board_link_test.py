@@ -9,7 +9,7 @@ gimbal = chassis.parent / "tank_gimbal"
 task_source = (chassis / "RtosTask/can_send_task.cpp").read_text(encoding="utf-8")
 task_header = (chassis / "RtosTask/can_send_task.hpp").read_text(encoding="utf-8")
 control_type = task_header[task_header.index("struct ControlInputSnapshot"):task_header.index("ControlInputSnapshot GetControlInputSnapshot")]
-publication = task_source[task_source.index("void Chassis485_ApplyData"):task_source.index("volatile uint32_t stair_action_sequence")]
+publication = task_source[task_source.index("void Chassis485_ApplyData"):task_source.index("StairCommand stair_command;")]
 control = r'''
 #include "chassis/fsm/control_input_selector.hpp"
 #include "task.h"

@@ -12,7 +12,8 @@ struct KeyboardMotionCommand
     bool follow_enabled;
     bool stair_toggle;
     bool valid;
-    bool rear_retract_toggle;
+    bool imu_mode_request;
+    bool normal_mode_request;
 };
 
 class ChassisKeyboardFSM
@@ -27,6 +28,7 @@ public:
         KEY_SHIFT = (1U << 4),
         KEY_CTRL  = (1U << 5),
         KEY_Z     = (1U << 11),
+        KEY_C     = (1U << 13),
         KEY_V     = (1U << 14),
         KEY_B     = (1U << 15)
     };
@@ -57,6 +59,7 @@ private:
     bool gyro_enabled_ = false;
     bool last_z_pressed_ = false;
     bool last_v_pressed_ = false;
+    bool last_c_pressed_ = false;
     bool last_b_pressed_ = false;
     // Keyboard mode defaults to follow; Reset() clears it until mode entry.
     bool follow_enabled_ = false;

@@ -56,7 +56,8 @@ void GetImuControlSnapshot(ImuControlSnapshot &snapshot)
     taskENTER_CRITICAL();
     snapshot = imu_control_snapshot;
     taskEXIT_CRITICAL();
-    snapshot.valid = snapshot.valid && (HAL_GetTick() - snapshot.tick < 20U);
+    snapshot.valid = snapshot.valid &&
+                     (HAL_GetTick() - snapshot.tick < IMU_CONTROL_TIMEOUT_MS);
 }
 
 // UART7 有效帧到达时整体发布，错误中断只使快照失效，不刷新旧帧时间。

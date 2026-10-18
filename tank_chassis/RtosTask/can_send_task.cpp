@@ -31,7 +31,7 @@
 #define M_PI 3.14159265358979323846f
 #endif
 
-#define Gain 4.7
+#define Gain 5.3
 
 QueueHandle_t motorspeedtargetQueue; // 声明一个全局队列句柄，用于在任务之间传递电机转速数据
 QueueHandle_t motorCurrentDataQueue; // 声明一个全局队列句柄，用于在任务之间传递电机当前数据
@@ -129,9 +129,8 @@ ControlInputSnapshot GetControlInputSnapshot(uint32_t now_tick)
     taskEXIT_CRITICAL();
     return input;
 }
-volatile uint32_t stair_action_sequence = 0;       // B 键动作序号，供前部 FSM 消费
-
-volatile uint32_t rear_retract_action_sequence = 0U;
+StairCommand stair_command;
+uint32_t stair_command_generation = 0U;
 
 ChassisKeyboardFSM keyboard_fsm;
 
@@ -146,16 +145,16 @@ volatile uint16_t heat_42mm = 0;
 	// 1. 定义物理常数（根据你的麦轮实际参数修改）
 	const float wheel_azimuth[4] = {-M_PI/4, M_PI/4, -M_PI/4, M_PI/4}; // 麦克纳姆轮上那些**小辊子（Roller）**相对于轮轴的偏转角度
     //参数解读：{{0.2f, 0.2f}, ...} 表示轮子安装在前方 $20cm$，左侧 $20cm$ 的位置。
-	const float wheel_coords[4][2] = {{0.22f, 0.19545f}, {-0.22f, 0.19545f}, {-0.22f, -0.19545f}, {0.22f, -0.19545f}}; // 轮子位置
+	const float wheel_coords[4][2] = {{0.215f, 0.243f}, {0.215f, -0.243f}, {-0.215f, -0.243f}, {-0.215f, 0.243f}}; // ID 1左前、2右前、3右后、4左后；坐标(m)，前后轮距430mm、左右轮距486mm
 	float azimuth_for_fk[4] = {M_PI/4.0f,7*M_PI/4.0f, 5*M_PI/4.0f,3*M_PI/4.0f   }; // 正运动学使用的轮子方位角（与安装方向相关）
 
 
 // 2. 实例化三大核心模块
 //第一个数字：底盘中心到轮心的距离，第二个数字：轮子半径，第三个数字：电机数  
 //第4个参数：麦克纳姆轮上那些**小辊子（Roller）**相对于轮轴的偏转角度 第四个参数：轮子安装位置坐标
-	Alg::CalculationBase::Omni_IK ik(0.2943f, 0.076f, wheel_azimuth, wheel_coords); // 逆运动学
-	Alg::CalculationBase::Omni_FK fk(0.2943f, 0.076f, 4.0f, wheel_azimuth, azimuth_for_fk); // 正运动学
-	Alg::CalculationBase::Omni_ID id(0.2943f, 0.076f, 4.0f, wheel_azimuth, wheel_coords); // 逆动力学
+	Alg::CalculationBase::Omni_IK ik(0.32446f, 0.076f, wheel_azimuth, wheel_coords); // 逆运动学
+	Alg::CalculationBase::Omni_FK fk(0.32446f, 0.076f, 4.0f, wheel_azimuth, azimuth_for_fk); // 正运动学
+	Alg::CalculationBase::Omni_ID id(0.32446f, 0.076f, 4.0f, wheel_azimuth, wheel_coords); // 逆动力学
 
 // vx/vy 斜坡规划 (防功率尖峰/麦轮打滑), 反馈同步用 FK 实测底盘速度; w 方向不规划, 保持转向响应
 // 斜率单位: 每控制周期增量, 1kHz 循环下 0.008 ≈ 8 m/s² 加速度
@@ -217,10 +216,10 @@ SecondOrderLPFFilter chassis_vy_filter(8.0f, 0.001f, 0.70710678f);
 
 // 4 个电机，4 个 PID
 ALG::PID::PID motor_pid[4] = {
-    {330.0f, 0.03f, 0.0f, 16384.0f, 5000.0f, 500.0f},   //电机1 (扫频PID)
-	{350.0f, 0.03f, 0.0f, 16384.0f, 5000.0f, 500.0f},    //电机2
-	{330.0f, 0.03f, 0.0f, 16384.0f, 5000.0f, 500.0f},    //电机3
-	{320.0f, 0.03f, 0.0f, 16384.0f, 5000.0f, 500.0f}     //电机4	
+    {660.0f, 0.2f, 0.0f, 16384.0f, 5000.0f, 500.0f},   //电机1 (扫频PID)
+	{660.0f, 0.2f, 0.0f, 16384.0f, 5000.0f, 500.0f},    //电机2
+	{660.0f, 0.2f, 0.0f, 16384.0f, 5000.0f, 500.0f},    //电机3
+	{660.0f, 0.2f, 0.0f, 16384.0f, 5000.0f, 500.0f}     //电机4	
 };
 
 ALG::PID::PID test_pid = {0.0f, 0.0f, 0.0f, 10000.0f, 5000.0f, 500.0f};
@@ -237,13 +236,12 @@ float target = 10.0f; // 目标速度（示例值）
 // };
 
 
-void vofa_send9(float x1, float x2, float x3, float x4, float x5, float x6, float x7, float x8, float x9);
-void vofa_send10(float x1, float x2, float x3, float x4, float x5, float x6, float x7, float x8, float x9, float x10);
+void vofa_send(float x1, float x2, float x3, float x4, float x5, float x6);
 float motor_target_speed[4];
 float motor_output[4];
 float motor_output_pre[4];  // 功率控制前的电流，用于VOFA对比
 float current_speed_rads[4];
-float c = 2.0f;
+float c = 3.0f; // 本地遥控器摇杆旋转倍率(rad/s)，原为2，增大左右转向指令
 float phase_comp = 0.0f;   // 这个变量用于补偿系统的相位滞后，具体值需要通过实验调整
     float yaw_offset_rad = 0.0f;
 // 底盘预测功率 (W), 每个控制周期由 post_power 赋值更新 (只赋值不累加!)
@@ -273,6 +271,8 @@ float poly_coeffs[6] = {
 // ========== 功率校准扫频测试结束 ==========
 
 // ========== 底盘功率控制 (衰减电流法) ==========
+// 临时调试速度 PID：false=直接使用 PID 电流输出，true=恢复原功率限制。
+constexpr bool CHASSIS_POWER_LIMIT_ENABLED = true;
 // 超电配置 (根据实际硬件修改总容量)
 const float SUPERCAP_TOTAL_CAPACITY = 2000.0f;                        // 超电总容量 (J)
 const float ABUNDANCE_LINE          = SUPERCAP_TOTAL_CAPACITY * 0.8f; // 富足线 = 80%总容量
@@ -382,6 +382,10 @@ ControlInputSource last_input_source = ControlInputSource::NONE;
 osDelay(500);
     for (;;)
     {
+         // 在输入采样前记录安全代次，防止被机构任务的停车处理抢占后重放旧键。
+         taskENTER_CRITICAL();
+         const uint32_t stair_sample_generation = stair_command_generation;
+         taskEXIT_CRITICAL();
          const uint32_t now_tick = HAL_GetTick();
          const ControlInputSnapshot input = GetControlInputSnapshot(now_tick);
          const bool source_changed = input.source != last_input_source;
@@ -399,19 +403,24 @@ osDelay(500);
         const KeyboardMotionCommand& keyboard_cmd =
             keyboard_fsm.GetCommand();
 
-          if (keyboard_cmd.stair_toggle)
-          {
-              ++stair_action_sequence;
-          }
-
-          if (keyboard_cmd.rear_retract_toggle)
-          {
-              ++rear_retract_action_sequence;
-              if (rear_retract_action_sequence == 0U)
-              {
-                  rear_retract_action_sequence = 1U;
-              }
-          }
+         const StairModePolicy stair_policy = EvaluateStairModePolicy(
+             input.s1, input.s2, input.source != ControlInputSource::NONE,
+             keyboard_online);
+         // 一次 B 同时发布两个明确目标，任务不会读到前后不一致的半帧命令。
+         taskENTER_CRITICAL();
+         if (stair_sample_generation == stair_command_generation)
+         {
+             UpdateStairCommand(stair_command,
+                                !stair_policy.zero_all_torque && !source_changed,
+                                keyboard_cmd.imu_mode_request,
+                                keyboard_cmd.normal_mode_request,
+                                keyboard_cmd.stair_toggle);
+             if (!keyboard_cmd.valid)
+             {
+                 stair_command.front_target_requested = false;
+             }
+         }
+         taskEXIT_CRITICAL();
 
          //获取底盘旋转速度
          ChassisData.vx = input.vx * Gain;
@@ -433,11 +442,18 @@ osDelay(500);
 
          // 超级电容在线状态更新
          supercap.updateOnlineStatus();
+         // 每周期采集轮轴反馈，双下停车和输入失联时也供 VOFA 显示。
+         current_speed_rads[0] = chassis_motor.getVelocityRads(1) / 15.8f;
+         current_speed_rads[1] = chassis_motor.getVelocityRads(2) / 15.8f;
+         current_speed_rads[2] = chassis_motor.getVelocityRads(3) / 15.8f;
+         current_speed_rads[3] = chassis_motor.getVelocityRads(4) / 15.8f;
          if (input.source == ControlInputSource::NONE || source_changed)
     {
         for (int i = 0; i < 4; i++) 
         {
+        motor_target_speed[i] = 0;
         motor_output[i] = 0;
+        motor_output_pre[i] = 0;
         motor_pid[i].reset();
         chassis_motor.setCAN((int16_t)0, i + 1);
         }
@@ -510,12 +526,12 @@ osDelay(500);
            }
            else if (input.source == ControlInputSource::LOCAL && keyboard_cmd.valid)
            {
-               // 本地键鼠档位：鼠标向右为负向旋转。0.2 度/秒/计数，限幅到 2 rad/s。
+               // 本地键鼠档位：鼠标向右为负向旋转。6 度/秒/计数，限幅到 4 rad/s。
                // 鼠标停止时 DBUS 的 X 位移归零；失联或切源由上面的零输出分支处理。
                wz_cmd = -static_cast<float>(input.mouse_x) *
-                        (3.0f * M_PI / 180.0f);
-               if (wz_cmd > 2.0f) wz_cmd = 2.0f;
-               if (wz_cmd < -2.0f) wz_cmd = -2.0f;
+                        (2.0f * M_PI / 180.0f);
+               if (wz_cmd > 4.0f) wz_cmd = 4.0f;
+               if (wz_cmd < -4.0f) wz_cmd = -4.0f;
            }
            else if (keyboard_cmd.valid && keyboard_cmd.follow_enabled)
            {
@@ -567,6 +583,9 @@ if (chassis_fsm.Get_Mode() == CHASSIS_STOP)
    for (int i = 0; i < 4; i++)
    {
        motor_pid[i].reset();
+       motor_target_speed[i] = 0;
+       motor_output[i] = 0;
+       motor_output_pre[i] = 0;
        chassis_motor.setCAN((int16_t)0, i + 1);
    }
    chassis_vx_filter.Reset(0.0f);
@@ -576,12 +595,7 @@ if (chassis_fsm.Get_Mode() == CHASSIS_STOP)
  else
  {
 /**************************************************************** */
-          // --- 斜坡规划: 先采集轮速并更新 FK 作为反馈 ---
-          current_speed_rads[0] = chassis_motor.getVelocityRads(1) / 19.0f; // 轮轴转速 (rad/s)
-          current_speed_rads[1] = chassis_motor.getVelocityRads(2) / 19.0f;
-          current_speed_rads[2] = chassis_motor.getVelocityRads(3) / 19.0f;
-          current_speed_rads[3] = chassis_motor.getVelocityRads(4) / 19.0f;
-
+          // --- 斜坡规划: 用本周期轮速更新 FK 作为反馈 ---
           fk.OmniForKinematics(current_speed_rads[0], current_speed_rads[1], current_speed_rads[2], current_speed_rads[3]); // FK: 轮速 -> 底盘实测速度
 
           // vx/vy 斜坡规划 (实测反馈先做二阶低通, 再同步给规划器)
@@ -596,9 +610,9 @@ if (chassis_fsm.Get_Mode() == CHASSIS_STOP)
           ik.OmniInvKinematics(vx_body, vy_body, wz_cmd, 0.0f, 1.0f, 1.0f);
           //ik.OmniInvKinematics(ChassisData.vx, ChassisData.vy, -ChassisData.wz, 0.0f, 1.0f, 1.0f);
 
-          motor_target_speed[0] = ik.GetMotor(0);
+          motor_target_speed[0] = -ik.GetMotor(0); // ID 1：适配当前安装方向
             motor_target_speed[1] = ik.GetMotor(1);
-            motor_target_speed[2] = -ik.GetMotor(2);
+            motor_target_speed[2] = ik.GetMotor(2); // ID 3：适配当前安装方向
             motor_target_speed[3] = -ik.GetMotor(3);
 					 
 		 motor_output[0] = motor_pid[0].UpDate(motor_target_speed[0], current_speed_rads[0]);
@@ -609,6 +623,7 @@ if (chassis_fsm.Get_Mode() == CHASSIS_STOP)
 		memcpy(motor_output_pre, motor_output, sizeof(motor_output_pre));
 
 	// ========== 底盘功率控制 (衰减电流法) ==========
+	if (CHASSIS_POWER_LIMIT_ENABLED)
 	{
 	    // 1. 策略层: 数据源仲裁 (裁判系统 / 超电 在线判断)
 	    power_strategy.Update(
@@ -699,6 +714,11 @@ if (chassis_fsm.Get_Mode() == CHASSIS_STOP)
        
     }
 
+        // 独立于控制分支发送，停车时目标为零、反馈仍显示实际轮速。
+        vofa_send(motor_target_speed[0], current_speed_rads[0],
+                  motor_target_speed[1], current_speed_rads[1],
+                  motor_target_speed[3], current_speed_rads[3]);
+
         // 更新裁判回复快照；只有收到有效 RS485 请求后才由 RX ISR 发送。
         Referee485_Update(
             ext_power_heat_data_0x0201.shooter_barrel_cooling_value,   // 枪管冷却值
@@ -722,6 +742,25 @@ osDelay(1);
 
 
 
+void vofa_send(float x1, float x2, float x3, float x4, float x5, float x6)
+{
+    // DMA 异步读取，缓冲区需在函数返回后保持有效。
+    static uint8_t send_str2[sizeof(float) * 6 + 4];
+    auto &vofa_uart = HAL::UART::get_uart_bus_instance().get_uart10();
+    // 上一帧未发送完成时跳过本次，避免改写 DMA 正在读取的数据。
+    if (vofa_uart.get_handle()->gState != HAL_UART_STATE_READY)
+    {
+        return;
+    }
+
+    const float values[6] = {x1, x2, x3, x4, x5, x6};
+    const uint8_t frame_tail[4] = {0x00, 0x00, 0x80, 0x7F};
+    memcpy(send_str2, values, sizeof(values));
+    memcpy(send_str2 + sizeof(values), frame_tail, sizeof(frame_tail));
+
+    HAL::UART::Data vofa_tx_data{send_str2, sizeof(send_str2)};
+    vofa_uart.transmit_dma(vofa_tx_data);
+}
 
 
 

@@ -1,383 +1,126 @@
 #include "../fsm/up_stair_fsm.hpp"
-#include <assert.h>
-#include <math.h>
+#include <cassert>
+#include <cmath>
+#include <initializer_list>
 
-static float deg_to_rad(float degree)
-{
-    return degree * 3.14159265359f / 180.0f;
-}
-
-static bool near(float actual, float expected)
-{
-    return fabsf(actual - expected) < 1.0e-5f;
-}
-
-static void update(Class_Up_Stair_FSM &fsm,
-                   float left,
-                   float right,
-                   bool left_valid,
-                   bool right_valid,
-                   bool mechanism_enabled,
-                   bool stair_command_enabled,
-                   uint32_t action_sequence)
-{
-    fsm.Update(left,
-               right,
-               left_valid,
-               right_valid,
-               mechanism_enabled,
-               stair_command_enabled,
-               action_sequence);
-}
+static float rad(float degree) { return degree * 3.14159265359f / 180.0f; }
+static bool near(float a, float b) { return std::fabs(a-b) < 1e-5f; }
 
 int main()
 {
-    Class_Up_Stair_FSM fsm;
-    fsm.Init(0U);
+    Class_Up_Stair_FSM front;
+    front.Init();
+    auto update = [&](float left, float right, bool target,
+                      bool left_valid=true, bool right_valid=true,
+                      bool enabled=true, bool command_enabled=true) {
+        front.Update(rad(left), rad(right), left_valid, right_valid,
+                     enabled, command_enabled, target);
+    };
+    update(139, -109, false);
+    assert(front.Get_State() == UP_STAIR_HOME_HOLD);
+    assert(front.Is_Enabled());
+    assert(near(front.Get_Current_Angle(2), rad(-109)));
+    assert(near(front.Get_Position_Feedback(2), rad(251)));
+    assert(near(front.Get_Target_Angle(2), rad(251)));
+    update(139, -109, true);
+    assert(front.Get_State() == UP_STAIR_MOVING_TO_TARGET);
+    assert(near(front.Get_Target_Angle(1), rad(200)));
+    assert(near(front.Get_Target_Angle(2), rad(172)));
+    assert(near(front.Get_Position_Error(2), rad(-79)));
+    assert(near(front.Get_Position_Error(1), rad(61)));
+    // The raw target -160 degrees is unfolded to +200 degrees. Crossing
+    // +180/-180 must not produce a full-turn position-error jump.
+    update(179.8f, -150, true);
+    assert(near(front.Get_Position_Feedback(1), rad(179.8f)));
+    const float before_seam = front.Get_Position_Error(1);
+    update(-179.8f, -150, true);
+    assert(near(front.Get_Current_Angle(1), rad(-179.8f)));
+    assert(near(front.Get_Position_Feedback(1), rad(180.2f)));
+    assert(near(front.Get_Position_Error(1), rad(19.8f)));
+    assert(near(front.Get_Position_Error(1)-before_seam, rad(-0.4f)));
+    update(-179.8f, -150, false);
+    assert(near(front.Get_Position_Error(1), rad(-41.2f)));
+    update(179.8f, -150, false);
+    assert(near(front.Get_Position_Error(1), rad(-40.8f)));
+    update(-179.8f, -150, true);
+    assert(front.Get_State() == UP_STAIR_MOVING_TO_TARGET);
+    // Right front travels in the negative direction: 251 -> 172 degrees.
+    // Raw -179.8 -> +179.8 unfolds to 180.2 -> 179.8, only -0.4 degrees.
+    update(170, -179.8f, true);
+    assert(near(front.Get_Current_Angle(2), rad(-179.8f)));
+    assert(near(front.Get_Position_Feedback(2), rad(180.2f)));
+    assert(near(front.Get_Position_Error(2), rad(-8.2f)));
+    const float right_before_seam = front.Get_Position_Error(2);
+    update(170, 179.8f, true);
+    assert(near(front.Get_Position_Feedback(2), rad(179.8f)));
+    assert(near(front.Get_Position_Error(2), rad(-7.8f)));
+    assert(near(front.Get_Position_Error(2)-right_before_seam, rad(0.4f)));
+    update(170, 179.8f, false);
+    assert(near(front.Get_Target_Angle(2), rad(251)));
+    assert(near(front.Get_Position_Error(2), rad(71.2f)));
+    update(170, -179.8f, false);
+    assert(near(front.Get_Position_Error(2), rad(70.8f)));
+    update(170, -150, true);
+    update(170, -150, true); // Repeated request must not toggle the state.
+    assert(front.Get_State() == UP_STAIR_MOVING_TO_TARGET);
+    update(170, -150, false); // B2 reverses before reaching target.
+    assert(front.Get_State() == UP_STAIR_RETURNING_HOME);
+    assert(near(front.Get_Target_Angle(1), rad(139)));
+    update(160, -140, true); // B3 reverses while returning home.
+    assert(front.Get_State() == UP_STAIR_MOVING_TO_TARGET);
+    update(-161.5f, 173.5f, true);
+    assert(front.Get_State() == UP_STAIR_TARGET_HOLD);
+    update(-160, 172, false);
+    assert(front.Get_State() == UP_STAIR_RETURNING_HOME);
+    update(139, -150, false);
+    assert(front.Get_State() == UP_STAIR_RETURNING_HOME);
+    update(139, -109, false);
+    assert(front.Get_State() == UP_STAIR_HOME_HOLD);
 
-    // Active with no stair command starts in an enabled home hold.
-    update(fsm,
-           deg_to_rad(34.0f),
-           deg_to_rad(-20.0f),
-           true,
-           true,
-           true,
-           false,
-           0U);
-    assert(fsm.Get_State() == UP_STAIR_HOME_HOLD);
-    assert(fsm.Is_Enabled());
-    assert(near(fsm.Get_Target_Angle(1U), Class_Up_Stair_FSM::HOME_ANGLE_RAD[0]));
-    assert(near(fsm.Get_Target_Angle(2U), Class_Up_Stair_FSM::HOME_ANGLE_RAD[1]));
+    update(139, -109, true);
+    update(170, -150, true, true, true, true, false);
+    assert(front.Get_State() == UP_STAIR_RETURNING_HOME);
+    update(139, -109, false, true, true, true, false);
+    assert(front.Get_State() == UP_STAIR_HOME_HOLD);
+    update(139, -109, false, true, true, false);
+    assert(!front.Is_Enabled());
 
-    assert(fsm.Is_Angle_Valid(1U, deg_to_rad(10.0f)));
-    assert(fsm.Is_Angle_Valid(1U, deg_to_rad(178.0f)));
-    assert(!fsm.Is_Angle_Valid(1U, deg_to_rad(9.0f)));
-    assert(!fsm.Is_Angle_Valid(1U, deg_to_rad(179.0f)));
-
-    assert(fsm.Is_Angle_Valid(2U, deg_to_rad(-60.0f)));
-    assert(fsm.Is_Angle_Valid(2U, deg_to_rad(-10.0f)));
-    assert(fsm.Is_Angle_Valid(2U, deg_to_rad(0.0f)));
-    assert(fsm.Is_Angle_Valid(2U, deg_to_rad(70.0f)));
-    assert(!fsm.Is_Angle_Valid(2U, deg_to_rad(71.0f)));
-    assert(!fsm.Is_Angle_Valid(2U, deg_to_rad(-61.0f)));
-
-    // B starts a move to target and preserves the signed angle mapping.
-    update(fsm,
-           deg_to_rad(34.0f),
-           deg_to_rad(-20.0f),
-           true,
-           true,
-           true,
-           true,
-           1U);
-    assert(fsm.Get_State() == UP_STAIR_MOVING_TO_TARGET);
-    assert(near(fsm.Get_Target_Angle(1U), Class_Up_Stair_FSM::TARGET_ANGLE_RAD[0]));
-    assert(near(fsm.Get_Target_Angle(2U), deg_to_rad(60.0f)));
-    assert(near(fsm.Get_Position_Feedback(2U), deg_to_rad(-20.0f)));
-    assert(near(fsm.Get_Position_Error(2U), deg_to_rad(80.0f)));
-
-    // Arrival requires both feedbacks and uses a two-degree tolerance.
-    update(fsm,
-           deg_to_rad(120.5f),
-           deg_to_rad(61.5f),
-           true,
-           true,
-           true,
-           true,
-           1U);
-    assert(fsm.Get_State() == UP_STAIR_TARGET_HOLD);
-
-    // A second B while moving is allowed and reverses the command.
-    update(fsm,
-           deg_to_rad(80.0f),
-           deg_to_rad(-40.0f),
-           true,
-           true,
-           true,
-           true,
-           2U);
-    assert(fsm.Get_State() == UP_STAIR_RETURNING_HOME);
-    assert(near(fsm.Get_Target_Angle(1U), Class_Up_Stair_FSM::HOME_ANGLE_RAD[0]));
-    assert(near(fsm.Get_Target_Angle(2U), Class_Up_Stair_FSM::HOME_ANGLE_RAD[1]));
-
-    update(fsm,
-           deg_to_rad(34.0f),
-           deg_to_rad(-20.0f),
-           true,
-           true,
-           true,
-           true,
-           2U);
-    assert(fsm.Get_State() == UP_STAIR_HOME_HOLD);
-
-    // Leaving command mode returns home and never disables the controller.
-    update(fsm,
-           deg_to_rad(122.0f),
-           deg_to_rad(60.0f),
-           true,
-           true,
-           true,
-           false,
-           2U);
-    assert(fsm.Get_State() == UP_STAIR_RETURNING_HOME);
-    assert(fsm.Is_Enabled());
-    update(fsm,
-           deg_to_rad(34.0f),
-           deg_to_rad(-20.0f),
-           true,
-           true,
-           true,
-           false,
-           2U);
-    assert(fsm.Get_State() == UP_STAIR_HOME_HOLD);
-    assert(fsm.Is_Enabled());
-
-    // Mechanism disable (double-down-like) disables and synchronizes B.
-    update(fsm,
-           deg_to_rad(34.0f),
-           deg_to_rad(-20.0f),
-           true,
-           true,
-           false,
-           false,
-           10U);
-    assert(fsm.Get_State() == UP_STAIR_DISABLED);
-    assert(!fsm.Is_Enabled());
-    assert(near(fsm.Get_Target_Angle(1U), Class_Up_Stair_FSM::HOME_ANGLE_RAD[0]));
-
-    // Re-enable away from home: return first, and ignore the stale B sequence.
-    update(fsm,
-           deg_to_rad(122.0f),
-           deg_to_rad(60.0f),
-           true,
-           true,
-           true,
-           true,
-           10U);
-    assert(fsm.Get_State() == UP_STAIR_RETURNING_HOME);
-    assert(near(fsm.Get_Target_Angle(1U), Class_Up_Stair_FSM::HOME_ANGLE_RAD[0]));
-    update(fsm,
-           deg_to_rad(34.0f),
-           deg_to_rad(-20.0f),
-           true,
-           true,
-           true,
-           true,
-           10U);
-    assert(fsm.Get_State() == UP_STAIR_HOME_HOLD);
-
-    // Either motor offline disables both front motors.
-    update(fsm,
-           deg_to_rad(34.0f),
-           deg_to_rad(-20.0f),
-           true,
-           true,
-           true,
-           true,
-           11U);
-    assert(fsm.Get_State() == UP_STAIR_MOVING_TO_TARGET);
-    update(fsm,
-           deg_to_rad(122.0f),
-           deg_to_rad(60.0f),
-           false,
-           true,
-           true,
-           true,
-           11U);
-    assert(fsm.Get_State() == UP_STAIR_DISABLED);
-    assert(!fsm.Is_Enabled());
-
-    // Both feedback channels offline disable the shared controller.
-    update(fsm,
-           0.0f,
-           0.0f,
-           false,
-           false,
-           true,
-           true,
-           11U);
-    assert(fsm.Get_State() == UP_STAIR_DISABLED);
-    assert(!fsm.Is_Enabled());
-
-    // B reverses a genuine in-flight move in either direction before arrival.
-    Class_Up_Stair_FSM transition_fsm;
-    transition_fsm.Init(0U);
-    update(transition_fsm,
-           deg_to_rad(34.0f),
-           deg_to_rad(-20.0f),
-           true,
-           true,
-           true,
-           false,
-           0U);
-    update(transition_fsm,
-           deg_to_rad(34.0f),
-           deg_to_rad(-20.0f),
-           true,
-           true,
-           true,
-           true,
-           1U);
-    assert(transition_fsm.Get_State() == UP_STAIR_MOVING_TO_TARGET);
-    update(transition_fsm,
-           deg_to_rad(80.0f),
-           deg_to_rad(-40.0f),
-           true,
-           true,
-           true,
-           true,
-           2U);
-    assert(transition_fsm.Get_State() == UP_STAIR_RETURNING_HOME);
-    assert(near(transition_fsm.Get_Target_Angle(1U),
-                Class_Up_Stair_FSM::HOME_ANGLE_RAD[0]));
-    update(transition_fsm,
-           deg_to_rad(80.0f),
-           deg_to_rad(-40.0f),
-           true,
-           true,
-           true,
-           true,
-           3U);
-    assert(transition_fsm.Get_State() == UP_STAIR_MOVING_TO_TARGET);
-    assert(near(transition_fsm.Get_Target_Angle(1U),
-                Class_Up_Stair_FSM::TARGET_ANGLE_RAD[0]));
-
-    // Leaving command mode from a real target hold returns to home control.
-    update(transition_fsm,
-           deg_to_rad(122.0f),
-           deg_to_rad(60.0f),
-           true,
-           true,
-           true,
-           true,
-           3U);
-    assert(transition_fsm.Get_State() == UP_STAIR_TARGET_HOLD);
-    update(transition_fsm,
-           deg_to_rad(122.0f),
-           deg_to_rad(60.0f),
-           true,
-           true,
-           true,
-           false,
-           3U);
-    assert(transition_fsm.Get_State() == UP_STAIR_RETURNING_HOME);
-    assert(transition_fsm.Is_Enabled());
-    assert(near(transition_fsm.Get_Target_Angle(1U),
-                Class_Up_Stair_FSM::HOME_ANGLE_RAD[0]));
-    assert(near(transition_fsm.Get_Target_Angle(2U),
-                Class_Up_Stair_FSM::HOME_ANGLE_RAD[1]));
-
-    // Cached target feedback must not claim TARGET_HOLD when one motor is
-    // offline, even if the other motor reaches its target.
-    Class_Up_Stair_FSM feedback_fsm;
-    feedback_fsm.Init(0U);
-    update(feedback_fsm,
-           deg_to_rad(34.0f),
-           deg_to_rad(-20.0f),
-           true,
-           true,
-           true,
-           false,
-           0U);
-    update(feedback_fsm,
-           deg_to_rad(34.0f),
-           deg_to_rad(-20.0f),
-           true,
-           true,
-           true,
-           true,
-           1U);
-    assert(feedback_fsm.Get_State() == UP_STAIR_MOVING_TO_TARGET);
-    update(feedback_fsm,
-           deg_to_rad(122.0f),
-           deg_to_rad(60.0f),
-           true,
-           true,
-           true,
-           true,
-           1U);
-    assert(feedback_fsm.Get_State() == UP_STAIR_TARGET_HOLD);
-    update(feedback_fsm,
-           deg_to_rad(122.0f),
-           deg_to_rad(60.0f),
-           false,
-           true,
-           true,
-           true,
-           2U);
-    assert(feedback_fsm.Get_State() == UP_STAIR_DISABLED);
-    assert(!feedback_fsm.Is_Enabled());
-    update(feedback_fsm,
-           0.0f,
-           deg_to_rad(60.0f),
-           false,
-           true,
-           true,
-           true,
-           3U);
-    assert(feedback_fsm.Get_State() == UP_STAIR_DISABLED);
-    assert(!feedback_fsm.Is_Enabled());
-    update(feedback_fsm,
-           deg_to_rad(122.0f),
-           deg_to_rad(60.0f),
-           true,
-           true,
-           true,
-           true,
-           4U);
-    assert(feedback_fsm.Get_State() == UP_STAIR_RETURNING_HOME);
-
-    // The left feedback reaches home while the right feedback is still away.
-    update(feedback_fsm,
-           deg_to_rad(34.0f),
-           deg_to_rad(60.0f),
-           true,
-           true,
-           true,
-           true,
-           4U);
-    assert(feedback_fsm.Get_State() == UP_STAIR_RETURNING_HOME);
-
-    // Losing that left feedback must prevent a false HOME_HOLD when the
-    // remaining right feedback reaches home.
-    update(feedback_fsm,
-           0.0f,
-           deg_to_rad(-20.0f),
-           false,
-           true,
-           true,
-           true,
-           4U);
-    assert(feedback_fsm.Get_State() == UP_STAIR_DISABLED);
-    assert(!feedback_fsm.Is_Enabled());
-    // Exercise left, right and simultaneous loss, including startup and recovery.
-    for (unsigned mask = 0; mask < 3; ++mask)
+    // Each feedback-loss combination disables the pair; recovery homes first.
+    for (unsigned mask=0; mask<3; ++mask)
     {
-        Class_Up_Stair_FSM pair;
-        pair.Init(0U);
-        const bool left_online = (mask & 1U) != 0U;
-        const bool right_online = (mask & 2U) != 0U;
-        update(pair, deg_to_rad(80), deg_to_rad(30), left_online,
-               right_online, true, true, 1U);
-        assert(!pair.Is_Enabled());
-        update(pair, deg_to_rad(80), deg_to_rad(30), true, true, true, true, 1U);
-        assert(pair.Get_State() == UP_STAIR_RETURNING_HOME);
-        update(pair, deg_to_rad(80), deg_to_rad(30), true, true, true, true, 2U);
-        assert(pair.Get_State() == UP_STAIR_MOVING_TO_TARGET);
-        update(pair, deg_to_rad(80), deg_to_rad(30), left_online,
-               right_online, true, true, 3U);
-        assert(pair.Get_State() == UP_STAIR_DISABLED);
-        assert(!pair.Is_Enabled());
-        update(pair, deg_to_rad(80), deg_to_rad(30), true, true, true, true, 4U);
-        assert(pair.Get_State() == UP_STAIR_RETURNING_HOME);
-        for (unsigned id = 1; id <= 2; ++id)
-            assert(near(pair.Get_Target_Angle(id), Class_Up_Stair_FSM::HOME_ANGLE_RAD[id - 1]));
-        update(pair, deg_to_rad(34), deg_to_rad(-20), true, true, true, true, 4U);
-        assert(pair.Get_State() == UP_STAIR_HOME_HOLD);
-        update(pair, deg_to_rad(34), deg_to_rad(-20), true, true, true, true, 4U);
-        assert(pair.Get_State() == UP_STAIR_HOME_HOLD);
-        update(pair, deg_to_rad(34), deg_to_rad(-20), true, true, true, true, 5U);
-        assert(pair.Get_State() == UP_STAIR_MOVING_TO_TARGET);
+        update(139, -109, false);
+        update(139, -109, true);
+        update(170, -150, true, (mask&1)!=0, (mask&2)!=0);
+        assert(front.Get_State() == UP_STAIR_DISABLED);
+        update(170, -150, true);
+        assert(front.Get_State() == UP_STAIR_RETURNING_HOME);
+        update(139, -109, true);
+        assert(front.Get_State() == UP_STAIR_HOME_HOLD);
+        update(139, -109, true); // Stale target request cannot replay after recovery.
+        assert(front.Get_State() == UP_STAIR_HOME_HOLD);
+        update(139, -109, false);
+        assert(front.Get_State() == UP_STAIR_HOME_HOLD);
+        update(139, -109, true);
+        assert(front.Get_State() == UP_STAIR_MOVING_TO_TARGET);
     }
-    return 0;
+    for (float d : {124.0f, -145.0f, 180.0f, -180.0f, 139.0f, -160.0f}) assert(front.Is_Angle_Valid(1,rad(d)));
+    for (float d : {123.99f, -144.99f, 0.0f, NAN}) assert(!front.Is_Angle_Valid(1,rad(d)));
+    for (float d : {157.0f, -94.0f, 180.0f, -180.0f, -109.0f, 172.0f}) assert(front.Is_Angle_Valid(2,rad(d)));
+    for (float d : {156.99f, -93.99f, 0.0f, NAN}) assert(!front.Is_Angle_Valid(2,rad(d)));
+    for (float outside : {123.99f, -144.99f})
+    {
+        update(outside, -109, true);
+        assert(!front.Is_Enabled());
+        update(139, -109, true);
+        assert(front.Get_State() == UP_STAIR_HOME_HOLD);
+        assert(near(front.Get_Target_Angle(1), rad(139)));
+    }
+    for (float outside : {156.99f, -93.99f})
+    {
+        update(139, outside, true);
+        assert(!front.Is_Enabled());
+        update(139, -109, true);
+        assert(front.Get_State() == UP_STAIR_HOME_HOLD);
+        assert(near(front.Get_Target_Angle(2), rad(251)));
+    }
 }
