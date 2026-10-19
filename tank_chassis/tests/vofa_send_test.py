@@ -7,12 +7,12 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 source = (ROOT / "RtosTask/can_send_task.cpp").read_text(encoding="utf-8")
 code = re.sub(r"//[^\n]*|/\*.*?\*/", "", source, flags=re.S)
-call = code.index("vofa_send(motor_target_speed[0]")
+assert "vofa_send(motor_target_speed[0]" not in code, \
+    "wheel telemetry must not mix with the IMU comparison stream"
 feedback = code.index("current_speed_rads[0] =")
-# Function + task loop only: STOP and input faults must not skip telemetry.
-for position in (call, feedback):
-    assert code[:position].count("{") - code[:position].count("}") == 2, \
-        "VOFA sending and wheel feedback must be outside control-only branches"
+# Function + task loop only: STOP and input faults must not skip wheel feedback.
+assert code[:feedback].count("{") - code[:feedback].count("}") == 2, \
+    "wheel feedback must remain outside control-only branches"
 assert feedback < code.index("if (input.source == ControlInputSource::NONE || source_changed)")
 match = re.search(r"void vofa_send\([^;{}]*\)\s*\{", source)
 depth, end = 1, match.end()

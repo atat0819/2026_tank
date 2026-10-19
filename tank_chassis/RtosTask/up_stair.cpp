@@ -2,6 +2,7 @@
 #include "../fsm/stair_mode_policy.hpp"
 #include "../fsm/up_stair_fsm.hpp"
 #include "../fsm/up_stair_behind_motor_fsm.hpp"
+#include "../fsm/rear_torque_safety.hpp"
 #include "../fsm/motor_recovery_fsm.hpp"
 #include "can_send_task.hpp"
 #include "remote_task.hpp"
@@ -21,8 +22,9 @@
  *
  * 四台电机的控制结构：
  *   目标角(rad) - 反馈角(rad) -> 主控角度 PID -> 轴速度目标(rad/s)
- *   -> MIT 速度内环。启用时 Kp=0、前馈力矩=0；后腿 Kd 统一由 REAR_MIT_KD 设置。
- *   此时电机内部请求力矩可按 Kd * (目标轴速度 - 实际轴速度) 估算。
+ *   -> MIT 速度内环。启用时 Kp=0；后腿 Kd 按 IMU/收腿模式分别设置。
+ *   IMU 角速度阻尼写入力矩前馈，收腿前馈由后 FSM 提供；两者均参与总力矩保护。
+ *   此时电机内部请求力矩可按 Kd * (目标轴速度 - 实际轴速度) + 前馈力矩估算。
  *   PID 构造参数里的 Kd 是角度外环微分系数；MIT 命令里的 Kd 是轴速度阻尼增益。
  *
  * 单位边界：
@@ -59,23 +61,26 @@ ALG::PID::PID front_4340_right_pid = {
     8.0f, 0.0f, 0.0f, 10.0f, 0.0f, 0.0f,
 };
 
-// 两台后 6248 共用的 MIT 阻尼；调平、收腿和保护估算统一使用此值，范围 0 < Kd <= 5。
-  float REAR_MIT_KD = 2.5f;
+// 后 6248 的 MIT 阻尼按模式独立调节；各模式左右共用，保护估算与发送一致，范围 0 < Kd <= 5。
+float REAR_IMU_MIT_KD = 3.5f;     // IMU 调平、姿态保持。
+float REAR_RETRACT_MIT_KD = 3.6f; // 收腿移动、收腿位置保持。
+// IMU Pitch 角速度的力矩阻尼，N·m/(rad/s)；左右共用，0=关闭，正值越大阻尼越强。
+float REAR_IMU_PITCH_DAMPING = 1.0f; // 初始试调值，独立于 MIT Kd。
 
 // 后 6248：主控只计算角度外环，电机 MIT Kd 完成轴速度内环。
 // Pitch 外环输入统一为 rad，输出为 rad/s；当前输出上限为 5.4 rad/s。
 // 它根据车身 Pitch 误差生成公共调平速度，再由左右方向系数映射到两台电机。
 ALG::PID::PID rear_6248_pitch_pid = {
-    30.0f, 0.0f, 0.0f, 5.4f, 0.0f, 0.0f,
+    55.0f, 0.0f, 0.0f, 7.4f, 0.0f, 0.0f,
 };
 // 编码器角度外环输入 rad，输出电机轴目标速度 rad/s。
 // 左右各有一个，仅用于收腿位置控制；两侧参数/历史状态彼此独立。
-// 这里的 3 rad/s 是外环输出上限，收腿位置目标的规划推进速度由后腿 FSM 另行限制。
+// 收腿最终角直接交给位置环；这里的 3 rad/s 限制外环输出的目标轴速度。
 ALG::PID::PID rear_6248_left_retract_pid = {
-    8.0f, 0.0f, 0.0f, 3.0f, 0.0f, 0.0f,
+    16.0f, 0.0f, 0.0f, 10.0f, 0.0f, 0.0f,
 };
 ALG::PID::PID rear_6248_right_retract_pid = {
-    8.0f, 0.0f, 0.0f, 3.0f, 0.0f, 0.0f,
+    18.0f, 0.0f, 0.0f, 10.0f, 0.0f, 0.0f,
 };
 
 // 便于调试观察的中间速度：包含方向修正，限位接管时还会被位置速度/交接比例改写。
@@ -86,11 +91,13 @@ float right_pitch_velocity = 0.0f; // 后右电机轴调平速度，rad/s
 
 namespace
 {
-// 后腿 IMU 一阶低通固定权重；角速度仍保留在快照/FSM，MIT 内环使用电机轴速度。
+// 后腿 IMU 一阶低通固定权重；角度用于外环，角速度用于前馈阻尼，MIT 内环使用电机轴速度。
 // 每收到新帧才执行 y = ratio*x + (1-ratio)*y；ratio 越小，平滑越强、响应越慢。
-// 原始 Pitch 角速度继续参与快照有效性检查和 FSM 数据更新，不再进入主控速度 PID。
-LPFFilter rear_6248_pitch_filter(0.09f);
+// 滤波后的 Pitch 角速度用于 MIT 力矩前馈阻尼，不进入主控角度 PID。
+constexpr float REAR_PITCH_FILTER_RATIO = 0.20f; // Pitch 角度权重；越大滤波越轻、响应越快。
+LPFFilter rear_6248_pitch_filter(REAR_PITCH_FILTER_RATIO);
 LPFFilter rear_6248_pitch_rate_filter(0.25f);
+LPFFilter rear_6248_roll_filter(0.09f);
 
 // 对电机反馈角度做有限值保护，避免 NaN 进入 MIT 位置字段。
 float SafeMotorAngle(float angle)
@@ -282,21 +289,27 @@ extern "C" void up_stair_task(void *argument)
         const bool imu_valid = imu_snapshot.valid &&
                                (now_tick - imu_snapshot.tick < IMU_CONTROL_TIMEOUT_MS) &&
                                std::isfinite(imu_snapshot.pitch_deg) &&
-                               std::isfinite(imu_snapshot.pitch_rate_dps);
+                               std::isfinite(imu_snapshot.pitch_rate_dps) &&
+                               std::isfinite(imu_snapshot.roll_deg);
         float filtered_pitch_deg = 0.0f;
         float filtered_pitch_rate_dps = 0.0f;
+        float filtered_roll_deg = 0.0f;
         if (imu_valid && rear_control_enabled)
         {
+            const bool imu_new_frame = !rear_imu_filter_initialized || imu_snapshot.tick != rear_imu_filter_tick;
             if (!rear_imu_filter_initialized)
             {
-                // LPFFilter 无 reset 接口；权重 1 将两路历史直接置为当前测量。
+                // LPFFilter 无 reset 接口；权重 1 将三路历史直接置为当前测量。
                 // 重新有效时先建立正确初值，再恢复正常固定权重，避免旧历史导致姿态跳变。
                 rear_6248_pitch_filter.setRatio(1.0f);
                 rear_6248_pitch_rate_filter.setRatio(1.0f);
+                rear_6248_roll_filter.setRatio(1.0f);
                 rear_6248_pitch_filter.filter(imu_snapshot.pitch_deg);
                 rear_6248_pitch_rate_filter.filter(imu_snapshot.pitch_rate_dps);
-                rear_6248_pitch_filter.setRatio(0.09f);
+                rear_6248_roll_filter.filter(imu_snapshot.roll_deg);
+                rear_6248_pitch_filter.setRatio(REAR_PITCH_FILTER_RATIO);
                 rear_6248_pitch_rate_filter.setRatio(0.25f);
+                rear_6248_roll_filter.setRatio(0.09f);
                 rear_imu_filter_initialized = true;
             }
             else if (imu_snapshot.tick != rear_imu_filter_tick)
@@ -305,10 +318,19 @@ extern "C" void up_stair_task(void *argument)
                 // 任务循环通常快于 IMU 新帧到达；同一时间戳不反复滤波，以免改变实际滤波强度。
                 rear_6248_pitch_filter.filter(imu_snapshot.pitch_deg);
                 rear_6248_pitch_rate_filter.filter(imu_snapshot.pitch_rate_dps);
+                rear_6248_roll_filter.filter(imu_snapshot.roll_deg);
             }
             rear_imu_filter_tick = imu_snapshot.tick;
             filtered_pitch_deg = rear_6248_pitch_filter.getOutput();
             filtered_pitch_rate_dps = rear_6248_pitch_rate_filter.getOutput();
+            filtered_roll_deg = rear_6248_roll_filter.getOutput();
+            // VOFA: 原始/滤波 Pitch(deg)、原始/滤波角速度(deg/s)、采样时间(s)、预留。
+            if (imu_new_frame)
+            {
+                vofa_send(imu_snapshot.pitch_deg, filtered_pitch_deg,
+                          imu_snapshot.pitch_rate_dps, filtered_pitch_rate_dps,
+                          static_cast<float>(imu_snapshot.tick) * 0.001f, 0.0f);
+            }
         }
         else
         {
@@ -317,7 +339,7 @@ extern "C" void up_stair_task(void *argument)
         }
 
         // 后 FSM 接口仍接收 deg、deg/s 的 IMU 量，以及 rad、rad/s 的电机量。
-        // 它校正水平零偏并管理恢复斜坡/收腿规划；Pitch 外环通过 Rad 接口取弧度。
+        // 它校正水平零偏并管理恢复斜坡/收腿目标；Pitch 外环通过 Rad 接口取弧度。
         // 任一后腿不可控时，后面的整组安全分支会将两台电机的速度、Kd、前馈力矩清零。
         up_stair_behind_motor_fsm.Update(
             rear_control_enabled,
@@ -331,7 +353,8 @@ extern "C" void up_stair_task(void *argument)
             now_tick,
             command.rear_retract_requested,
             rear_left_velocity,
-            rear_right_velocity);
+            rear_right_velocity,
+            filtered_roll_deg);
 
         // 前左反馈从离线恢复，或离线后需要首次/每隔 100 ms 重试使能时发送 On。
         // 对应逻辑通道 1、CAN ID 0x05；安全门恢复后也会重新请求一次使能。
@@ -424,7 +447,7 @@ extern "C" void up_stair_task(void *argument)
             // 此分支用于收腿移动/收腿保持；发送前统一执行端点单向力矩保护。
             rear_6248_pitch_pid.reset();
             // 编码器外环输出已是 rad/s，不再叠加 Pitch 的左右方向系数。
-            // 目标是 FSM 当前规划到的位置(rad)，反馈是同一编码器坐标中的连续位置(rad)。
+            // 目标是 FSM 给出的最终收腿位置(rad)，反馈是同一编码器坐标中的连续位置(rad)。
             // 位置误差已经决定了电机正负方向，左右镜像关系体现在各自的目标角中。
             const float left_target_velocity = rear_6248_left_retract_pid.UpDate(
                 up_stair_behind_motor_fsm.Get_Position_Target_Angle(1U),
@@ -432,17 +455,17 @@ extern "C" void up_stair_task(void *argument)
             const float right_target_velocity = rear_6248_right_retract_pid.UpDate(
                 up_stair_behind_motor_fsm.Get_Position_Target_Angle(2U),
                 up_stair_behind_motor_fsm.Get_Position_Feedback(2U));
-            // Limit_Velocity 使用传入 Kd 估算力矩 -> 软启动/增益/机械保护 -> ±30 Nm 采样限幅
-            // -> 换回 rad/s 目标。估算和发送共用 REAR_MIT_KD，只需修改其定义。
+            // Limit_Velocity 估算速度环+收腿前馈总力矩 -> 软启动/增益/机械保护 -> ±30 Nm 采样限幅
+            // -> 扣除实际发送的前馈后换回 rad/s 目标。估算和发送共用 REAR_RETRACT_MIT_KD。
             // 真实帧间力矩由驱动器速度反馈决定，±30 Nm 采样估算约束不替代驱动器硬限流/限矩。
             rear_6248.ctrl_Mit(
                 1, SafeMotorAngle(rear_left_angle),
-                up_stair_behind_motor_fsm.Limit_Velocity(1U, left_target_velocity, REAR_MIT_KD),
-                0.0f, REAR_MIT_KD, 0.0f);
+                up_stair_behind_motor_fsm.Limit_Velocity(1U, left_target_velocity, REAR_RETRACT_MIT_KD),
+                0.0f, REAR_RETRACT_MIT_KD, up_stair_behind_motor_fsm.Get_Retract_Feedforward_Torque(1U));
             rear_6248.ctrl_Mit(
                 2, SafeMotorAngle(rear_right_angle),
-                up_stair_behind_motor_fsm.Limit_Velocity(2U, right_target_velocity, REAR_MIT_KD),
-                0.0f, REAR_MIT_KD, 0.0f);
+                up_stair_behind_motor_fsm.Limit_Velocity(2U, right_target_velocity, REAR_RETRACT_MIT_KD),
+                0.0f, REAR_RETRACT_MIT_KD, up_stair_behind_motor_fsm.Get_Retract_Feedforward_Torque(2U));
         }
         else if (up_stair_behind_motor_fsm.Uses_Attitude_Control())
         {
@@ -460,20 +483,35 @@ extern "C" void up_stair_task(void *argument)
                 static_cast<float>(up_stair_behind_motor_fsm.Get_Motor_Direction(2)) *
                 pitch_target_velocity_rad_s;
 
+            // 车身 Pitch 增大时取正角速度；阻尼始终反向，deg/s 在此转为 rad/s。
+            const float pitch_damping_torque_nm = -REAR_IMU_PITCH_DAMPING *
+                up_stair_behind_motor_fsm.Get_Pitch_Rate_Dps() * (3.14159265358979323846f / 180.0f);
+            // FSM 返回已做左右方向映射的原始 Roll 补偿；与 Pitch 阻尼合并后统一保护。
+            const float left_attitude_feedforward_nm =
+                static_cast<float>(up_stair_behind_motor_fsm.Get_Motor_Direction(1)) *
+                pitch_damping_torque_nm + up_stair_behind_motor_fsm.Get_Raw_Roll_Torque(1U);
+            const float right_attitude_feedforward_nm =
+                static_cast<float>(up_stair_behind_motor_fsm.Get_Motor_Direction(2)) *
+                pitch_damping_torque_nm + up_stair_behind_motor_fsm.Get_Raw_Roll_Torque(2U);
+            const float left_feedforward_nm = StairTorqueSafety::ClampJ6248Torque(
+                up_stair_behind_motor_fsm.Limit_Torque(1U, left_attitude_feedforward_nm));
+            const float right_feedforward_nm = StairTorqueSafety::ClampJ6248Torque(
+                up_stair_behind_motor_fsm.Limit_Torque(2U, right_attitude_feedforward_nm));
+
             // 调平不再由限位位置环接管；收腿外环未使用时清空其历史。
             rear_6248_left_retract_pid.reset();
             rear_6248_right_retract_pid.reset();
-            // 软启动、采样力矩限幅和端点方向保护统一由 Limit_Velocity 执行。
+            // Limit_Velocity 合并速度环、Pitch 阻尼和 Roll 补偿执行保护，再扣除实际发送的前馈。
             // 下限禁止负力矩，上限禁止正力矩；端点内侧 0.5° 按触限处理。
-            // 拦截时速度目标匹配采样轴速度，避免将速度设为 0 而产生额外制动力矩。
+            // 拦截按速度项+前馈的采样总力矩执行，不能只判断目标速度的符号。
             rear_6248.ctrl_Mit(
                 1, SafeMotorAngle(rear_left_angle),
-                up_stair_behind_motor_fsm.Limit_Velocity(1U, left_pitch_velocity, REAR_MIT_KD),
-                0.0f, REAR_MIT_KD, 0.0f);
+                up_stair_behind_motor_fsm.Limit_Velocity(1U, left_pitch_velocity, REAR_IMU_MIT_KD, left_attitude_feedforward_nm),
+                0.0f, REAR_IMU_MIT_KD, left_feedforward_nm);
             rear_6248.ctrl_Mit(
                 2, SafeMotorAngle(rear_right_angle),
-                up_stair_behind_motor_fsm.Limit_Velocity(2U, right_pitch_velocity, REAR_MIT_KD),
-                0.0f, REAR_MIT_KD, 0.0f);
+                up_stair_behind_motor_fsm.Limit_Velocity(2U, right_pitch_velocity, REAR_IMU_MIT_KD, right_attitude_feedforward_nm),
+                0.0f, REAR_IMU_MIT_KD, right_feedforward_nm);
         }
         else
         {

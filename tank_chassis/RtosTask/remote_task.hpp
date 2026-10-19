@@ -17,6 +17,7 @@ struct ImuControlSnapshot
 {
     float pitch_deg;          // 去零偏前的 Pitch 角度，单位：度
     float pitch_rate_dps;     // Pitch 角速度，单位：度/秒
+    float roll_deg;           // 去零偏前的 Roll 角度，单位：度；左侧抬高时增大
     uint32_t tick;            // 有效帧解析完成时的板端时间，单位：毫秒
     bool valid;
 };

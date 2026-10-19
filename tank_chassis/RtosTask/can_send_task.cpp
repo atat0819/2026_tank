@@ -714,10 +714,10 @@ if (chassis_fsm.Get_Mode() == CHASSIS_STOP)
        
     }
 
-        // 独立于控制分支发送，停车时目标为零、反馈仍显示实际轮速。
-        vofa_send(motor_target_speed[0], current_speed_rads[0],
-                  motor_target_speed[1], current_speed_rads[1],
-                  motor_target_speed[3], current_speed_rads[3]);
+        // VOFA 暂由 up_stair.cpp 发送 IMU 原始/滤波数据，避免混入轮速帧。
+        // vofa_send(motor_target_speed[0], current_speed_rads[0],
+        //           motor_target_speed[1], current_speed_rads[1],
+        //           motor_target_speed[3], current_speed_rads[3]);
 
         // 更新裁判回复快照；只有收到有效 RS485 请求后才由 RX ISR 发送。
         Referee485_Update(

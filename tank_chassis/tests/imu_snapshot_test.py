@@ -22,10 +22,11 @@ MAIN = r'''
 int main() {
     ImuControlSnapshot s;
     GetImuControlSnapshot(s); assert(!s.valid);
-    IMU_Float_t data{}; data.pitch=12.5f; data.gyr_pitch=-7.25f;
+    IMU_Float_t data{}; data.pitch=12.5f; data.gyr_pitch=-7.25f; data.roll=1.5f;
     tick=200; PublishHi14ImuFromISR(data,tick,true);
     GetImuControlSnapshot(s);
     assert(s.valid && s.pitch_deg==12.5f && s.pitch_rate_dps==-7.25f && s.tick==200);
+    assert(s.roll_deg==1.5f);
     tick=219; GetImuControlSnapshot(s); assert(s.valid);
     tick=220; GetImuControlSnapshot(s); assert(s.valid);
     tick=299; GetImuControlSnapshot(s); assert(s.valid);
@@ -43,6 +44,10 @@ int main() {
     GetImuControlSnapshot(s); assert(!s.valid);
     data.gyr_pitch=-2; PublishHi14ImuFromISR(data,tick,true);
     GetImuControlSnapshot(s); assert(s.valid && s.pitch_deg==1 && s.pitch_rate_dps==-2);
+    data.roll=NAN; PublishHi14ImuFromISR(data,tick,true);
+    GetImuControlSnapshot(s); assert(!s.valid);
+    data.roll=-3; PublishHi14ImuFromISR(data,tick,true);
+    GetImuControlSnapshot(s); assert(s.valid && s.roll_deg==-3);
 }
 '''
 remote=(ROOT/"RtosTask/remote_task.cpp").read_text(encoding="utf-8")

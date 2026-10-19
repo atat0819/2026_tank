@@ -52,7 +52,8 @@ int main()
             if (retract)
             {
                 assert(rear.Uses_Retract_Position_Control());
-                assert(std::fabs(rear.Get_Position_Target_Angle(1) - 0.9f) < 1e-5f);
+                assert(std::fabs(rear.Get_Position_Target_Angle(1) - config.retract_target_rad[0]) < 1e-5f);
+                assert(std::fabs(rear.Get_Position_Target_Angle(2) - config.retract_target_rad[1]) < 1e-5f);
             }
             else
             {

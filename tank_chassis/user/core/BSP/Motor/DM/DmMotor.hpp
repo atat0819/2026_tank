@@ -383,6 +383,7 @@ namespace BSP::Motor::DM
         J4340(uint16_t Init_id, const uint8_t (&ids)[N], const uint32_t (&send_idxs)[N],
               HAL::FDCAN::FdcanDeviceId fdcan_device_id = HAL::FDCAN::FdcanDeviceId::HAL_Fdcan2)
             : DMMotorBase<N>(Init_id, ids, send_idxs, 
+                            // 速度映射范围 ±10 rad/s；电机调试助手 VMAX 必须同步为 10。
                             Parameters(-3.14159f, 3.14159f, -10.0f, 10.0f, -27.0f, 27.0f, 0.0f, 500.0f, 0.0f, 5.0f),
                             fdcan_device_id)
         {
@@ -396,7 +397,8 @@ namespace BSP::Motor::DM
         J6248(uint16_t Init_id, const uint8_t (&ids)[N], const uint32_t (&send_idxs)[N],
               HAL::FDCAN::FdcanDeviceId fdcan_device_id = HAL::FDCAN::FdcanDeviceId::HAL_Fdcan2)
             : DMMotorBase<N>(Init_id, ids, send_idxs,
-                              Parameters(-3.14159f, 3.14159f, -20.0f, 20.0f, -97.0f, 97.0f,
+                              // 速度映射范围 ±10 rad/s；电机调试助手 VMAX 必须同步为 10。
+                              Parameters(-3.14159f, 3.14159f, -10.0f, 10.0f, -97.0f, 97.0f,
                                          0.0f, 500.0f, 0.0f, 5.0f),
                               fdcan_device_id)
         {

@@ -5,12 +5,16 @@
 #include "../user/core/Alg/UtilityFunction/SlopePlanning.hpp"
 #include <stdint.h>
 
+// 调试观察：按最终 MIT 速度目标和前馈估算的总力矩，N·m；[0]=左后、[1]=右后。
+// 使用本周期电机速度采样，未计协议量化；不是电机实测力矩。
+extern volatile float rear_estimated_torque_nm[2];
+
 enum Enum_Up_Stair_Behind_Motor_Status
 {
     UP_STAIR_BEHIND_MOTOR_DISABLED = 0,       // 后连杆控制关闭，力矩为零
     UP_STAIR_BEHIND_MOTOR_RECOVERING,         // 反馈恢复后，力矩比例软启动
     UP_STAIR_BEHIND_MOTOR_ATTITUDE_HOLD,      // 正常进行 pitch 水平控制
-    UP_STAIR_BEHIND_MOTOR_RETRACTING,          // 收腿位置控制正在按规划速度移动到目标角
+    UP_STAIR_BEHIND_MOTOR_RETRACTING,          // 收腿位置 PID 正在跟踪最终目标角
     UP_STAIR_BEHIND_MOTOR_RETRACTED_HOLD,      // 收腿目标已到位，继续保持该位置
     UP_STAIR_BEHIND_MOTOR_COUNT                // 状态数量，用于 FSM 初始化和边界检查
 };
@@ -22,31 +26,41 @@ public:
     // Config() 仍保留未标定的安全默认值，任务必须显式装入这些角度才能启用控制。
     static constexpr float PITCH_ZERO_DEG = 1.3f; // 实测水平时 HI14 原始 Pitch
     static constexpr float PITCH_TARGET_DEG = -0.3f; // 原始目标 -7° 减去水平零偏 1.3°；实测左71°、右26°
+    // Roll 回正补偿：目标直接使用 HI14 原始角度；左侧抬高时读数增大。
+    static constexpr float ROLL_TARGET_DEG = 1.5f; // 实测左右水平读数，度。
+    static constexpr float ROLL_KP = 2.0f; // N·m/度；0=关闭，独立于 MIT Kd。
+    static constexpr float ROLL_MAX_TORQUE_NM = 6.0f; // 每侧 Roll 补偿上限，N·m，须 >= 0。
     // 实车机械区间：左 29°→94.7°，右 4.47°→68°，均不跨 ±π。
     static constexpr float ANGLE_START_RAD[2] = { // 左右电机机械安全区起始角，弧度
-        29.29f * 3.14159265358979323846f / 180.0f,
+        28.8f * 3.14159265358979323846f / 180.0f,
         4.47f * 3.14159265358979323846f / 180.0f};
     static constexpr float ANGLE_END_RAD[2] = { // 左右电机机械安全区终止角，弧度
-        94.04f * 3.14159265358979323846f / 180.0f,
-        68.84f * 3.14159265358979323846f / 180.0f};
+        94.64f * 3.14159265358979323846f / 180.0f,
+        69.84f * 3.14159265358979323846f / 180.0f};
     // 端点外侧反馈容差及向外力矩拦截容差。
     static constexpr float ANGLE_LIMIT_TOLERANCE_RAD =
         0.5f * 3.14159265358979323846f / 180.0f;
     static constexpr int8_t MOTOR_DIRECTION[2] = {1, -1}; // 左右电机镜像安装，Pitch 力矩方向相反
-    static constexpr float MIT_SPEED_LIMIT_RAD_S = 20.0f; // J6248 协议速度量程
+    static constexpr float MIT_SPEED_LIMIT_RAD_S = 10.0f; // J6248 速度映射范围，与驱动及电机 VMAX 一致
     static constexpr float MOTOR_TORQUE_GAIN[2] = {1.0f, 1.0f}; // 左右电机最终力矩倍率，必须大于 0
     // B 收腿目标保留端点内侧 8° 的位置；该间距不参与机械限位保护。
-    static constexpr float RETRACT_MARGIN_RAD = 3.0f * 3.14159265358979323846f / 180.0f;
+    static constexpr float RETRACT_MARGIN_RAD = 4.0f * 3.14159265358979323846f / 180.0f;
     static constexpr float RETRACT_TARGET_RAD[2] = {
         ANGLE_END_RAD[0] - RETRACT_MARGIN_RAD,
         ANGLE_START_RAD[1] + RETRACT_MARGIN_RAD};
-    static constexpr float RETRACT_SPEED_RAD_S = 1.8f; // 收腿规划速度，弧度/秒；未标定时为 0，禁止收腿
     static constexpr float RETRACT_POSITION_TOLERANCE_RAD = 0.03f; // 收腿到位容差，弧度
+    static constexpr uint32_t RETRACT_SPEED_RAMP_TIME_MS = 1000U; // 收腿目标速度从 0 恢复到原输出的用时，须大于 0
+    // 收腿移动/保持的前馈力矩，单位 N·m；[0]=左、[1]=右，
+    //左电机为正数时，力矩方向为抬起后连杆，右电机为正数时，力矩方向为抬起后连杆。
+    static constexpr float RETRACT_FEEDFORWARD_TORQUE_NM[2] = {2.0f, -3.0f};
 
     struct Config
     {
         float pitch_zero_deg;       // IMU pitch 零偏，单位：度
         float pitch_target_deg;     // 公共 IMU 工作目标，相对水平零偏，单位：度
+        float roll_target_deg;      // Roll 水平目标，HI14 原始角度，单位：度
+        float roll_kp;              // Roll 比例增益，N·m/度，非负
+        float roll_max_torque_nm;   // 每侧 Roll 补偿绝对值上限，N·m，非负
         float angle_start_rad[2];   // 两侧机械安全区起始角，单位：弧度
         float angle_end_rad[2];     // 两侧机械安全区终止角，单位：弧度
         int8_t motor_direction[2];  // 电机正方向，取 +1 或 -1
@@ -55,8 +69,8 @@ public:
         // 左右最终力矩独立校准增益，必须为正的有限值；默认均为 1.0。
         float motor_torque_gain[2];
         float retract_target_rad[2];
-        float retract_speed_rad_s;             // 收腿规划速度上限，弧度/秒
         float retract_position_tolerance_rad;  // 收腿到位判定容差，弧度
+        float retract_feedforward_torque_nm[2]; // 收腿移动/保持前馈，N·m
 
         Config();
         // 装入本文件的后腿配置常量；默认 Config() 仍保持无效，防止误启用。
@@ -86,7 +100,8 @@ public:
                 uint32_t now_tick,                 // 当前系统 tick
                 bool retract_requested = false,   // true=收腿，false=调平
                 float left_velocity_rad_s = 0.0f,
-                float right_velocity_rad_s = 0.0f); // IMU 无效时两侧零力矩
+                float right_velocity_rad_s = 0.0f,
+                float roll_deg = ROLL_TARGET_DEG); // 滤波后的原始 Roll，度；IMU 无效时两侧零力矩
 
     // 返回后部状态枚举值。
     uint8_t Get_State() const;
@@ -102,6 +117,9 @@ public:
     float Get_Feedback_Pitch_Rad() const;
     // 获取 pitch 角速度反馈，单位：度/秒。
     float Get_Pitch_Rate_Dps() const;
+    // 仅调平且两侧可控时返回 Roll 补偿，已按左右差动和电机方向映射，单位 N·m。
+    // 尚未应用恢复斜坡、最终增益或机械限位；须与 Pitch 阻尼合并后统一保护。
+    float Get_Raw_Roll_Torque(uint8_t id) const;
     // 查询任务当前是否应执行 pitch 姿态控制，包括恢复软启动和正常姿态保持。
     bool Uses_Attitude_Control() const;
     // 查询当前是否处于收腿移动或收腿位置保持状态。
@@ -114,6 +132,9 @@ public:
     float Get_Position_Target_Angle(uint8_t id) const;
     // id 为外部电机编号 1=左、2=右；返回对应编码器反馈角，单位弧度。
     float Get_Position_Feedback(uint8_t id) const;
+    // MIT 前馈项直接读取此接口；应用软启动/增益、端点保护和 ±30 N·m 限幅。
+    // 仅收腿移动/保持有效；IMU 调平、禁用或反馈无效时返回 0。
+    float Get_Retract_Feedforward_Torque(uint8_t id) const;
 
     // 简短别名，方便任务读取姿态目标、角度反馈和角速度反馈。
     float Get_Target_Pitch() const { return Get_Target_Pitch_Deg(); }
@@ -132,24 +153,26 @@ public:
     // 应用软启动/增益和端点单向约束；下限禁止负力矩，上限禁止正力矩。
     // 单位 N·m；区间内不减速，端点不主动回退；反馈无效或禁用时返回 0。
     float Limit_Torque(uint8_t id, float raw_torque_nm) const;
-    // 由当前电机速度估算 Kd*(目标速度-实际速度)，复用软启动/增益/限位约束，
-    // 再换回 rad/s 目标；采样间隔内的真实力矩上限由驱动器保证。
-    // kd 必须与本次 ctrl_Mit 命令中的 Kd 相同。
-    float Limit_Velocity(uint8_t id, float target_velocity_rad_s, float kd) const;
+    // 收腿目标速度先乘起步斜坡比例；估算 Kd*(目标速度-实际速度)+当前模式前馈，执行增益/限位约束，
+    // 扣除实际发送的前馈后再换回 rad/s 目标，避免重复叠加；帧间真实限矩由驱动器保证。
+    // attitude_feedforward_nm 是已做方向修正、尚未保护的 Pitch 阻尼与 Roll 补偿之和，仅调平模式使用。
+    // kd 必须与本次 ctrl_Mit 命令中的 Kd 相同；发送前馈须与此处应用相同的保护。
+    float Limit_Velocity(uint8_t id, float target_velocity_rad_s, float kd,
+                         float attitude_feedforward_nm = 0.0f) const;
     // 返回机械配置是否通过校验。
     bool Is_Config_Valid() const;
 
 private:
     float motor_velocity_rad_s_[2] = {0.0f, 0.0f};
     bool Has_Mechanical_Limit(uint8_t index) const;
-    bool retract_config_valid_;             // 收腿目标、速度和容差配置是否通过校验
+    bool retract_config_valid_;             // 收腿目标和容差配置是否通过校验
     float position_feedback_rad_[2];        // 左右电机连续位置反馈，单位弧度
-    float retract_target_angle_rad_[2];     // 左右当前收腿规划目标，单位弧度
-    Alg::Utility::SlopePlanning retract_planner_[2]; // 左右收腿位置规划器
-    uint32_t retract_last_tick_;             // 上次推进收腿规划器的系统 tick
+    float retract_target_angle_rad_[2];     // 左右最终收腿目标，单位弧度
+    Alg::Utility::SlopePlanning retract_speed_planner_{0.0f, 0.0f}; // 仅收腿速度请求的 0→1 比例
+    uint32_t retract_speed_last_tick_ = 0U;
     bool pending_resume_;                    // 是否等待在恢复后重新建立控制目标
 
-    // 后部控制重新上线时，力矩比例在 2000 ms 内从 0 增加到 1。
+    // IMU/电机反馈故障恢复时，力矩比例在 2000 ms 内从 0 增加到 1。
     static const uint32_t RECOVERY_TIME_MS = 2000U;
     static constexpr float TWO_PI_RAD = 6.28318530717958647692f; // 周期角展开使用的整周弧度
 
@@ -157,7 +180,7 @@ private:
     void Reset();
     // 检查姿态控制所需的零偏、机械角区间、电机方向和左右力矩增益。
     bool Validate_Config() const;
-    // 检查收腿目标角、规划速度和到位容差。
+    // 检查收腿目标角和到位容差。
     bool Validate_Retract_Config() const;
     // 将外部电机编号 1/2 映射为内部数组下标 0/1。
     uint8_t To_Index(uint8_t id) const;
@@ -171,10 +194,8 @@ private:
     void Start_Recovery(uint32_t now_tick);
     // 根据经过的系统 tick 更新恢复斜坡比例。
     void Update_Recovery_Scale(uint32_t now_tick);
-    // 接受有效收腿命令并初始化左右位置规划器。
+    // 接受有效收腿命令并直接设置左右最终目标角。
     void Start_Retracting(uint32_t now_tick);
-    // 按速度上限推进左右收腿目标角。
-    void Update_Retract_Targets(uint32_t now_tick);
     // 判断左右反馈是否都进入收腿目标容差范围。
     bool Both_Retract_Targets_Reached() const;
 
@@ -184,11 +205,12 @@ private:
     float motor_angle_rad_[2];              // 左右电机最近一次原始角度
     float feedback_pitch_deg_;              // 去零偏后的 pitch 角度
     float pitch_rate_dps_;                  // pitch 角速度反馈
+    float feedback_roll_deg_;               // 滤波后的原始 Roll 角度，度
     float output_scale_;                    // 恢复斜坡输出比例
     uint32_t recovery_start_tick_;          // 本次恢复斜坡开始时间
     uint32_t recovery_last_tick_;           // 上一次更新恢复比例的时间
     Alg::Utility::SlopePlanning recovery_planner_; // 2000 ms 力矩比例规划器
-    bool feedback_degraded_;                // 是否曾出现过任一侧反馈降级
+    bool feedback_degraded_;                // 是否有待恢复或尚未完成恢复的 IMU/电机反馈故障
     bool feedback_valid_previous_[2];       // 上一周期左右反馈状态，用于检测恢复沿
 };
 

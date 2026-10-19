@@ -1,0 +1,239 @@
+{
+  "source": "E:\\IMU数据2.csv",
+  "rows": 5430,
+  "duration_s": 27.149993999999992,
+  "nominal_sample_rate_hz": 200.0,
+  "timestamp_dt_range_s": [
+    0.004974000000004253,
+    0.009978999999987082
+  ],
+  "gaps": [
+    {
+      "csv_row_after_gap": 655,
+      "relative_time_s": 3.2699890000000096,
+      "dt_s": 0.009978999999987082
+    }
+  ],
+  "quiet_segment_s": [
+    25.0,
+    27.149993999999992
+  ],
+  "channels": {
+    "pitch": {
+      "alpha": 0.09,
+      "fitted_alpha": 0.09000000066752394,
+      "recurrence_max_abs_error_excluding_gap": 2.780000000618399e-06,
+      "raw_range": [
+        -3.385,
+        19.677
+      ],
+      "filtered_range": [
+        -2.934285,
+        19.580952
+      ],
+      "same_time_max_abs_difference": 2.2565880000000007,
+      "cutoff_hz": 3.004229752981507,
+      "low_frequency_group_delay_ms": 50.555555555555564,
+      "cross_correlation_delay_ms": 50.0,
+      "cross_correlation": 0.9997820626190556,
+      "quiet_raw_std": 0.002636290421305952,
+      "quiet_filtered_std": 0.0025569066879631403,
+      "quiet_raw_linear_detrended_rms": 0.0016484871081976333,
+      "quiet_filtered_linear_detrended_rms": 0.0013511926010921279,
+      "bands": [
+        {
+          "hz": [
+            0,
+            1
+          ],
+          "raw_power_percent": 98.15656170062647,
+          "raw_rms": 4.905073256814607,
+          "filtered_rms": 4.876677621632457,
+          "attenuation_db": -0.050429018132654393
+        },
+        {
+          "hz": [
+            1,
+            3
+          ],
+          "raw_power_percent": 1.792258122805114,
+          "raw_rms": 0.6628055067528656,
+          "filtered_rms": 0.5982393255692987,
+          "attenuation_db": -0.8902229956859782
+        },
+        {
+          "hz": [
+            3,
+            10
+          ],
+          "raw_power_percent": 0.050298326664726334,
+          "raw_rms": 0.1110356905489159,
+          "filtered_rms": 0.06978134712725889,
+          "attenuation_db": -4.034464972427551
+        },
+        {
+          "hz": [
+            10,
+            30
+          ],
+          "raw_power_percent": 0.0006479421507498032,
+          "raw_rms": 0.012602419902964632,
+          "filtered_rms": 0.0028910861799274533,
+          "attenuation_db": -12.787858164011025
+        },
+        {
+          "hz": [
+            30,
+            100.0
+          ],
+          "raw_power_percent": 0.00023390775294084094,
+          "raw_rms": 0.007571956977988975,
+          "filtered_rms": 0.0004316193390400856,
+          "attenuation_db": -24.88214484789566
+        }
+      ],
+      "response": [
+        {
+          "hz": 1,
+          "magnitude": 0.9487855544769557,
+          "phase_deg": -17.537628887590113,
+          "phase_delay_ms": 48.71563579886142
+        },
+        {
+          "hz": 3,
+          "magnitude": 0.7076043665740567,
+          "phase_deg": -42.32332690828978,
+          "phase_delay_ms": 39.188265655823876
+        },
+        {
+          "hz": 5,
+          "magnitude": 0.5152775149198962,
+          "phase_deg": -54.59012811825062,
+          "phase_delay_ms": 30.327848954583676
+        },
+        {
+          "hz": 10,
+          "magnitude": 0.2887090861319356,
+          "phase_deg": -64.43191011739395,
+          "phase_delay_ms": 17.897752810387207
+        },
+        {
+          "hz": 20,
+          "magnitude": 0.15090625773292318,
+          "phase_deg": -63.74839296277831,
+          "phase_delay_ms": 8.853943467052543
+        }
+      ],
+      "second_order_same_cutoff_low_frequency_delay_ms": 74.86510502642302,
+      "second_order_same_dc_delay_cutoff_hz": 4.444876870916315
+    },
+    "pitch_rate": {
+      "alpha": 0.25,
+      "fitted_alpha": 0.25000000212747714,
+      "recurrence_max_abs_error_excluding_gap": 4.000000000559112e-06,
+      "raw_range": [
+        -40.278934,
+        45.722034
+      ],
+      "filtered_range": [
+        -39.655685,
+        45.299454
+      ],
+      "same_time_max_abs_difference": 19.123649999999998,
+      "cutoff_hz": 9.221023408814748,
+      "low_frequency_group_delay_ms": 15.0,
+      "cross_correlation_delay_ms": 10.0,
+      "cross_correlation": 0.9983725613046627,
+      "quiet_raw_std": 0.006760227226099125,
+      "quiet_filtered_std": 0.003138678463352874,
+      "quiet_raw_linear_detrended_rms": 0.006748657926991117,
+      "quiet_filtered_linear_detrended_rms": 0.003106503452639875,
+      "bands": [
+        {
+          "hz": [
+            0,
+            1
+          ],
+          "raw_power_percent": 75.55177748127022,
+          "raw_rms": 12.154895302597149,
+          "filtered_rms": 12.14126725318156,
+          "attenuation_db": -0.009744069282411266
+        },
+        {
+          "hz": [
+            1,
+            3
+          ],
+          "raw_power_percent": 19.9116459122403,
+          "raw_rms": 6.239969393700381,
+          "filtered_rms": 6.139410968138415,
+          "attenuation_db": -0.14111507569332504
+        },
+        {
+          "hz": [
+            3,
+            10
+          ],
+          "raw_power_percent": 4.063688424997567,
+          "raw_rms": 2.818961082208065,
+          "filtered_rms": 2.5126662966737676,
+          "attenuation_db": -0.9990853144138181
+        },
+        {
+          "hz": [
+            10,
+            30
+          ],
+          "raw_power_percent": 0.4453373658026645,
+          "raw_rms": 0.9331972432252417,
+          "filtered_rms": 0.5083135908803551,
+          "attenuation_db": -5.276834509832722
+        },
+        {
+          "hz": [
+            30,
+            100.0
+          ],
+          "raw_power_percent": 0.02755081568922538,
+          "raw_rms": 0.2321112069785955,
+          "filtered_rms": 0.060714836898681804,
+          "attenuation_db": -11.648025544554418
+        }
+      ],
+      "response": [
+        {
+          "hz": 1,
+          "magnitude": 0.9941308029455107,
+          "phase_deg": -5.375305061296348,
+          "phase_delay_ms": 14.931402948045411
+        },
+        {
+          "hz": 3,
+          "magnitude": 0.9506524443358557,
+          "phase_deg": -15.568657054300658,
+          "phase_delay_ms": 14.415423198426536
+        },
+        {
+          "hz": 5,
+          "magnitude": 0.8785867976259494,
+          "phase_deg": -24.350894039942222,
+          "phase_delay_ms": 13.528274466634569
+        },
+        {
+          "hz": 10,
+          "magnitude": 0.678119063503302,
+          "phase_deg": -38.95066165162652,
+          "phase_delay_ms": 10.819628236562924
+        },
+        {
+          "hz": 20,
+          "magnitude": 0.4231975614883867,
+          "phase_deg": -48.26639258735406,
+          "phase_delay_ms": 6.7036656371325085
+        }
+      ],
+      "second_order_same_cutoff_low_frequency_delay_ms": 24.238399287081656,
+      "second_order_same_dc_delay_cutoff_hz": 14.736306675894271
+    }
+  }
+}

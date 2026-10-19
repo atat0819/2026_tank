@@ -48,7 +48,7 @@ static HAL::UART::Data uart7_rx_data;   // HI14 DMA+空闲接收
 HAL::UART::Data uart1_rx_data;          // 裁判系统 DMA+空闲接收（非static，RM_RefereeSystemInit 需引用）
 
 // ================= HI14 快照 =================
-static ImuControlSnapshot imu_control_snapshot = {}; // 后腿 Pitch 控制快照
+static ImuControlSnapshot imu_control_snapshot = {}; // 后腿 Pitch/Roll 控制快照
 
 // 在临界区复制最近一帧完整 IMU 控制数据，供上台阶任务安全读取。
 void GetImuControlSnapshot(ImuControlSnapshot &snapshot)
@@ -65,19 +65,21 @@ void PublishHi14ImuFromISR(const IMU_Float_t &data, uint32_t sample_tick, bool v
 {
     const float pitch = data.pitch;
     const float pitch_rate = data.gyr_pitch;
-    const bool finite = std::isfinite(pitch) && std::isfinite(pitch_rate);
+    const float roll = data.roll;
+    const bool finite = std::isfinite(pitch) && std::isfinite(pitch_rate) && std::isfinite(roll);
 
     const UBaseType_t saved_interrupt = taskENTER_CRITICAL_FROM_ISR();
     if (valid && finite)
     {
         imu_control_snapshot.pitch_deg = pitch;
         imu_control_snapshot.pitch_rate_dps = pitch_rate;
+        imu_control_snapshot.roll_deg = roll;
         imu_control_snapshot.tick = sample_tick;
         imu_control_snapshot.valid = true;
     }
     else
     {
-        // 接收错误或 Pitch 非有限时，不能继续使用旧反馈。
+        // 接收错误或控制反馈非有限时，不能继续使用旧反馈。
         imu_control_snapshot.valid = false;
     }
     taskEXIT_CRITICAL_FROM_ISR(saved_interrupt);
@@ -321,6 +323,7 @@ extern "C" void remote_task(void *argument)
                 IMU_Float_t feedback{};
                 feedback.pitch = hi14.GetPitchAngleDeg();
                 feedback.gyr_pitch = hi14.GetPitchRateDps();
+                feedback.roll = hi14.GetRollAngleDeg();
                 PublishHi14ImuFromISR(feedback, HAL_GetTick(), true);
             }
         }

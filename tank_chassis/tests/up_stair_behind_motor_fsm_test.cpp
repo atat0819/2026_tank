@@ -29,7 +29,6 @@ Class_Up_Stair_Behind_Motor_FSM::Config valid_config()
     config.motor_direction[1] = -1;
     config.retract_target_rad[0] = 2.0f;
     config.retract_target_rad[1] = deg(-30.0f);
-    config.retract_speed_rad_s = 1.0f;
     config.retract_position_tolerance_rad = 0.02f;
     return config;
 }
@@ -54,8 +53,9 @@ void enter_attitude_hold(Class_Up_Stair_Behind_Motor_FSM &fsm,
 
 int main()
 {
-    // Two-second soft start: check intermediate effort, completion and both sides.
+    // Two-second fault recovery: check intermediate effort, completion and both sides.
     Class_Up_Stair_Behind_Motor_FSM slow_start(valid_config());
+    slow_start.Update(true, false, true, true, 0, 0, deg(90), deg(-10), 0U);
     const uint32_t ramp_ticks[] = {0U, 500U, 1000U, 1500U, 1999U, 2000U};
     for (uint32_t tick : ramp_ticks)
     {
@@ -90,11 +90,8 @@ int main()
         assert(near(header_angles.motor_torque_gain[i], Class_Up_Stair_Behind_Motor_FSM::MOTOR_TORQUE_GAIN[i]));
         assert(near(header_angles.retract_target_rad[i], Class_Up_Stair_Behind_Motor_FSM::RETRACT_TARGET_RAD[i]));
         }
-    assert(near(header_angles.retract_speed_rad_s,
-                Class_Up_Stair_Behind_Motor_FSM::RETRACT_SPEED_RAD_S));
     assert(near(header_angles.retract_position_tolerance_rad,
                 Class_Up_Stair_Behind_Motor_FSM::RETRACT_POSITION_TOLERANCE_RAD));
-    assert(near(Class_Up_Stair_Behind_Motor_FSM::Config().retract_speed_rad_s, 0.0f));
     assert(Class_Up_Stair_Behind_Motor_FSM(header_angles).Is_Config_Valid());
 
     // The latest measured flat-chassis stops replace the earlier calibration.
@@ -201,7 +198,8 @@ int main()
     assert(!fsm.Is_Motor_Controllable(1U));
     assert(!fsm.Is_Motor_Controllable(2U));
 
-    // A valid update enters recovery at the current tick and ramps for 2000 ms.
+    // Valid feedback after an IMU fault ramps for 2000 ms.
+    fsm.Update(true, false, true, true, 0, 0, deg(90), deg(-10), 999U);
     update_valid(fsm, 1000U);
     assert(fsm.Get_State() == UP_STAIR_BEHIND_MOTOR_RECOVERING);
     assert(near(fsm.Get_Output_Scale(), 0.0f));
@@ -408,6 +406,7 @@ int main()
 
     // Unsigned tick subtraction keeps recovery deterministic across wrap.
     Class_Up_Stair_Behind_Motor_FSM wrap_fsm(valid_config());
+    wrap_fsm.Update(true, false, true, true, 0, 0, deg(90), deg(-10), 0xFFFFFEFFU);
     update_valid(wrap_fsm, 0xFFFFFF00U);
     wrap_fsm.Update(true, true, true, true, 4.5f, 12.0f,
                     deg(90.0f), deg(-10.0f), 0x00000000U);
@@ -476,10 +475,10 @@ int main()
     assert(!retract_fsm.Uses_Attitude_Control());
     assert(retract_fsm.Uses_Retract_Position_Control());
     assert(retract_fsm.Uses_Position_Control());
-    assert(near(retract_fsm.Get_Position_Target_Angle(1U), deg(90.0f)));
-    assert(near(retract_fsm.Get_Position_Target_Angle(2U), deg(-10.0f)));
-    assert(near(retract_fsm.Get_Retract_Target_Angle(1U), deg(90.0f)));
-    assert(near(retract_fsm.Get_Retract_Target_Angle(2U), deg(-10.0f)));
+    assert(near(retract_fsm.Get_Position_Target_Angle(1U), 2.0f));
+    assert(near(retract_fsm.Get_Position_Target_Angle(2U), deg(-30.0f)));
+    assert(near(retract_fsm.Get_Retract_Target_Angle(1U), 2.0f));
+    assert(near(retract_fsm.Get_Retract_Target_Angle(2U), deg(-30.0f)));
     assert(near(retract_fsm.Get_Position_Feedback(1U), deg(90.0f)));
     assert(near(retract_fsm.Get_Position_Feedback(2U), deg(-10.0f)));
 
@@ -506,17 +505,16 @@ int main()
     assert(near(retract_fsm.Get_Retract_Target_Angle(1U), 2.0f));
     assert(near(retract_fsm.Get_Retract_Target_Angle(2U), deg(-30.0f)));
 
-    // Resume with valid IMU enters the existing recovery ramp immediately.
+    // Normal cancellation of retract resumes attitude at full output.
     retract_fsm.Update(true, true, true, true, 4.5f, 12.0f,
                        2.0f, deg(-30.0f), 11500U, false);
-    assert(retract_fsm.Get_State() == UP_STAIR_BEHIND_MOTOR_RECOVERING);
-    assert(near(retract_fsm.Get_Output_Scale(), 0.0f));
+    assert(retract_fsm.Get_State() == UP_STAIR_BEHIND_MOTOR_ATTITUDE_HOLD);
+    assert(near(retract_fsm.Get_Output_Scale(), 1.0f));
     retract_fsm.Update(true, true, true, true, 4.5f, 12.0f,
                        2.0f, deg(-30.0f), 15500U, false);
     assert(retract_fsm.Get_State() == UP_STAIR_BEHIND_MOTOR_ATTITUDE_HOLD);
 
-    // Clearing the request is honored while still retracting: valid IMU resumes through
-    // RECOVERING; invalid IMU is covered by rear_imu_loss_test.cpp.
+    // Clearing the request is immediate even before retraction completes.
     Class_Up_Stair_Behind_Motor_FSM retract_resume_fsm(valid_config());
     enter_attitude_hold(retract_resume_fsm, 25000U);
     retract_resume_fsm.Update(true, true, true, true, 4.5f, 12.0f, deg(90.0f), deg(-10.0f), 25300U,
@@ -524,8 +522,8 @@ int main()
     retract_resume_fsm.Update(true, true, true, true, 4.5f, 12.0f, deg(90.0f), deg(-10.0f), 25301U,
                               false);
     assert(retract_resume_fsm.Get_State() ==
-           UP_STAIR_BEHIND_MOTOR_RECOVERING);
-    assert(near(retract_resume_fsm.Get_Output_Scale(), 0.0f));
+           UP_STAIR_BEHIND_MOTOR_ATTITUDE_HOLD);
+    assert(near(retract_resume_fsm.Get_Output_Scale(), 1.0f));
 
     // Any invalid retract feedback disables both legs and zeros both torque
     // paths instead of partially controlling the healthy side.
@@ -546,7 +544,6 @@ int main()
     Class_Up_Stair_Behind_Motor_FSM::Config no_retract = valid_config();
     no_retract.retract_target_rad[0] = 0.0f;
     no_retract.retract_target_rad[1] = 0.0f;
-    no_retract.retract_speed_rad_s = 0.0f;
     no_retract.retract_position_tolerance_rad = 0.0f;
     Class_Up_Stair_Behind_Motor_FSM no_retract_fsm(no_retract);
     enter_attitude_hold(no_retract_fsm, 16000U);
@@ -584,7 +581,7 @@ int main()
     assert(wrapped_target_fsm.Get_State() ==
            UP_STAIR_BEHIND_MOTOR_RETRACTING);
     assert(near(wrapped_target_fsm.Get_Retract_Target_Angle(2U),
-                deg(170.0f)));
+                deg(190.0f)));
     wrapped_target_fsm.Update(true, true, true, true, 4.5f,
                                4.5f, 2.0f, deg(-170.0f),
                                23301U, true);

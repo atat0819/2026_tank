@@ -34,7 +34,11 @@ int publications=0, invalidations=0;
 uint32_t HAL_GetTick() { return 123U; }
 void PublishHi14ImuFromISR(const IMU_Float_t &data, uint32_t tick, bool valid) {
     assert(tick==123U);
-    if (valid) { ++publications; assert(data.pitch==ImuFloat.pitch); }
+    if (valid) {
+        ++publications;
+        assert(data.pitch==ImuFloat.pitch);
+        assert(data.roll==ImuFloat.roll);
+    }
     else { ++invalidations; }
 }
 int HAL_UARTEx_GetRxEventType(UART_HandleTypeDef *) { return event_type; }

@@ -120,6 +120,7 @@
         <SetRegEntry>
           <Number>0</Number>
           <Key>DLGUARM</Key>
+          <Name>?</Name>
         </SetRegEntry>
         <SetRegEntry>
           <Number>0</Number>
@@ -313,6 +314,21 @@
           <count>31</count>
           <WinNumber>1</WinNumber>
           <ItemText>REAR_MIT_KD</ItemText>
+        </Ww>
+        <Ww>
+          <count>32</count>
+          <WinNumber>1</WinNumber>
+          <ItemText>rear_6248_left_retract_pid</ItemText>
+        </Ww>
+        <Ww>
+          <count>33</count>
+          <WinNumber>1</WinNumber>
+          <ItemText>rear_6248_right_retract_pid</ItemText>
+        </Ww>
+        <Ww>
+          <count>34</count>
+          <WinNumber>1</WinNumber>
+          <ItemText>rear_estimated_torque_nm</ItemText>
         </Ww>
       </WatchWindow1>
       <WatchWindow2>
