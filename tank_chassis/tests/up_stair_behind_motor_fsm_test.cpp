@@ -20,7 +20,7 @@ bool near(float actual, float expected)
 Class_Up_Stair_Behind_Motor_FSM::Config valid_config()
 {
     Class_Up_Stair_Behind_Motor_FSM::Config config;
-    config.pitch_zero_deg = 2.5f;
+    config.pitch_target_deg = 2.5f;
     config.angle_start_rad[0] = deg(10.0f);
     config.angle_end_rad[0] = deg(170.0f);
     config.angle_start_rad[1] = deg(-60.0f);
@@ -81,7 +81,7 @@ int main()
         Class_Up_Stair_Behind_Motor_FSM::Config::WithAngleConstants();
     assert(near(header_angles.angle_end_rad[0], deg(94.7f)));
     assert(near(header_angles.angle_start_rad[1], deg(4.66f)));
-    assert(near(header_angles.pitch_zero_deg, Class_Up_Stair_Behind_Motor_FSM::PITCH_ZERO_DEG));
+    assert(near(header_angles.pitch_target_deg, Class_Up_Stair_Behind_Motor_FSM::IMU_PITCH_TARGET_DEG));
     for (int i = 0; i < 2; ++i)
     {
         assert(near(header_angles.angle_start_rad[i], Class_Up_Stair_Behind_Motor_FSM::ANGLE_START_RAD[i]));
@@ -215,9 +215,9 @@ int main()
     assert(near(fsm.Get_Output_Scale(), 1.0f));
     assert(near(fsm.Limit_Torque(1U, 2.0f), 2.0f));
 
-    // Calibration is applied by the FSM; rates are passed through unchanged.
-    assert(near(fsm.Get_Target_Pitch_Deg(), 0.0f));
-    assert(near(fsm.Get_Feedback_Pitch_Deg(), 2.0f));
+    // Target and feedback use raw HI14 coordinates; the previous error is preserved.
+    assert(near(fsm.Get_Target_Pitch_Deg(), 2.5f));
+    assert(near(fsm.Get_Feedback_Pitch_Deg(), 4.5f));
     assert(near(fsm.Get_Pitch_Rate_Dps(), 12.0f));
 
     // Invalid IMU data disables both rear motors; a later valid
@@ -393,9 +393,9 @@ int main()
     assert(staggered_fsm.Get_State() == UP_STAIR_BEHIND_MOTOR_ATTITUDE_HOLD);
     assert(near(staggered_fsm.Limit_Torque(1U, 2.0f), 2.0f));
 
-    // Finite raw data can still overflow during calibrated subtraction.
+    // Finite target and feedback can still overflow their difference.
     Class_Up_Stair_Behind_Motor_FSM::Config overflow_config = valid_config();
-    overflow_config.pitch_zero_deg = -std::numeric_limits<float>::max();
+    overflow_config.pitch_target_deg = -std::numeric_limits<float>::max();
     Class_Up_Stair_Behind_Motor_FSM overflow_fsm(overflow_config);
     overflow_fsm.Update(true, true, true, true,
                         std::numeric_limits<float>::max(), 12.0f, deg(90.0f), deg(-10.0f), 9000U);
@@ -444,7 +444,7 @@ int main()
     update_valid(bad_nan_gain, 0U);
     assert(bad_nan_gain.Get_State() == UP_STAIR_BEHIND_MOTOR_DISABLED);
     bad = valid_config();
-    bad.pitch_zero_deg = nan_value;
+    bad.pitch_target_deg = nan_value;
     Class_Up_Stair_Behind_Motor_FSM bad_offset(bad);
     update_valid(bad_offset, 0U);
     assert(bad_offset.Get_State() == UP_STAIR_BEHIND_MOTOR_DISABLED);

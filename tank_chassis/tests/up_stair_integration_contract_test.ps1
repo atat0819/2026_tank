@@ -34,7 +34,7 @@ if ($rearFsmHeader -notmatch 'static constexpr float ANGLE_START_RAD\[2\]' -or
     $rearFsmImpl -notmatch 'config\.angle_start_rad\[i\]\s*=\s*ANGLE_START_RAD\[i\]' -or
     $rearFsmImpl -notmatch 'config\.angle_end_rad\[i\]\s*=\s*ANGLE_END_RAD\[i\]') { throw 'rear mechanical angles must be configured in the rear FSM' }
 if ($source -notmatch 'up_stair_behind_motor_fsm\(Class_Up_Stair_Behind_Motor_FSM::Config::WithAngleConstants\(\)\)' -or
-    $source -match 'BuildRear6248Config|config\.(?:pitch_zero_deg|angle_start_rad|angle_end_rad|retract_target_rad|retract_position_tolerance_rad)\s*(?:\[|=)') { throw 'task must use rear FSM angle constants without assigning angles' }
+    $source -match 'BuildRear6248Config|config\.(?:pitch_target_deg|angle_start_rad|angle_end_rad|retract_target_rad|retract_position_tolerance_rad)\s*(?:\[|=)') { throw 'task must use rear FSM angle constants without assigning angles' }
 if ($source -notmatch 'GetControlInputSnapshot\(now_tick\)' -or
     $source -notmatch 'input\.source != ControlInputSource::NONE') { throw 'task must use the selected input source heartbeat' }
 if ($source -notmatch 'taskENTER_CRITICAL\(\);\s*command = stair_command;[\s\S]*?taskEXIT_CRITICAL') { throw 'front/rear requests must use one protected snapshot' }
@@ -56,20 +56,25 @@ if ($positionBranch.Groups['body'].Value -notmatch 'rear_6248_pitch_pid\.reset\(
 if ($positionBranch.Groups['body'].Value -notmatch 'Limit_Velocity\(1U, left_target_velocity, REAR_RETRACT_MIT_KD\)' -or
     $positionBranch.Groups['body'].Value -notmatch 'Limit_Velocity\(2U, right_target_velocity, REAR_RETRACT_MIT_KD\)') { throw 'position speeds must use rear FSM constraints with the retract Kd' }
 if ($positionBranch.Groups['body'].Value -match 'Get_Motor_Direction') { throw 'position branch must not apply motor direction correction' }
-if ($rearFsmHeader -notmatch 'static constexpr float PITCH_ZERO_DEG' -or
+if ($rearFsmHeader -notmatch 'static constexpr float IMU_PITCH_TARGET_DEG' -or
     $rearFsmHeader -notmatch 'static constexpr float RETRACT_TARGET_RAD\[2\]' -or
     $rearFsmHeader -notmatch 'static constexpr float RETRACT_POSITION_TOLERANCE_RAD' -or
     $rearFsmImpl -notmatch 'config\.retract_target_rad\[i\]\s*=\s*RETRACT_TARGET_RAD\[i\]') { throw 'rear retract angles must remain in the rear FSM header' }
 if ($rearFsmHeader -match 'BASIC_ANGLE_CONTROL|BASIC_TARGET_RAD' -or
     $rearFsmImpl -match 'Start_Basic_Angle_Control') { throw 'removed IMU fallback must not return' }
 if ($rearFsmImpl -notmatch 'if \(!control_enabled \|\| !config_valid_ \|\| !imu_ready\)\s*\{\s*Disable\(\);\s*return;') { throw 'invalid IMU must disable all rear control before retract selection' }
-if ($source -notmatch 'Limit_Velocity\(1U, left_pitch_velocity, REAR_IMU_MIT_KD, left_attitude_feedforward_nm\)' -or
-    $source -notmatch 'Limit_Velocity\(2U, right_pitch_velocity, REAR_IMU_MIT_KD, right_attitude_feedforward_nm\)') { throw 'both pitch speeds must protect combined Pitch/Roll feedforward with the matching Kd' }
+if ($source -notmatch 'Limit_Velocity\(1U, left_pitch_velocity, left_attitude_kd, left_attitude_feedforward_nm\)' -or
+    $source -notmatch 'Limit_Velocity\(2U, right_pitch_velocity, right_attitude_kd, right_attitude_feedforward_nm\)') { throw 'both pitch speeds must protect combined Pitch/Roll feedforward with the matching Kd' }
+if ($source -notmatch 'left_attitude_kd = up_stair_behind_motor_fsm\.Uses_Limit_Hold\(1U\)\s*\? REAR_RETRACT_MIT_KD : REAR_IMU_MIT_KD' -or
+    $source -notmatch 'right_attitude_kd = up_stair_behind_motor_fsm\.Uses_Limit_Hold\(2U\)\s*\? REAR_RETRACT_MIT_KD : REAR_IMU_MIT_KD') { throw 'either end holding must select retract Kd independently for each motor' }
 if ($rearFsmImpl -notmatch 'Limit_Torque\(id, kd \* \(target - velocity\) \+ raw_feedforward\)' -or
     $rearFsmImpl -notmatch 'velocity \+ \(torque - feedforward\) / kd') { throw 'MIT speed constraints must protect the total torque and subtract the sent feedforward' }
 foreach ($kd in @('REAR_IMU_MIT_KD', 'REAR_RETRACT_MIT_KD')) {
     if ([regex]::Matches($source, "(?m)^float $kd\s*=").Count -ne 1) { throw "rear MIT damping must have one definition per mode: $kd" }
-    if ([regex]::Matches($source, "Limit_Velocity\([^\r\n]+, $kd(?:, [^\r\n)]+)?\),\s*0\.0f, $kd,").Count -ne 2) { throw "both motors must use $kd consistently between limiting and sending" }
+}
+foreach ($kd in @('REAR_RETRACT_MIT_KD', 'left_attitude_kd', 'right_attitude_kd')) {
+    $expectedCount = if ($kd -eq 'REAR_RETRACT_MIT_KD') { 2 } else { 1 }
+    if ([regex]::Matches($source, "Limit_Velocity\([^\r\n]+, $kd(?:, [^\r\n)]+)?\),\s*0\.0f, $kd,").Count -ne $expectedCount) { throw "each motor must use $kd consistently between limiting and sending" }
 }
 foreach ($id in @('1', '2')) {
     if ($positionBranch.Groups['body'].Value -notmatch "0\.0f, REAR_RETRACT_MIT_KD, up_stair_behind_motor_fsm\.Get_Retract_Feedforward_Torque\(${id}U\)\)") { throw "retract motor $id must send the FSM feedforward directly" }

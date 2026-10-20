@@ -29,8 +29,8 @@
  *
  * 单位边界：
  *   - 编码器位置、收腿/回退目标：rad；外环输出和电机轴速度：rad/s。
- *   - HI14 快照和滤波变量保留 deg、deg/s；后腿 FSM 先校正水平零偏，
- *     再通过 Get_Target_Pitch_Rad()/Get_Feedback_Pitch_Rad() 提供弧度给控制器。
+ *   - HI14 快照和滤波变量保留原始坐标下的 deg、deg/s，
+ *     通过 Get_Target_Pitch_Rad()/Get_Feedback_Pitch_Rad() 提供弧度给控制器。
  *   - HAL_GetTick() 时间戳用于毫秒超时/规划；osDelay(1U) 是让出一个 RTOS tick。
  *
  * 键鼠命令由协调层解释，本任务只执行快照：
@@ -63,7 +63,7 @@ ALG::PID::PID front_4340_right_pid = {
 
 // 后 6248 的 MIT 阻尼按模式独立调节；各模式左右共用，保护估算与发送一致，范围 0 < Kd <= 5。
 float REAR_IMU_MIT_KD = 3.5f;     // IMU 调平、姿态保持。
-float REAR_RETRACT_MIT_KD = 3.6f; // 收腿移动、收腿位置保持。
+float REAR_RETRACT_MIT_KD = 3.6f; // 收腿移动、收腿位置保持及 IMU 两端位置保持。
 // IMU Pitch 角速度的力矩阻尼，N·m/(rad/s)；左右共用，0=关闭，正值越大阻尼越强。
 float REAR_IMU_PITCH_DAMPING = 1.0f; // 初始试调值，独立于 MIT Kd。
 
@@ -471,7 +471,7 @@ extern "C" void up_stair_task(void *argument)
         {
             // V 进入 IMU 后，RECOVERING 和 ATTITUDE_HOLD 都进入本分支。
             // 目标来自固定工作 Pitch 配置；按 V 不会把当前姿态自动捕获成新的工作目标。
-            // 两个 Rad 接口提供校正后的弧度，PID 输出直接是 rad/s，发送前不再做度/弧度换算。
+            // 两个 Rad 接口使用同一 HI14 原始坐标，PID 输出直接是 rad/s。
             const float pitch_target_velocity_rad_s = rear_6248_pitch_pid.UpDate(
                 up_stair_behind_motor_fsm.Get_Target_Pitch_Rad(),
                 up_stair_behind_motor_fsm.Get_Feedback_Pitch_Rad());
@@ -487,10 +487,16 @@ extern "C" void up_stair_task(void *argument)
             const float pitch_damping_torque_nm = -REAR_IMU_PITCH_DAMPING *
                 up_stair_behind_motor_fsm.Get_Pitch_Rate_Dps() * (3.14159265358979323846f / 180.0f);
             // FSM 返回已做左右方向映射的原始 Roll 补偿；与 Pitch 阻尼合并后统一保护。
+            const float left_attitude_kd = up_stair_behind_motor_fsm.Uses_Limit_Hold(1U)
+                ? REAR_RETRACT_MIT_KD : REAR_IMU_MIT_KD;
+            const float right_attitude_kd = up_stair_behind_motor_fsm.Uses_Limit_Hold(2U)
+                ? REAR_RETRACT_MIT_KD : REAR_IMU_MIT_KD;
             const float left_attitude_feedforward_nm =
+                up_stair_behind_motor_fsm.Uses_Limit_Hold(1U) ? 0.0f :
                 static_cast<float>(up_stair_behind_motor_fsm.Get_Motor_Direction(1)) *
                 pitch_damping_torque_nm + up_stair_behind_motor_fsm.Get_Raw_Roll_Torque(1U);
             const float right_attitude_feedforward_nm =
+                up_stair_behind_motor_fsm.Uses_Limit_Hold(2U) ? 0.0f :
                 static_cast<float>(up_stair_behind_motor_fsm.Get_Motor_Direction(2)) *
                 pitch_damping_torque_nm + up_stair_behind_motor_fsm.Get_Raw_Roll_Torque(2U);
             const float left_feedforward_nm = StairTorqueSafety::ClampJ6248Torque(
@@ -498,7 +504,7 @@ extern "C" void up_stair_task(void *argument)
             const float right_feedforward_nm = StairTorqueSafety::ClampJ6248Torque(
                 up_stair_behind_motor_fsm.Limit_Torque(2U, right_attitude_feedforward_nm));
 
-            // 调平不再由限位位置环接管；收腿外环未使用时清空其历史。
+            // 两端保持的独立位置 P 在 Limit_Velocity 中计算；收腿 PID 不参与。
             rear_6248_left_retract_pid.reset();
             rear_6248_right_retract_pid.reset();
             // Limit_Velocity 合并速度环、Pitch 阻尼和 Roll 补偿执行保护，再扣除实际发送的前馈。
@@ -506,12 +512,12 @@ extern "C" void up_stair_task(void *argument)
             // 拦截按速度项+前馈的采样总力矩执行，不能只判断目标速度的符号。
             rear_6248.ctrl_Mit(
                 1, SafeMotorAngle(rear_left_angle),
-                up_stair_behind_motor_fsm.Limit_Velocity(1U, left_pitch_velocity, REAR_IMU_MIT_KD, left_attitude_feedforward_nm),
-                0.0f, REAR_IMU_MIT_KD, left_feedforward_nm);
+                up_stair_behind_motor_fsm.Limit_Velocity(1U, left_pitch_velocity, left_attitude_kd, left_attitude_feedforward_nm),
+                0.0f, left_attitude_kd, left_feedforward_nm);
             rear_6248.ctrl_Mit(
                 2, SafeMotorAngle(rear_right_angle),
-                up_stair_behind_motor_fsm.Limit_Velocity(2U, right_pitch_velocity, REAR_IMU_MIT_KD, right_attitude_feedforward_nm),
-                0.0f, REAR_IMU_MIT_KD, right_feedforward_nm);
+                up_stair_behind_motor_fsm.Limit_Velocity(2U, right_pitch_velocity, right_attitude_kd, right_attitude_feedforward_nm),
+                0.0f, right_attitude_kd, right_feedforward_nm);
         }
         else
         {

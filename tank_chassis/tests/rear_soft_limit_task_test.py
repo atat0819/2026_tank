@@ -1,6 +1,7 @@
 """Execute the real rear task output branch with real FSM/PIDs and a CAN sink."""
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import tempfile
 
@@ -54,14 +55,18 @@ struct MotorSink {
                  (id == 1 ? roll : -roll));
             expected_effort = StairTorqueSafety::ClampJ6248Torque(
                 up_stair_behind_motor_fsm.Limit_Torque(id, raw));
+            if (up_stair_behind_motor_fsm.Uses_Limit_Hold(id)) expected_effort = 0;
         }
+        if (!up_stair_behind_motor_fsm.Is_Motor_Controllable(1) ||
+            !up_stair_behind_motor_fsm.Is_Motor_Controllable(2)) expected_effort = 0;
         assert(std::fabs(effort - expected_effort) < 1e-6f);
         assert(std::isfinite(velocity) && std::fabs(velocity) <= Rear::MIT_SPEED_LIMIT_RAD_S);
         const bool active = up_stair_behind_motor_fsm.Is_Motor_Controllable(1) &&
             up_stair_behind_motor_fsm.Is_Motor_Controllable(2) &&
             (up_stair_behind_motor_fsm.Uses_Attitude_Control() ||
              up_stair_behind_motor_fsm.Uses_Position_Control());
-        const float expected_kd = up_stair_behind_motor_fsm.Uses_Position_Control()
+        const float expected_kd = (up_stair_behind_motor_fsm.Uses_Position_Control() ||
+            up_stair_behind_motor_fsm.Uses_Limit_Hold(id))
             ? REAR_RETRACT_MIT_KD : REAR_IMU_MIT_KD;
         assert(active ? std::fabs(damping - expected_kd) < 1e-6f : damping == 0);
         if (!active) assert(velocity == 0);
@@ -80,8 +85,8 @@ void run(uint32_t tick, float rear_left_angle, float rear_right_angle,
          float pitch, float rear_left_velocity = 0, float rear_right_velocity = 0,
          bool enabled = true, bool imu = true, bool retract = false,
          bool left_feedback = true, bool right_feedback = true, float pitch_rate = 0) {
-    // Test Pitch is the deviation from the calibrated working reference.
-    const float raw_pitch = pitch + Rear::PITCH_TARGET_DEG + Rear::PITCH_ZERO_DEG;
+    // Test Pitch is the deviation from the raw-HI14 working reference.
+    const float raw_pitch = pitch + Rear::IMU_PITCH_TARGET_DEG;
     up_stair_behind_motor_fsm.Update(enabled, imu, left_feedback, right_feedback, raw_pitch, pitch_rate,
         rear_left_angle, rear_right_angle, tick, retract,
         rear_left_velocity, rear_right_velocity, filtered_roll_deg);
@@ -98,31 +103,35 @@ int main() {
     run(2000, deg(60), deg(40), -5);
     assert(std::fabs(rear_6248.target_velocity[0] - nominal) < 1e-5f);
     assert(std::fabs(rear_6248.target_velocity[1] + nominal) < 1e-5f);
-    // No preemptive braking or automatic position recovery, even after a long dwell.
+    // Travel inside the reserved boundaries still uses the unchanged attitude PID.
+    const float travel_margin = std::max(Rear::EXTENSION_MARGIN_RAD,
+                                       Rear::ANGLE_LIMIT_TOLERANCE_RAD) + deg(1);
     for (uint32_t tick : {2001U, 4001U, 10001U}) {
-        run(tick, Rear::ANGLE_END_RAD[0] - deg(1), Rear::ANGLE_START_RAD[1] + deg(1), -5, 0.8f, -0.8f);
+        run(tick, Rear::ANGLE_END_RAD[0] - travel_margin, Rear::ANGLE_START_RAD[1] + travel_margin, -5, 0.8f, -0.8f);
         assert(std::fabs(rear_6248.target_velocity[0] - nominal) < 1e-5f);
         assert(std::fabs(rear_6248.target_velocity[1] + nominal) < 1e-5f);
     }
-    // Upper left / lower right: outward effort is zero, inward effort passes immediately.
+    // Shortened hard ends correct toward the new reserved positions.
     run(10002, Rear::ANGLE_END_RAD[0], Rear::ANGLE_START_RAD[1], -5, 0.4f, -0.4f);
-    assert(std::fabs(rear_6248.torque[0]) < 1e-5f && std::fabs(rear_6248.torque[1]) < 1e-5f);
-    assert(std::fabs(rear_6248.target_velocity[0] - 0.4f) < 1e-5f);
-    assert(std::fabs(rear_6248.target_velocity[1] + 0.4f) < 1e-5f);
+    assert(rear_6248.torque[0] < 0 && rear_6248.torque[1] > 0);
+    assert(rear_6248.target_velocity[0] < 0 && rear_6248.target_velocity[1] > 0);
     run(10003, Rear::ANGLE_END_RAD[0], Rear::ANGLE_START_RAD[1], 5);
     assert(rear_6248.torque[0] < 0 && rear_6248.torque[1] > 0);
-    // Lower left / upper right use the opposite torque signs.
+    // The extended hard ends now correct inward toward the reserved positions.
+    up_stair_behind_motor_fsm = Rear(test_config());
     run(10004, Rear::ANGLE_START_RAD[0], Rear::ANGLE_END_RAD[1], 5);
-    assert(std::fabs(rear_6248.torque[0]) < 1e-5f && std::fabs(rear_6248.torque[1]) < 1e-5f);
+    assert(rear_6248.torque[0] > 0 && rear_6248.torque[1] < 0);
     run(10005, Rear::ANGLE_START_RAD[0], Rear::ANGLE_END_RAD[1], -5);
     assert(rear_6248.torque[0] > 0 && rear_6248.torque[1] < 0);
-    // No latched recovery: immediately resume nominal output after leaving the band.
-    run(10006, Rear::ANGLE_END_RAD[0] - deg(0.6f), Rear::ANGLE_START_RAD[1] + deg(0.6f), -5);
+    // Start a separate normal-travel case inside the shortened boundaries.
+    up_stair_behind_motor_fsm = Rear(test_config());
+    run(10006, Rear::ANGLE_END_RAD[0] - travel_margin, Rear::ANGLE_START_RAD[1] + travel_margin, -5);
     assert(std::fabs(rear_6248.target_velocity[0] - nominal) < 1e-5f);
-    // With zero position error, do not invent an inward backoff command.
+    // At neutral Pitch, being past the shortened boundary still corrects position.
     run(10007, Rear::ANGLE_END_RAD[0], Rear::ANGLE_START_RAD[1], 0);
-    assert(std::fabs(rear_6248.torque[0]) < 1e-5f && std::fabs(rear_6248.torque[1]) < 1e-5f);
+    assert(rear_6248.torque[0] < 0 && rear_6248.torque[1] > 0);
     // At zero angle error, IMU motion alone creates mirrored braking torque.
+    up_stair_behind_motor_fsm = Rear(test_config());
     for (float rate : {-30.0f, 30.0f}) {
         run(10007, deg(60), deg(40), 0, 0, 0, true, true, false, true, true, rate);
         assert(std::fabs(rear_6248.torque[0] + REAR_IMU_PITCH_DAMPING * deg(rate)) < 1e-5f);
@@ -146,6 +155,7 @@ int main() {
         for (float rate : {-3000.0f, -30.0f, 0.0f, 30.0f, 3000.0f}) {
             for (float actual : {-10.0f, 0.0f, 10.0f}) {
                 for (float pitch : {-5.0f, 0.0f, 5.0f}) {
+                    up_stair_behind_motor_fsm = Rear(test_config());
                     run(10007, left, right, pitch, actual, actual,
                         true, true, false, true, true, rate);
                     for (unsigned i : {0U, 1U}) {
@@ -156,6 +166,7 @@ int main() {
             }
         }
     }
+    up_stair_behind_motor_fsm = Rear(test_config());
     // Safety failures still zero both native speed-loop gains.
     run(10008, deg(60), deg(40), 5, 0, 0, false);
     assert(rear_6248.kd[0] == 0 && rear_6248.kd[1] == 0);
@@ -167,7 +178,7 @@ int main() {
     assert(rear_6248.kd[0] == 0 && rear_6248.kd[1] == 0);
     run(10012, deg(60), deg(40), 5, 0, 0, true, true, false, true, false);
     assert(rear_6248.kd[0] == 0 && rear_6248.kd[1] == 0);
-    run(10013, Rear::ANGLE_END_RAD[0] + deg(0.6f), deg(40), 5);
+    run(10013, Rear::ANGLE_END_RAD[0] + Rear::ANGLE_LIMIT_TOLERANCE_RAD + deg(0.1f), deg(40), 5);
     assert(rear_6248.kd[0] == 0 && rear_6248.kd[1] == 0);
     // A real IMU fault starts recovery. Both the speed and damping torque scale
     // once, and a disabled command carries no damping feedforward.
@@ -238,6 +249,7 @@ int main() {
             }
         }
     }
+    up_stair_behind_motor_fsm = Rear(test_config());
     // Roll participates in the existing fault ramp exactly once.
     filtered_roll_deg = REAR_IMU_ROLL_TARGET_DEG + 20;
     const float roll_effort = std::min(REAR_IMU_ROLL_KP * 20, REAR_IMU_ROLL_MAX_TORQUE);
@@ -258,6 +270,101 @@ int main() {
     run(25000, deg(60), deg(40), 0, 0, 0, true, true, true);
     assert(std::fabs(rear_6248.torque[0] - retract_left) < 1e-5f);
     assert(std::fabs(rear_6248.torque[1] - retract_right) < 1e-5f);
+
+    // Exercise the new soft boundary through the actual task, including the
+    // feedforward sent separately from the speed term in each MIT command.
+    up_stair_behind_motor_fsm = Rear(test_config());
+    filtered_roll_deg = REAR_IMU_ROLL_TARGET_DEG;
+    const float left_boundary = Rear::ANGLE_START_RAD[0] + Rear::EXTENSION_MARGIN_RAD;
+    const float right_boundary = Rear::ANGLE_END_RAD[1] - Rear::EXTENSION_MARGIN_RAD;
+    run(29000, left_boundary, deg(40), 5);
+    assert(std::fabs(rear_6248.kd[0] - REAR_RETRACT_MIT_KD) < 1e-6f);
+    assert(std::fabs(rear_6248.kd[1] - REAR_IMU_MIT_KD) < 1e-6f);
+    run(30000, left_boundary, right_boundary, 0.01f);
+    assert(up_stair_behind_motor_fsm.Uses_Extension_Hold(1));
+    assert(up_stair_behind_motor_fsm.Uses_Extension_Hold(2));
+    assert(std::fabs(rear_6248.target_velocity[0]) < 1e-5f);
+    assert(std::fabs(rear_6248.target_velocity[1]) < 1e-5f);
+    // Large tilt, Roll and angular-rate changes must not fight held positions.
+    filtered_roll_deg = REAR_IMU_ROLL_TARGET_DEG + 20;
+    run(30001, left_boundary + deg(0.5f), right_boundary - deg(0.5f), 20,
+        0, 0, true, true, false, true, true, 300);
+    const float held_left = rear_6248.target_velocity[0];
+    const float held_right = rear_6248.target_velocity[1];
+    assert(std::fabs(held_left + Rear::EXTENSION_HOLD_KP * deg(0.5f)) < 1e-5f);
+    assert(std::fabs(held_right - Rear::EXTENSION_HOLD_KP * deg(0.5f)) < 1e-5f);
+    run(30002, left_boundary + deg(0.5f), right_boundary - deg(0.5f), 0,
+        0, 0, true, true, false, true, true, -300);
+    assert(std::fabs(rear_6248.target_velocity[0] - held_left) < 1e-5f);
+    assert(std::fabs(rear_6248.target_velocity[1] - held_right) < 1e-5f);
+    filtered_roll_deg = REAR_IMU_ROLL_TARGET_DEG;
+    run(30003, left_boundary, right_boundary, -1);
+    const uint32_t release_tick = 30003 + Rear::EXTENSION_RELEASE_TIME_MS;
+    run(release_tick - 1, left_boundary, right_boundary, -1);
+    assert(up_stair_behind_motor_fsm.Uses_Extension_Hold(1));
+    run(release_tick, left_boundary, right_boundary, -1);
+    assert(!up_stair_behind_motor_fsm.Uses_Extension_Hold(1));
+    assert(!up_stair_behind_motor_fsm.Uses_Extension_Hold(2));
+    assert(rear_6248.target_velocity[0] > 0 && rear_6248.target_velocity[1] < 0);
+    // After release, Roll cannot push the right leg out through the boundary.
+    filtered_roll_deg = REAR_IMU_ROLL_TARGET_DEG + 20;
+    run(release_tick + 1, left_boundary, right_boundary, -0.6f);
+    assert(rear_6248.torque[1] <= 1e-5f);
+    // A feedback fault at the boundary zeros both Kd and both feedforward terms.
+    run(release_tick + 2, left_boundary, right_boundary, 5, 0, 0, true, true, false, false);
+    assert(rear_6248.kd[0] == 0 && rear_6248.kd[1] == 0);
+
+    // Mirror the same behavior at the shortened boundaries, using retract Kd.
+    up_stair_behind_motor_fsm = Rear(test_config());
+    filtered_roll_deg = REAR_IMU_ROLL_TARGET_DEG;
+    const float left_short = Rear::ANGLE_END_RAD[0] - Rear::EXTENSION_MARGIN_RAD;
+    const float right_short = Rear::ANGLE_START_RAD[1] + Rear::EXTENSION_MARGIN_RAD;
+    run(40000, left_short, deg(40), -5);
+    assert(up_stair_behind_motor_fsm.Uses_Limit_Hold(1));
+    assert(!up_stair_behind_motor_fsm.Uses_Extension_Hold(1));
+    assert(std::fabs(rear_6248.kd[0] - REAR_RETRACT_MIT_KD) < 1e-6f);
+    assert(std::fabs(rear_6248.kd[1] - REAR_IMU_MIT_KD) < 1e-6f);
+    run(40001, left_short, right_short, -5);
+    assert(std::fabs(rear_6248.target_velocity[0]) < 1e-5f);
+    assert(std::fabs(rear_6248.target_velocity[1]) < 1e-5f);
+    filtered_roll_deg = REAR_IMU_ROLL_TARGET_DEG - 20;
+    run(40002, left_short - deg(0.5f), right_short + deg(0.5f), -20,
+        0, 0, true, true, false, true, true, -300);
+    const float short_speed = std::min(Rear::SHORTENING_HOLD_MAX_SPEED_RAD_S,
+                                       Rear::SHORTENING_HOLD_KP * deg(0.5f));
+    assert(std::fabs(rear_6248.target_velocity[0] - short_speed) < 1e-5f);
+    assert(std::fabs(rear_6248.target_velocity[1] + short_speed) < 1e-5f);
+    run(40003, left_short - deg(0.5f), right_short + deg(0.5f), 0);
+    assert(std::fabs(rear_6248.target_velocity[0] - short_speed) < 1e-5f);
+    // Small position errors exercise Kp without reaching the speed cap.
+    run(40003, left_short - deg(0.05f), right_short + deg(0.05f), 0);
+    const float short_small = std::min(Rear::SHORTENING_HOLD_MAX_SPEED_RAD_S,
+                                       Rear::SHORTENING_HOLD_KP * deg(0.05f));
+    assert(std::fabs(rear_6248.target_velocity[0] - short_small) < 1e-5f);
+    assert(std::fabs(rear_6248.target_velocity[1] + short_small) < 1e-5f);
+    // Confirm the reverse direction of the shortened-end release.
+    filtered_roll_deg = REAR_IMU_ROLL_TARGET_DEG;
+    run(40004, left_short, right_short, 1);
+    const uint32_t short_release_tick = 40004 + Rear::EXTENSION_RELEASE_TIME_MS;
+    run(short_release_tick - 1, left_short, right_short, 1);
+    assert(up_stair_behind_motor_fsm.Uses_Limit_Hold(1));
+    run(short_release_tick, left_short, right_short, 1);
+    assert(!up_stair_behind_motor_fsm.Uses_Limit_Hold(1));
+    assert(!up_stair_behind_motor_fsm.Uses_Limit_Hold(2));
+    assert(rear_6248.target_velocity[0] < 0 && rear_6248.target_velocity[1] > 0);
+    filtered_roll_deg = REAR_IMU_ROLL_TARGET_DEG + 20;
+    run(short_release_tick + 1, left_short, right_short, 0.6f);
+    assert(rear_6248.torque[0] <= 1e-5f);
+    // Opposite ends can coexist; release only the leg whose departure is requested.
+    up_stair_behind_motor_fsm = Rear(test_config());
+    filtered_roll_deg = REAR_IMU_ROLL_TARGET_DEG;
+    run(50000, left_boundary, right_short, 0);
+    run(50001, left_boundary, right_short, -1);
+    run(50001 + Rear::EXTENSION_RELEASE_TIME_MS, left_boundary, right_short, -1);
+    assert(!up_stair_behind_motor_fsm.Uses_Limit_Hold(1));
+    assert(up_stair_behind_motor_fsm.Uses_Limit_Hold(2));
+    assert(std::fabs(rear_6248.kd[0] - REAR_IMU_MIT_KD) < 1e-6f);
+    assert(std::fabs(rear_6248.kd[1] - REAR_RETRACT_MIT_KD) < 1e-6f);
     assert(rear_6248.sent[0] == rear_6248.sent[1]);
 }
 '''
@@ -269,15 +376,33 @@ with tempfile.TemporaryDirectory(prefix="rear-soft-limit-task-") as directory:
                    "float REAR_IMU_PITCH_DAMPING = 0.7f;")
     zero_damping = re.sub(r"float REAR_IMU_PITCH_DAMPING\s*=\s*[^;]+;",
                           "float REAR_IMU_PITCH_DAMPING = 0.0f;", kd_declaration)
-    for declarations, feedforward in ((kd_declaration, "0"), (distinct_kd, "4"), (zero_damping, "0")):
+    for relative in ("fsm/up_stair_behind_motor_fsm.cpp", "fsm/rear_torque_safety.hpp",
+                     "user/core/Alg/FSM/alg_fsm.hpp",
+                     "user/core/Alg/UtilityFunction/SlopePlanning.hpp"):
+        destination = work / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(ROOT / relative, destination)
+    header = (ROOT / "fsm/up_stair_behind_motor_fsm.hpp").read_text(encoding="utf-8")
+    variants = ((kd_declaration, "0", False), (distinct_kd, "4", False),
+                (zero_damping, "0", False), (distinct_kd, "4", True))
+    for declarations, feedforward, split_tuning in variants:
+        variant_header = header
+        if split_tuning:
+            for name, value in (("SHORTENING_HOLD_KP", "11.0f"),
+                                ("SHORTENING_HOLD_MAX_SPEED_RAD_S", "0.04f")):
+                variant_header, count = re.subn(
+                    rf"(static constexpr float {name}\s*=\s*)[^;]+;",
+                    rf"\g<1>{value};", variant_header)
+                assert count == 1, f"missing independent tuning parameter: {name}"
+        (work / "fsm/up_stair_behind_motor_fsm.hpp").write_text(variant_header, encoding="utf-8")
         test.write_text(declarations + "\n" + host + pid_declarations + wrapper + branch + main, encoding="utf-8")
         subprocess.run([
             "g++", "-std=c++17", f"-DTEST_RETRACT_FF={feedforward}", "-I", ROOT.as_posix(), test.as_posix(),
-            (ROOT / "fsm/up_stair_behind_motor_fsm.cpp").as_posix(),
+            (work / "fsm/up_stair_behind_motor_fsm.cpp").as_posix(),
             (ROOT / "user/core/Alg/PID/pid.cpp").as_posix(),
             (ROOT / "user/core/Alg/FSM/alg_fsm.cpp").as_posix(),
             (ROOT / "user/core/Alg/UtilityFunction/SlopPlanning.cpp").as_posix(),
             "-o", exe.as_posix(),
         ], check=True)
         subprocess.run([str(exe)], check=True)
-print("PASS: rear task IMU damping, recovery, independent Kd, retract feedforward, torque cap, endpoints and fault zero outputs")
+print("PASS: rear task independent end tuning, both-end hold/release, matching Kd, feedforward, recovery, retract and faults")

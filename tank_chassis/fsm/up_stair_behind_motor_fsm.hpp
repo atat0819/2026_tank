@@ -24,25 +24,32 @@ class Class_Up_Stair_Behind_Motor_FSM : public Class_FSM
 public:
     // 后腿生产角度配置：数组下标 0=左腿、1=右腿；实车标定后在此修改。
     // Config() 仍保留未标定的安全默认值，任务必须显式装入这些角度才能启用控制。
-    static constexpr float PITCH_ZERO_DEG = 1.3f; // 实测水平时 HI14 原始 Pitch
-    static constexpr float PITCH_TARGET_DEG = -0.3f; // 原始目标 -7° 减去水平零偏 1.3°；实测左71°、右26°
+    static constexpr float IMU_PITCH_TARGET_DEG = 1.0f; // 最终希望保持的 HI14 原始 Pitch 读数，度
     // Roll 回正补偿：目标直接使用 HI14 原始角度；左侧抬高时读数增大。
     static constexpr float ROLL_TARGET_DEG = 1.5f; // 实测左右水平读数，度。
-    static constexpr float ROLL_KP = 2.0f; // N·m/度；0=关闭，独立于 MIT Kd。
-    static constexpr float ROLL_MAX_TORQUE_NM = 6.0f; // 每侧 Roll 补偿上限，N·m，须 >= 0。
+    static constexpr float ROLL_KP = 3.0f; // N·m/度；0=关闭，独立于 MIT Kd。
+    static constexpr float ROLL_MAX_TORQUE_NM = 8.0f; // 每侧 Roll 补偿上限，N·m，须 >= 0。
     // 实车机械区间：左 29°→94.7°，右 4.47°→68°，均不跨 ±π。
     static constexpr float ANGLE_START_RAD[2] = { // 左右电机机械安全区起始角，弧度
-        28.8f * 3.14159265358979323846f / 180.0f,
-        4.47f * 3.14159265358979323846f / 180.0f};
+        29.6f * 3.14159265358979323846f / 180.0f,   //左电机腿伸最长时候的角度
+        4.28f * 3.14159265358979323846f / 180.0f};  //右电机腿收最短时候的角度
     static constexpr float ANGLE_END_RAD[2] = { // 左右电机机械安全区终止角，弧度
-        94.64f * 3.14159265358979323846f / 180.0f,
-        69.84f * 3.14159265358979323846f / 180.0f};
+        94.72f * 3.14159265358979323846f / 180.0f,  //左电机腿收最短时候的角度
+        68.93f * 3.14159265358979323846f / 180.0f};  //右电机腿伸最长时候的角度
     // 端点外侧反馈容差及向外力矩拦截容差。
     static constexpr float ANGLE_LIMIT_TOLERANCE_RAD =
-        0.5f * 3.14159265358979323846f / 180.0f;
+        1.0f * 3.14159265358979323846f / 180.0f;
     static constexpr int8_t MOTOR_DIRECTION[2] = {1, -1}; // 左右电机镜像安装，Pitch 力矩方向相反
     static constexpr float MIT_SPEED_LIMIT_RAD_S = 10.0f; // J6248 速度映射范围，与驱动及电机 VMAX 一致
     static constexpr float MOTOR_TORQUE_GAIN[2] = {1.0f, 1.0f}; // 左右电机最终力矩倍率，必须大于 0
+    // IMU 两端共用余量和退出条件；位置 P 与纠偏速度上限按端点独立整定。
+    static constexpr float EXTENSION_MARGIN_RAD = 2.0f * 3.14159265358979323846f / 180.0f;
+    static constexpr float EXTENSION_HOLD_KP = 40.0f; // 位置 P：rad 误差 -> rad/s；初始试调值
+    static constexpr float EXTENSION_HOLD_MAX_SPEED_RAD_S = 10.0f; // 保持纠偏速度上限，复用收腿 MIT Kd
+    static constexpr float SHORTENING_HOLD_KP = 30.0f; // 收短端位置 P，rad 误差 -> rad/s
+    static constexpr float SHORTENING_HOLD_MAX_SPEED_RAD_S = 5.0f; // 收短端纠偏速度上限，rad/s
+    static constexpr float EXTENSION_RELEASE_PITCH_ERROR_DEG = 0.5f; // 明确需要离开当前端点的 IMU_Pitch 误差
+    static constexpr uint32_t EXTENSION_RELEASE_TIME_MS = 30U; // 反向需求持续时间，避免噪声切换
     // B 收腿目标保留端点内侧 8° 的位置；该间距不参与机械限位保护。
     static constexpr float RETRACT_MARGIN_RAD = 4.0f * 3.14159265358979323846f / 180.0f;
     static constexpr float RETRACT_TARGET_RAD[2] = {
@@ -56,8 +63,7 @@ public:
 
     struct Config
     {
-        float pitch_zero_deg;       // IMU pitch 零偏，单位：度
-        float pitch_target_deg;     // 公共 IMU 工作目标，相对水平零偏，单位：度
+        float pitch_target_deg;     // 最终希望保持的 HI14 原始 Pitch 读数，单位：度
         float roll_target_deg;      // Roll 水平目标，HI14 原始角度，单位：度
         float roll_kp;              // Roll 比例增益，N·m/度，非负
         float roll_max_torque_nm;   // 每侧 Roll 补偿绝对值上限，N·m，非负
@@ -108,11 +114,11 @@ public:
     // 返回当前恢复斜坡比例，范围为 0 到 1。
     float Get_Output_Scale() const;
 
-    // 获取姿态环工作目标，单位为校正后的度数。
+    // 获取姿态环工作目标，单位为 HI14 原始坐标下的度数。
     float Get_Target_Pitch_Deg() const;
-    // 获取去除零偏后的 pitch 角度反馈，单位：度。
+    // 获取滤波后的 HI14 原始 Pitch 角度反馈，单位：度。
     float Get_Feedback_Pitch_Deg() const;
-    // 控制器使用的弧度接口：IMU 度数和水平零偏校正完成后，在此转换。
+    // 控制器使用的弧度接口：目标与反馈在同一 HI14 坐标下，在此转换。
     float Get_Target_Pitch_Rad() const;
     float Get_Feedback_Pitch_Rad() const;
     // 获取 pitch 角速度反馈，单位：度/秒。
@@ -122,6 +128,11 @@ public:
     float Get_Raw_Roll_Torque(uint8_t id) const;
     // 查询任务当前是否应执行 pitch 姿态控制，包括恢复软启动和正常姿态保持。
     bool Uses_Attitude_Control() const;
+    // IMU 伸长端逐侧保持；到位后不因回落退出，持续收短需求才释放。
+    bool Uses_Extension_Hold(uint8_t id) const;
+    float Get_Extension_Target_Angle(uint8_t id) const; // 连续编码器角，rad
+    bool Uses_Limit_Hold(uint8_t id) const; // IMU 任一端点位置保持
+    float Get_Shortening_Target_Angle(uint8_t id) const; // 连续编码器角，rad
     // 查询当前是否处于收腿移动或收腿位置保持状态。
     bool Uses_Retract_Position_Control() const;
     // 查询当前是否需要收腿位置环。
@@ -156,6 +167,7 @@ public:
     // 收腿目标速度先乘起步斜坡比例；估算 Kd*(目标速度-实际速度)+当前模式前馈，执行增益/限位约束，
     // 扣除实际发送的前馈后再换回 rad/s 目标，避免重复叠加；帧间真实限矩由驱动器保证。
     // attitude_feedforward_nm 是已做方向修正、尚未保护的 Pitch 阻尼与 Roll 补偿之和，仅调平模式使用。
+    // 端点保持侧改用固定编码器目标的限速 P 输出，发送端须同时将该侧姿态前馈置零。
     // kd 必须与本次 ctrl_Mit 命令中的 Kd 相同；发送前馈须与此处应用相同的保护。
     float Limit_Velocity(uint8_t id, float target_velocity_rad_s, float kd,
                          float attitude_feedforward_nm = 0.0f) const;
@@ -163,6 +175,9 @@ public:
     bool Is_Config_Valid() const;
 
 private:
+    int8_t limit_holding_[2] = {0, 0}; // 0=调平，1=伸长端保持，-1=收短端保持
+    bool limit_release_pending_[2] = {false, false};
+    uint32_t limit_release_start_tick_[2] = {0U, 0U};
     float motor_velocity_rad_s_[2] = {0.0f, 0.0f};
     bool Has_Mechanical_Limit(uint8_t index) const;
     bool retract_config_valid_;             // 收腿目标和容差配置是否通过校验
@@ -178,7 +193,7 @@ private:
 
     // 清除规划器、反馈和恢复状态，并切换到禁用状态。
     void Reset();
-    // 检查姿态控制所需的零偏、机械角区间、电机方向和左右力矩增益。
+    // 检查姿态目标、机械角区间、电机方向和左右力矩增益。
     bool Validate_Config() const;
     // 检查收腿目标角和到位容差。
     bool Validate_Retract_Config() const;
@@ -203,7 +218,7 @@ private:
     bool config_valid_;                     // 配置是否通过安全校验
     bool motor_controllable_[2];            // 左右电机当前是否允许输出
     float motor_angle_rad_[2];              // 左右电机最近一次原始角度
-    float feedback_pitch_deg_;              // 去零偏后的 pitch 角度
+    float feedback_pitch_deg_;              // 滤波后的 HI14 原始 Pitch 角度
     float pitch_rate_dps_;                  // pitch 角速度反馈
     float feedback_roll_deg_;               // 滤波后的原始 Roll 角度，度
     float output_scale_;                    // 恢复斜坡输出比例

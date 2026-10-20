@@ -27,7 +27,6 @@ float observed_roll;
 Class_Up_Stair_Behind_Motor_FSM up_stair_behind_motor_fsm(
     [] {
         auto config = Class_Up_Stair_Behind_Motor_FSM::Config::WithAngleConstants();
-        config.pitch_zero_deg = 0; // Isolate filter behavior from sensor calibration.
         return config;
     }());
 bool rear_imu_filter_initialized = false;

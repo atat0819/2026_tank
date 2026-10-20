@@ -9,7 +9,7 @@ volatile float rear_estimated_torque_nm[2] = {0.0f, 0.0f};
  * 后部上台阶电机状态机的实现。
  *
  * 本文件只负责检查 IMU、左右电机反馈和机械角度，维护后部状态，执行
- * 2000 ms 力矩软启动、Roll 比例补偿，并对最终力矩进行机械边界和反馈安全保护。
+ * 2000 ms 力矩软启动、Roll 比例补偿、IMU 两端位置 P 保持和最终力矩保护。
  * 本文件不执行姿态 PID，也不直接发送电机命令；任务层读取本文件提供的
  * 姿态反馈，完成 pitch 串级 PID 和左右电机方向修正后，再调用 Limit_Torque()。
  *
@@ -24,8 +24,14 @@ namespace
 const float PI_RAD = 3.14159265358979323846f;
 }
 
-constexpr float Class_Up_Stair_Behind_Motor_FSM::PITCH_ZERO_DEG;
-constexpr float Class_Up_Stair_Behind_Motor_FSM::PITCH_TARGET_DEG;
+constexpr float Class_Up_Stair_Behind_Motor_FSM::IMU_PITCH_TARGET_DEG;
+constexpr float Class_Up_Stair_Behind_Motor_FSM::EXTENSION_MARGIN_RAD;
+constexpr float Class_Up_Stair_Behind_Motor_FSM::EXTENSION_HOLD_KP;
+constexpr float Class_Up_Stair_Behind_Motor_FSM::EXTENSION_HOLD_MAX_SPEED_RAD_S;
+constexpr float Class_Up_Stair_Behind_Motor_FSM::SHORTENING_HOLD_KP;
+constexpr float Class_Up_Stair_Behind_Motor_FSM::SHORTENING_HOLD_MAX_SPEED_RAD_S;
+constexpr float Class_Up_Stair_Behind_Motor_FSM::EXTENSION_RELEASE_PITCH_ERROR_DEG;
+constexpr uint32_t Class_Up_Stair_Behind_Motor_FSM::EXTENSION_RELEASE_TIME_MS;
 constexpr float Class_Up_Stair_Behind_Motor_FSM::ROLL_TARGET_DEG;
 constexpr float Class_Up_Stair_Behind_Motor_FSM::ROLL_KP;
 constexpr float Class_Up_Stair_Behind_Motor_FSM::ROLL_MAX_TORQUE_NM;
@@ -47,8 +53,7 @@ constexpr float Class_Up_Stair_Behind_Motor_FSM::RETRACT_FEEDFORWARD_TORQUE_NM[2
  * 实测机械标定之前后部电机保持安全禁用状态。
  */
 Class_Up_Stair_Behind_Motor_FSM::Config::Config()
-    : pitch_zero_deg(0.0f),
-      pitch_target_deg(0.0f),
+    : pitch_target_deg(0.0f),
       roll_target_deg(0.0f),
       roll_kp(0.0f),
       roll_max_torque_nm(0.0f),
@@ -66,8 +71,7 @@ Class_Up_Stair_Behind_Motor_FSM::Config
 Class_Up_Stair_Behind_Motor_FSM::Config::WithAngleConstants()
 {
     Config config;
-    config.pitch_zero_deg = PITCH_ZERO_DEG;
-    config.pitch_target_deg = PITCH_TARGET_DEG;
+    config.pitch_target_deg = IMU_PITCH_TARGET_DEG;
     config.roll_target_deg = ROLL_TARGET_DEG;
     config.roll_kp = ROLL_KP;
     config.roll_max_torque_nm = ROLL_MAX_TORQUE_NM;
@@ -116,7 +120,7 @@ Class_Up_Stair_Behind_Motor_FSM::Class_Up_Stair_Behind_Motor_FSM()
 
 /*
  * 使用指定机械配置构造后部状态机。
- * config 包含 IMU 零偏、左右电机机械安全区间和电机方向系数。配置有效性
+ * config 包含 HI14 Pitch 目标、左右电机机械安全区间和电机方向系数。配置有效性
  * 在构造时检查并锁存到 config_valid_，运行过程中不会自动重新标定。
  */
 Class_Up_Stair_Behind_Motor_FSM::Class_Up_Stair_Behind_Motor_FSM(
@@ -152,6 +156,8 @@ Class_Up_Stair_Behind_Motor_FSM::Class_Up_Stair_Behind_Motor_FSM(
  */
 void Class_Up_Stair_Behind_Motor_FSM::Reset()
 {
+    limit_holding_[0] = limit_holding_[1] = 0;
+    limit_release_pending_[0] = limit_release_pending_[1] = false;
     // 完整复位后部状态、反馈有效标志和恢复斜坡规划器。
     Class_FSM::Init(UP_STAIR_BEHIND_MOTOR_COUNT,
                     UP_STAIR_BEHIND_MOTOR_DISABLED);
@@ -180,7 +186,7 @@ uint8_t Class_Up_Stair_Behind_Motor_FSM::To_Index(uint8_t id) const
 }
 
 /*
- * 检查姿态零偏、机械安全区间和电机方向配置。
+ * 检查姿态目标、机械安全区间和电机方向配置。
  * 起止角必须位于 [-π, +π]，可以构成普通区间或跨越 ±π 的区间，但不能相等；方向系数只能
  * 是 +1 或 -1；左右最终力矩增益必须为正的有限值。任何一项不满足都会使
  * 整个后部状态机禁止输出。
@@ -207,7 +213,7 @@ bool Class_Up_Stair_Behind_Motor_FSM::Validate_Config() const
             return false;
         }
     }
-    return std::isfinite(config_.pitch_zero_deg) && std::isfinite(config_.pitch_target_deg) &&
+    return std::isfinite(config_.pitch_target_deg) &&
            std::isfinite(config_.roll_target_deg) &&
            std::isfinite(config_.roll_kp) && config_.roll_kp >= 0.0f &&
            std::isfinite(config_.roll_max_torque_nm) && config_.roll_max_torque_nm >= 0.0f;
@@ -307,6 +313,8 @@ bool Class_Up_Stair_Behind_Motor_FSM::Is_Angle_Valid(
  */
 void Class_Up_Stair_Behind_Motor_FSM::Disable()
 {
+    limit_holding_[0] = limit_holding_[1] = 0;
+    limit_release_pending_[0] = limit_release_pending_[1] = false;
     if (Get_State() != UP_STAIR_BEHIND_MOTOR_DISABLED && output_scale_ < 1.0f)
     {
         feedback_degraded_ = true;
@@ -450,13 +458,13 @@ void Class_Up_Stair_Behind_Motor_FSM::Update(
     const bool retract_state =
         Get_State() == UP_STAIR_BEHIND_MOTOR_RETRACTING ||
         Get_State() == UP_STAIR_BEHIND_MOTOR_RETRACTED_HOLD;
-    const float calibrated_pitch_deg = pitch_deg - config_.pitch_zero_deg;
+    const float pitch_error_deg = config_.pitch_target_deg - pitch_deg;
     const bool imu_ready =
         imu_valid && std::isfinite(pitch_deg) &&
-        std::isfinite(pitch_rate_dps) && std::isfinite(calibrated_pitch_deg) &&
+        std::isfinite(pitch_rate_dps) && std::isfinite(pitch_error_deg) &&
         std::isfinite(roll_deg);
 
-    feedback_pitch_deg_ = imu_ready ? calibrated_pitch_deg : 0.0f;
+    feedback_pitch_deg_ = imu_ready ? pitch_deg : 0.0f;
     pitch_rate_dps_ = imu_ready ? pitch_rate_dps : 0.0f;
     feedback_roll_deg_ = imu_ready ? roll_deg : 0.0f;
     motor_angle_rad_[0] = left_angle_rad;
@@ -507,6 +515,42 @@ void Class_Up_Stair_Behind_Motor_FSM::Update(
     {
         Start_Recovery(now_tick);
         feedback_degraded_ = false;
+    }
+
+    // 正 Pitch 误差要求收短，负误差要求伸长；逐侧记录当前端点和反向释放计时。
+    if (retract_requested || !both_feedback_valid)
+    {
+        limit_holding_[0] = limit_holding_[1] = 0;
+        limit_release_pending_[0] = limit_release_pending_[1] = false;
+    }
+    else
+    {
+        const bool shorten = pitch_error_deg > EXTENSION_RELEASE_PITCH_ERROR_DEG;
+        const bool extend = pitch_error_deg < -EXTENSION_RELEASE_PITCH_ERROR_DEG;
+        for (uint8_t index = 0U; index < 2U; ++index)
+        {
+            const bool reverse = limit_holding_[index] > 0 ? shorten
+                               : limit_holding_[index] < 0 ? extend : false;
+            if (reverse && !limit_release_pending_[index])
+            {
+                limit_release_start_tick_[index] = now_tick;
+            }
+            limit_release_pending_[index] = reverse;
+            if (reverse && now_tick - limit_release_start_tick_[index] >= EXTENSION_RELEASE_TIME_MS)
+            {
+                limit_holding_[index] = 0;
+            }
+            if (limit_holding_[index] == 0 && Has_Mechanical_Limit(index))
+            {
+                const float angle = position_feedback_rad_[index];
+                const float extended = Get_Extension_Target_Angle(index + 1U);
+                const float shortened = Get_Shortening_Target_Angle(index + 1U);
+                if (!shorten && (index == 0U ? angle <= extended : angle >= extended))
+                    limit_holding_[index] = 1;
+                else if (!extend && (index == 0U ? angle >= shortened : angle <= shortened))
+                    limit_holding_[index] = -1;
+            }
+        }
     }
 
     // 收腿是持续目标，不再依赖独立 V 事件；恢复中也可立即切入。
@@ -580,13 +624,13 @@ float Class_Up_Stair_Behind_Motor_FSM::Get_Output_Scale() const
     return output_scale_;
 }
 
-/* IMU 工作偏角与传感器水平零偏分开标定。 */
+/* 直接使用期望的 HI14 原始 Pitch 读数。 */
 float Class_Up_Stair_Behind_Motor_FSM::Get_Target_Pitch_Deg() const
 {
     return config_.pitch_target_deg;
 }
 
-/* 返回去除 IMU pitch 零偏后的角度反馈，单位为度。 */
+/* 返回滤波后的 HI14 原始 Pitch 读数，单位为度。 */
 float Class_Up_Stair_Behind_Motor_FSM::Get_Feedback_Pitch_Deg() const
 {
     return feedback_pitch_deg_;
@@ -612,6 +656,36 @@ bool Class_Up_Stair_Behind_Motor_FSM::Uses_Attitude_Control() const
 {
     return Get_State() == UP_STAIR_BEHIND_MOTOR_RECOVERING ||
            Get_State() == UP_STAIR_BEHIND_MOTOR_ATTITUDE_HOLD;
+}
+
+bool Class_Up_Stair_Behind_Motor_FSM::Uses_Extension_Hold(uint8_t id) const
+{
+    return Uses_Limit_Hold(id) && limit_holding_[To_Index(id)] > 0;
+}
+
+bool Class_Up_Stair_Behind_Motor_FSM::Uses_Limit_Hold(uint8_t id) const
+{
+    const uint8_t index = To_Index(id);
+    return index <= 1U && Uses_Attitude_Control() && Is_Motor_Controllable(id) &&
+           limit_holding_[index] != 0;
+}
+
+float Class_Up_Stair_Behind_Motor_FSM::Get_Shortening_Target_Angle(uint8_t id) const
+{
+    const uint8_t index = To_Index(id);
+    if (index > 1U) return 0.0f;
+    if (index == 1U) return config_.angle_start_rad[index] + EXTENSION_MARGIN_RAD;
+    return To_Unwrapped_Angle(index, config_.angle_end_rad[index]) - EXTENSION_MARGIN_RAD;
+}
+
+float Class_Up_Stair_Behind_Motor_FSM::Get_Extension_Target_Angle(uint8_t id) const
+{
+    const uint8_t index = To_Index(id);
+    if (index > 1U) return 0.0f;
+    if (index == 0U) return config_.angle_start_rad[index] + EXTENSION_MARGIN_RAD;
+    const float upper = config_.angle_end_rad[index] +
+        (config_.angle_start_rad[index] > config_.angle_end_rad[index] ? TWO_PI_RAD : 0.0f);
+    return upper - EXTENSION_MARGIN_RAD;
 }
 
 float Class_Up_Stair_Behind_Motor_FSM::Get_Raw_Roll_Torque(uint8_t id) const
@@ -749,13 +823,41 @@ float Class_Up_Stair_Behind_Motor_FSM::Limit_Velocity(
         if (index <= 1U) rear_estimated_torque_nm[index] = 0.0f;
         return 0.0f;
     }
-    const float target = fmaxf(-MIT_SPEED_LIMIT_RAD_S,
+    float target = fmaxf(-MIT_SPEED_LIMIT_RAD_S,
                               fminf(MIT_SPEED_LIMIT_RAD_S, target_velocity_rad_s)) *
                          (Uses_Retract_Position_Control() ? retract_speed_planner_.GetOut() : 1.0f);
     const float velocity = motor_velocity_rad_s_[index];
-    const float raw_feedforward = Uses_Retract_Position_Control()
+    float raw_feedforward = Uses_Retract_Position_Control()
                                       ? config_.retract_feedforward_torque_nm[index]
                                       : (Uses_Attitude_Control() ? attitude_feedforward_nm : 0.0f);
+    if (Uses_Attitude_Control() && Has_Mechanical_Limit(index))
+    {
+        const float angle = position_feedback_rad_[index];
+        const float extended = Get_Extension_Target_Angle(id);
+        const float shortened = Get_Shortening_Target_Angle(id);
+        const bool holding = Uses_Limit_Hold(id);
+        const bool at_shortened = index == 0U ? angle >= shortened : angle <= shortened;
+        const bool use_shortened = limit_holding_[index] < 0 || (!holding && at_shortened);
+        const float boundary = use_shortened ? shortened : extended;
+        const bool lower_boundary = index == 0U ? !use_shortened : use_shortened;
+        const float hold_kp = use_shortened ? SHORTENING_HOLD_KP : EXTENSION_HOLD_KP;
+        const float hold_max_speed = use_shortened ? SHORTENING_HOLD_MAX_SPEED_RAD_S
+                                                   : EXTENSION_HOLD_MAX_SPEED_RAD_S;
+        const float hold_velocity = fmaxf(-hold_max_speed,
+            fminf(hold_max_speed, hold_kp * (boundary - angle)));
+        if (holding)
+        {
+            target = hold_velocity;
+            raw_feedforward = 0.0f; // 此侧由位置 P 接管，不叠加 Pitch/Roll 姿态输出。
+        }
+        else if (lower_boundary ? angle <= boundary : angle >= boundary)
+        {
+            // 释放后仍保护当前端点；Roll/阻尼不能把离开请求合成为继续越界。
+            const float combined = target + raw_feedforward / kd;
+            target = (lower_boundary ? fmaxf(combined, hold_velocity)
+                                     : fminf(combined, hold_velocity)) - raw_feedforward / kd;
+        }
+    }
     const float feedforward = StairTorqueSafety::ClampJ6248Torque(
         Limit_Torque(id, raw_feedforward));
     const float torque = StairTorqueSafety::ClampJ6248Torque(
