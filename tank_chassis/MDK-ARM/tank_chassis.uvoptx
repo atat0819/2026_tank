@@ -330,6 +330,31 @@
           <WinNumber>1</WinNumber>
           <ItemText>rear_estimated_torque_nm</ItemText>
         </Ww>
+        <Ww>
+          <count>35</count>
+          <WinNumber>1</WinNumber>
+          <ItemText>chassis_input_watch,0x0A</ItemText>
+        </Ww>
+        <Ww>
+          <count>36</count>
+          <WinNumber>1</WinNumber>
+          <ItemText>imu_rx_buffer,0x10</ItemText>
+        </Ww>
+        <Ww>
+          <count>37</count>
+          <WinNumber>1</WinNumber>
+          <ItemText>front_4340_left_pid</ItemText>
+        </Ww>
+        <Ww>
+          <count>38</count>
+          <WinNumber>1</WinNumber>
+          <ItemText>front_4340_right_pid,0x0A</ItemText>
+        </Ww>
+        <Ww>
+          <count>39</count>
+          <WinNumber>1</WinNumber>
+          <ItemText>front_left_target_velocity</ItemText>
+        </Ww>
       </WatchWindow1>
       <WatchWindow2>
         <Ww>

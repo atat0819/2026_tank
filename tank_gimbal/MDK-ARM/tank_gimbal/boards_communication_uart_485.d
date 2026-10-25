@@ -791,13 +791,4 @@ tank_gimbal/boards_communication_uart_485.o: \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__functional\not_fn.h \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__functional\pointer_to_binary_function.h \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__functional\pointer_to_unary_function.h \
-  D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__functional\unary_negate.h \
-  ..\communication_between_boards\..\user\core\BSP\Motor\DM\DmMotor.hpp \
-  ..\communication_between_boards\..\user\core\BSP\Motor\MotorBase.hpp \
-  ..\communication_between_boards\..\user\core\BSP\Common\StateWatch\state_watch.hpp \
-  ..\communication_between_boards\..\user\core\BSP\buzzer\buzzer.hpp \
-  ..\Core\Inc\tim.h \
-  ..\communication_between_boards\..\user\core\HAL\FDCAN\fdcan_hal.hpp \
-  ..\communication_between_boards\..\user\core\HAL\FDCAN\interface\fdcan_bus.hpp \
-  ..\communication_between_boards\..\user\core\HAL\FDCAN\interface\fdcan_device.hpp \
-  ..\Core\Inc\fdcan.h
+  D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__functional\unary_negate.h

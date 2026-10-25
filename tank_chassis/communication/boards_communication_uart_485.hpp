@@ -2,10 +2,11 @@
 #include <stdint.h>
 
 // 云台 -> 底盘：78 91 + 24 字节数据 + CRC16，共 28 字节。
-// float 为小端 IEEE754；Yaw 偏移单位为度，IMU 为度、度/秒。
+// 多字节字段为小端；2..3=摇杆 X，4..5=最新 DT7 鼠标 X 采样值，16..23=停用 IMU 的保留字段。
 typedef struct Chassis485Data
 {
-    float yaw_offset_deg;
+    int16_t right_stick_x;
+    int16_t mouse_x;
     float vx;
     float vy;
     uint8_t s1;

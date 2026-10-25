@@ -815,7 +815,6 @@ tank_gimbal/gimbal_task.o: ..\RtosTask\gimbal_task.cpp \
   ..\user\core\Alg\PID\pid.hpp ..\RtosTask\remote_control_task.hpp \
   ..\RtosTask\..\user\core\BSP\RemoteControl\DT7.hpp \
   ..\communication_between_boards\..\user\core\BSP\Common\StateWatch\buzzer_manager.hpp \
-  ..\user\core\BSP\IMU\HI12_imu.hpp ..\user\core\BSP\IMU\HI12Base.hpp \
   ..\RtosTask\..\user\core\BSP\version\vision_communication.hpp \
   ..\RtosTask\can_send_task.hpp \
   ..\communication_between_boards\boards_communication.hpp \

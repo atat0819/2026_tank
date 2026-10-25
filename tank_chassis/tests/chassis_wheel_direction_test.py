@@ -18,11 +18,12 @@ ik_declaration = re.search(r"Alg::CalculationBase::Omni_IK ik\([^;]+;", source).
 host = r'''
 #include <cassert>
 #include <cmath>
+#include <cstdint>
 #include "user/core/Alg/ChassisCalculation/OmniCalculation.hpp"
 #include "user/core/Alg/PID/pid.hpp"
 float mouse_yaw(short count) {
     const float M_PI = 3.14159265358979323846f;
-    struct { short mouse_x; } input = {count};
+    struct { int16_t mouse_x; } input = {count};
     float wz_cmd = 0;
 '''
 host += mouse + r'''
@@ -30,9 +31,9 @@ host += mouse + r'''
 }
 int main() {
     assert(mouse_yaw(0) == 0);
-    assert(std::fabs(mouse_yaw(1) + 6.0f * 3.14159265358979323846f / 180.0f) < 1e-6f);
-    assert(std::fabs(mouse_yaw(-1) - 6.0f * 3.14159265358979323846f / 180.0f) < 1e-6f);
-    assert(mouse_yaw(100) == -4.0f && mouse_yaw(-100) == 4.0f);
+    assert(std::fabs(mouse_yaw(1) + 2.0f * 3.14159265358979323846f / 180.0f) < 1e-6f);
+    assert(std::fabs(mouse_yaw(-1) - 2.0f * 3.14159265358979323846f / 180.0f) < 1e-6f);
+    assert(mouse_yaw(200) == -4.0f && mouse_yaw(-200) == 4.0f);
     const float M_PI = 3.14159265358979323846f;
 '''
 host += geometry + "\n" + ik_declaration + r'''

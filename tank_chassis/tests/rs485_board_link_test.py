@@ -1,6 +1,7 @@
 """用真实两端编解码源码验证请求/回复、拆粘帧、CRC 和控制失联处理。"""
 from pathlib import Path
 import shutil
+import re
 import subprocess
 import tempfile
 
@@ -9,23 +10,17 @@ gimbal = chassis.parent / "tank_gimbal"
 task_source = (chassis / "RtosTask/can_send_task.cpp").read_text(encoding="utf-8")
 task_header = (chassis / "RtosTask/can_send_task.hpp").read_text(encoding="utf-8")
 control_type = task_header[task_header.index("struct ControlInputSnapshot"):task_header.index("ControlInputSnapshot GetControlInputSnapshot")]
-publication = task_source[task_source.index("void Chassis485_ApplyData"):task_source.index("StairCommand stair_command;")]
+state_type = re.search(r"typedef struct\s*\{[^}]+\}\s*Gimbal_Chassis_communicate_t;", task_header).group(0)
+publication = task_source[task_source.index("float yaw_offset_deg ="):task_source.index("StairCommand stair_command;")]
 control = r'''
 #include "chassis/fsm/control_input_selector.hpp"
 #include "task.h"
-struct GimbalState { float yaw_offset_deg, vx, vy, s1, s2, imu_yaw_deg, imu_gyro_z_deg_s; };
-GimbalState gimbalChassis_communicate{};
-uint16_t gimbal_keyboard=0;
-uint32_t gimbal_yaw_last_tick=0, gimbal_speed_last_tick=0, gimbal_switch_last_tick=0, gimbal_keyboard_last_tick=0;
-bool gimbal_yaw_received=false, gimbal_speed_received=false, gimbal_switch_received=false, gimbal_keyboard_received=false;
-bool yaw_offset_updated=false;
-uint8_t gimbalChassisSpeedUpdated=0;
 bool local_remote_received=false;
 uint32_t local_remote_last_tick=0;
 uint16_t local_remote_keyboard=0;
 int16_t local_remote_mouse_x=0;
 struct { uint8_t s1=1,s2=1; float vx=0,vy=0,wz=0; } remoteData;
-''' + control_type + publication
+''' + state_type + control_type + publication
 hal = r'''
 #pragma once
 #include <cstdint>
@@ -63,18 +58,6 @@ struct Bus {
 inline Bus &get_uart_bus_instance() { static Bus bus; return bus; }
 }
 '''
-motor = r'''
-#pragma once
-#include <cassert>
-#include <cstdint>
-namespace BSP::Motor::DM {
-template<uint8_t N> struct J4340 {
-    bool online=true; float angle=37.613f;
-    bool isConnected(int slot,int ring) { assert(slot==1 && ring==1); return online; }
-    float getAngleDeg(int slot) { assert(slot==1); return angle; }
-};
-}
-'''
 checks = r'''
 #include <cassert>
 #include <cmath>
@@ -84,13 +67,11 @@ checks = r'''
 #include "gimbal/communication_between_boards/boards_communication_uart_485.hpp"
 #include "gimbal/communication_between_boards/refree_receive_uart_485.hpp"
 #include "chassis/user/core/HAL/UART/uart_hal.hpp"
-#include "gimbal/user/core/BSP/Motor/DM/DmMotor.hpp"
 uint32_t now=100;
 namespace HAL::UART {
 unsigned board=0, attempts[2]={}; bool accept[2]={true,true};
 UART_HandleTypeDef handles[2]; uint8_t *active[2]={}; uint16_t lengths[2]={};
 }
-BSP::Motor::DM::J4340<2> gimbal_motor;
 unsigned applied=0;
 Chassis485Data snapshot;
 void Chassis485_ApplyData(const Chassis485Data &d) { snapshot=d; ++applied; }
@@ -103,12 +84,12 @@ int main() {
     board=1;
     Referee485_Update(0x1234,0x4567,0x89ab,1);
     board=0;
-    assert(RS485_SendBoardData(0.5f,-0.25f,3,3,-45,12,0x1234)==HAL_OK);
+    assert(RS485_SendBoardData(330,-1234,0.5f,-0.25f,3,3,0,0,0x1234)==HAL_OK);
     assert(lengths[0]==28);
     uint8_t request[28]; memcpy(request,active[0],28);
     handles[0].gState=HAL_UART_STATE_READY;
     // 即使上一帧已经发完，未收到回复且未到 2ms 超时仍不能发送。
-    assert(RS485_SendBoardData(0,0,0,0,0,0,0)==HAL_BUSY);
+    assert(RS485_SendBoardData(0,0,0,0,0,0,0,0,0)==HAL_BUSY);
     assert(attempts[0]==1);
     board=1;
     uint8_t noise[]={1,2,0x78,0x22,0};
@@ -116,11 +97,13 @@ int main() {
     Chassis485_Parse(request,9); assert(applied==0 && attempts[1]==0);
     Chassis485_Parse(request+9,19);
     assert(applied==1 && attempts[1]==1 && lengths[1]==12);
-    assert(std::fabs(snapshot.yaw_offset_deg-17.25f)<0.00001f);
+    assert(snapshot.right_stick_x==330 && snapshot.mouse_x==-1234);
     assert(snapshot.vx==0.5f && snapshot.vy==-0.25f && snapshot.keyboard==0x1234);
-    assert(snapshot.imu_yaw_deg==315 && snapshot.imu_gyro_z_deg_s==12);
+    assert(snapshot.imu_yaw_deg==0 && snapshot.imu_gyro_z_deg_s==0);
     auto input=GetControlInputSnapshot(now);
     assert(input.source==ControlInputSource::GIMBAL && input.keyboard==0x1234);
+    assert(input.wz==0.5f && input.yaw_offset_deg==0 && input.mouse_x==-1234);
+    for (int i=0;i<5;++i) assert(GetControlInputSnapshot(now).mouse_x==-1234);
     assert(gimbal_switch_last_tick==now && gimbal_yaw_last_tick==now);
     assert(GetControlInputSnapshot(now+100).source==ControlInputSource::NONE);
     local_remote_received=true; local_remote_last_tick=now;
@@ -136,12 +119,12 @@ int main() {
     assert(ref.getHeatLimit()==0x4567 && ref.getHeat42mm()==0x89ab && ref.isRefereeOnline());
     assert(ref.getDataAgeMs(now)==0);
     // 收到有效回复即可在下一次调用发送，不再等待固定 5ms。
-    assert(RS485_SendBoardData(0,0,1,1,0,0,0)==HAL_OK);
+    assert(RS485_SendBoardData(0,0,0,0,1,1,0,0,0)==HAL_OK);
     handles[0].gState=HAL_UART_STATE_READY;
     now+=1;
-    assert(RS485_SendBoardData(0,0,1,1,0,0,0)==HAL_BUSY);
+    assert(RS485_SendBoardData(0,0,0,0,1,1,0,0,0)==HAL_BUSY);
     now+=1;
-    assert(RS485_SendBoardData(0,0,1,1,0,0,0)==HAL_OK);
+    assert(RS485_SendBoardData(0,0,0,0,1,1,0,0,0)==HAL_OK);
     // 错误 CRC 不刷新输入、不回复；下一帧仍能重新同步。
     board=1; handles[1].gState=HAL_UART_STATE_READY;
     request[8]^=1; Chassis485_Parse(request,28);
@@ -160,31 +143,49 @@ int main() {
     reply[5]^=1; ref.parse485(noise,sizeof(noise)); ref.parse485(reply,12);
     assert(ref.getDataAgeMs(now)==0);
     // 无回复时按周期发送最新快照，不积压旧命令。
-    next_request(); gimbal_motor.online=false;
-    assert(RS485_SendBoardData(0,0,0,0,0,0,0)==HAL_OK);
+    next_request();
+    assert(RS485_SendBoardData(0,0,0,0,0,0,0,0,0)==HAL_OK);
     board=1; handles[1].gState=HAL_UART_STATE_READY;
     Chassis485_Parse(active[0],28);
-    assert(snapshot.yaw_offset_deg==0 && snapshot.s1==0 && snapshot.s2==0);
+    assert(snapshot.right_stick_x==0 && snapshot.mouse_x==0 && snapshot.s1==0 && snapshot.s2==0);
     assert(snapshot.vx==0 && snapshot.vy==0 && snapshot.keyboard==0);
     assert(GetControlInputSnapshot(now).source==ControlInputSource::NONE);
     assert(!gimbal_switch_received && !gimbal_keyboard_received);
     board=0; ref.parse485(active[1],12);
     assert(!ref.isRefereeOnline() && ref.getCoolingValue()==1);
     // 非法开关/NaN 即使带合法 CRC 也不能进入控制数据。
-    next_request(); assert(RS485_SendBoardData(NAN,0,3,3,0,0,0)==HAL_OK);
+    next_request(); assert(RS485_SendBoardData(0,0,NAN,0,3,3,0,0,0)==HAL_OK);
     board=1; unsigned old=applied; Chassis485_Parse(active[0],28); assert(applied==old);
-    next_request(); assert(RS485_SendBoardData(0,0,4,3,0,0,0)==HAL_OK);
+    next_request(); assert(RS485_SendBoardData(0,0,0,0,4,3,0,0,0)==HAL_OK);
     board=1; Chassis485_Parse(active[0],28); assert(applied==old);
+    // 摇杆范围及明确失联帧同时校验两个新字段；有符号鼠标全范围允许。
+    next_request(); assert(RS485_SendBoardData(661,0,0,0,3,3,0,0,0)==HAL_OK);
+    board=1; Chassis485_Parse(active[0],28); assert(applied==old);
+    next_request(); assert(RS485_SendBoardData(-661,0,0,0,3,3,0,0,0)==HAL_OK);
+    board=1; Chassis485_Parse(active[0],28); assert(applied==old);
+    next_request(); assert(RS485_SendBoardData(1,0,0,0,0,0,0,0,0)==HAL_OK);
+    board=1; Chassis485_Parse(active[0],28); assert(applied==old);
+    next_request(); assert(RS485_SendBoardData(0,1,0,0,0,0,0,0,0)==HAL_OK);
+    board=1; Chassis485_Parse(active[0],28); assert(applied==old);
+    next_request(); assert(RS485_SendBoardData(-660,-32768,0,0,3,3,0,0,0)==HAL_OK);
+    board=1; Chassis485_Parse(active[0],28); assert(applied==old+1);
+    assert(snapshot.right_stick_x==-660 && snapshot.mouse_x==-32768);
+    next_request(); assert(RS485_SendBoardData(660,32767,0,0,3,3,0,0,0)==HAL_OK);
+    board=1; Chassis485_Parse(active[0],28); assert(applied==old+2);
+    assert(snapshot.right_stick_x==660 && snapshot.mouse_x==32767);
+    next_request(); assert(RS485_SendBoardData(0,0,0,0,3,3,0,0,0)==HAL_OK);
+    board=1; Chassis485_Parse(active[0],28);
+    assert(GetControlInputSnapshot(now).mouse_x==0);
     // HAL 启动失败不能把链路锁在等待状态。
     next_request(); accept[0]=false;
-    assert(RS485_SendBoardData(0,0,1,1,0,0,0)==HAL_ERROR);
-    accept[0]=true; assert(RS485_SendBoardData(0,0,1,1,0,0,0)==HAL_OK);
+    assert(RS485_SendBoardData(0,0,0,0,1,1,0,0,0)==HAL_ERROR);
+    accept[0]=true; assert(RS485_SendBoardData(0,0,0,0,1,1,0,0,0)==HAL_OK);
     // tick 溢出后 2ms 回复超时仍按无符号差值判断。
     now=0xfffffffeU; handles[0].gState=HAL_UART_STATE_READY;
-    assert(RS485_SendBoardData(0,0,1,1,0,0,0)==HAL_OK);
+    assert(RS485_SendBoardData(0,0,0,0,1,1,0,0,0)==HAL_OK);
     now=0xffffffffU; handles[0].gState=HAL_UART_STATE_READY;
-    assert(RS485_SendBoardData(0,0,1,1,0,0,0)==HAL_BUSY);
-    now=0; assert(RS485_SendBoardData(0,0,1,1,0,0,0)==HAL_OK);
+    assert(RS485_SendBoardData(0,0,0,0,1,1,0,0,0)==HAL_BUSY);
+    now=0; assert(RS485_SendBoardData(0,0,0,0,1,1,0,0,0)==HAL_OK);
 }
 '''
 with tempfile.TemporaryDirectory(prefix="rs485_link_") as directory:
@@ -197,7 +198,7 @@ with tempfile.TemporaryDirectory(prefix="rs485_link_") as directory:
             target = work / name / file
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(root / file, target)
-        for path, content in (("user/core/HAL/UART/uart_hal.hpp",uart), ("user/core/BSP/Motor/DM/DmMotor.hpp",motor)):
+        for path, content in (("user/core/HAL/UART/uart_hal.hpp",uart),):
             target=work/name/path; target.parent.mkdir(parents=True,exist_ok=True); target.write_text(content,encoding="utf-8")
     (work/"chassis/fsm").mkdir()
     shutil.copyfile(chassis/"fsm/control_input_selector.hpp",work/"chassis/fsm/control_input_selector.hpp")

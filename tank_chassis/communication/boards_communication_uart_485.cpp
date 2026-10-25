@@ -46,7 +46,8 @@ void Chassis485_Parse(const uint8_t *data, uint16_t size)
         }
 
         Chassis485Data decoded{};
-        memcpy(&decoded.yaw_offset_deg, &rx_frame[2], sizeof(float));
+        memcpy(&decoded.right_stick_x, &rx_frame[2], sizeof(int16_t));
+        memcpy(&decoded.mouse_x, &rx_frame[4], sizeof(int16_t));
         memcpy(&decoded.vx, &rx_frame[6], sizeof(float));
         memcpy(&decoded.vy, &rx_frame[10], sizeof(float));
         decoded.s1 = rx_frame[14];
@@ -58,10 +59,12 @@ void Chassis485_Parse(const uint8_t *data, uint16_t size)
 
         const bool switches_valid = decoded.s1 >= 1U && decoded.s1 <= 3U &&
                                     decoded.s2 >= 1U && decoded.s2 <= 3U;
-        // 云台明确失联帧：两个开关、速度和键盘均归零，立即撤销云台输入有效性。
+        // 云台明确失联帧：档位及全部操作量归零，立即撤销云台输入有效性。
         const bool offline = decoded.s1 == 0U && decoded.s2 == 0U &&
+                             decoded.right_stick_x == 0 && decoded.mouse_x == 0 &&
                              decoded.vx == 0.0f && decoded.vy == 0.0f && decoded.keyboard == 0U;
-        if ((!switches_valid && !offline) || !isfinite(decoded.yaw_offset_deg) ||
+        if ((!switches_valid && !offline) ||
+            decoded.right_stick_x < -660 || decoded.right_stick_x > 660 ||
             !isfinite(decoded.vx) || !isfinite(decoded.vy) ||
             !isfinite(decoded.imu_yaw_deg) || !isfinite(decoded.imu_gyro_z_deg_s))
         {

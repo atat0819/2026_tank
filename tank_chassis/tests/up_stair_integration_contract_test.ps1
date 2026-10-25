@@ -8,8 +8,8 @@ $canTask = Get-Content -Raw (Join-Path $PSScriptRoot '..\RtosTask\can_send_task.
 if ($source -notmatch '#include "../fsm/up_stair_behind_motor_fsm.hpp"') { throw 'rear FSM must be owned by up_stair.cpp' }
 if ($source -match 'front_4340_(?:left|right)_pid\[' -or
     $header -match 'front_4340_(?:left|right)_pid\[') { throw 'front control must keep only angle outer PID objects' }
-if ($source -notmatch 'front_4340\.ctrl_Mit\(1, up_stair_fsm\.Get_Current_Angle\(1\), front_left_target_velocity,\s*0\.0f, 1\.3f, 0\.0f\)' -or
-    $source -notmatch 'front_4340\.ctrl_Mit\(2, up_stair_fsm\.Get_Current_Angle\(2\), target_velocity,\s*0\.0f, 1\.3f, 0\.0f\)') { throw 'front angle outputs must feed MIT speed targets with inline Kp=0, Kd=1.3, torque=0' }
+if ($source -notmatch 'front_4340\.ctrl_Mit\(1, up_stair_fsm\.Get_Current_Angle\(1\), front_left_target_velocity,\s*0\.0f, FRONT_MIT_KD, 0\.0f\)' -or
+    $source -notmatch 'front_4340\.ctrl_Mit\(2, up_stair_fsm\.Get_Current_Angle\(2\), target_velocity,\s*0\.0f, FRONT_MIT_KD, 0\.0f\)') { throw 'front angle outputs must feed MIT speed targets with Kp=0, shared FRONT_MIT_KD, torque=0' }
 if ($source -notmatch 'ALG::PID::PID rear_6248_pitch_pid =') { throw 'missing rear pitch outer PID' }
 if ($source -match 'rear_6248_(?:pitch|left_retract|right_retract)_pid\[|rear_6248_limit_speed_pid') { throw 'rear shaft speed feedback must be closed by MIT, not host speed PIDs' }
 if ($source -match 'rear_6248_roll_pid|Get_Roll_Rate_Dps') { throw 'weak Roll compensation must not introduce another cascade or Roll rate loop' }
@@ -69,8 +69,8 @@ if ($source -notmatch 'left_attitude_kd = up_stair_behind_motor_fsm\.Uses_Limit_
     $source -notmatch 'right_attitude_kd = up_stair_behind_motor_fsm\.Uses_Limit_Hold\(2U\)\s*\? REAR_RETRACT_MIT_KD : REAR_IMU_MIT_KD') { throw 'either end holding must select retract Kd independently for each motor' }
 if ($rearFsmImpl -notmatch 'Limit_Torque\(id, kd \* \(target - velocity\) \+ raw_feedforward\)' -or
     $rearFsmImpl -notmatch 'velocity \+ \(torque - feedforward\) / kd') { throw 'MIT speed constraints must protect the total torque and subtract the sent feedforward' }
-foreach ($kd in @('REAR_IMU_MIT_KD', 'REAR_RETRACT_MIT_KD')) {
-    if ([regex]::Matches($source, "(?m)^float $kd\s*=").Count -ne 1) { throw "rear MIT damping must have one definition per mode: $kd" }
+foreach ($kd in @('FRONT_MIT_KD', 'REAR_IMU_MIT_KD', 'REAR_RETRACT_MIT_KD')) {
+    if ([regex]::Matches($source, "(?m)^float $kd\s*=").Count -ne 1) { throw "MIT damping must have one definition per tuning variable: $kd" }
 }
 foreach ($kd in @('REAR_RETRACT_MIT_KD', 'left_attitude_kd', 'right_attitude_kd')) {
     $expectedCount = if ($kd -eq 'REAR_RETRACT_MIT_KD') { 2 } else { 1 }

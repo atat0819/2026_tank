@@ -26,24 +26,24 @@ public:
     // Config() 仍保留未标定的安全默认值，任务必须显式装入这些角度才能启用控制。
     static constexpr float IMU_PITCH_TARGET_DEG = 1.0f; // 最终希望保持的 HI14 原始 Pitch 读数，度
     // Roll 回正补偿：目标直接使用 HI14 原始角度；左侧抬高时读数增大。
-    static constexpr float ROLL_TARGET_DEG = 1.5f; // 实测左右水平读数，度。
-    static constexpr float ROLL_KP = 3.0f; // N·m/度；0=关闭，独立于 MIT Kd。
-    static constexpr float ROLL_MAX_TORQUE_NM = 8.0f; // 每侧 Roll 补偿上限，N·m，须 >= 0。
+    static constexpr float ROLL_TARGET_DEG = 0.54f; // 实测左右水平读数，度。
+    static constexpr float ROLL_KP = 2.3f; // N·m/度；0=关闭，独立于 MIT Kd。
+    static constexpr float ROLL_MAX_TORQUE_NM = 6.0f; // 每侧 Roll 补偿上限，N·m，须 >= 0。
     // 实车机械区间：左 29°→94.7°，右 4.47°→68°，均不跨 ±π。
     static constexpr float ANGLE_START_RAD[2] = { // 左右电机机械安全区起始角，弧度
-        29.6f * 3.14159265358979323846f / 180.0f,   //左电机腿伸最长时候的角度
-        4.28f * 3.14159265358979323846f / 180.0f};  //右电机腿收最短时候的角度
+        28.93f * 3.14159265358979323846f / 180.0f,   //左电机腿伸最长时候的角度
+        4.00f * 3.14159265358979323846f / 180.0f};  //右电机腿收最短时候的角度
     static constexpr float ANGLE_END_RAD[2] = { // 左右电机机械安全区终止角，弧度
-        94.72f * 3.14159265358979323846f / 180.0f,  //左电机腿收最短时候的角度
-        68.93f * 3.14159265358979323846f / 180.0f};  //右电机腿伸最长时候的角度
+        93.60f * 3.14159265358979323846f / 180.0f,  //左电机腿收最短时候的角度
+        69.78f * 3.14159265358979323846f / 180.0f};  //右电机腿伸最长时候的角度
     // 端点外侧反馈容差及向外力矩拦截容差。
     static constexpr float ANGLE_LIMIT_TOLERANCE_RAD =
-        1.0f * 3.14159265358979323846f / 180.0f;
+        2.0f * 3.14159265358979323846f / 180.0f;
     static constexpr int8_t MOTOR_DIRECTION[2] = {1, -1}; // 左右电机镜像安装，Pitch 力矩方向相反
     static constexpr float MIT_SPEED_LIMIT_RAD_S = 10.0f; // J6248 速度映射范围，与驱动及电机 VMAX 一致
     static constexpr float MOTOR_TORQUE_GAIN[2] = {1.0f, 1.0f}; // 左右电机最终力矩倍率，必须大于 0
     // IMU 两端共用余量和退出条件；位置 P 与纠偏速度上限按端点独立整定。
-    static constexpr float EXTENSION_MARGIN_RAD = 2.0f * 3.14159265358979323846f / 180.0f;
+    static constexpr float EXTENSION_MARGIN_RAD = 3.0f * 3.14159265358979323846f / 180.0f;
     static constexpr float EXTENSION_HOLD_KP = 40.0f; // 位置 P：rad 误差 -> rad/s；初始试调值
     static constexpr float EXTENSION_HOLD_MAX_SPEED_RAD_S = 10.0f; // 保持纠偏速度上限，复用收腿 MIT Kd
     static constexpr float SHORTENING_HOLD_KP = 30.0f; // 收短端位置 P，rad 误差 -> rad/s

@@ -10,42 +10,19 @@
 #include "gimbal_task.hpp"
 
 QueueHandle_t remoteDataQueue;
-QueueHandle_t IMUDataQueue;
 
 uint8_t receivedata[18];
 RemoteData_t remote;
 BSP::REMOTE_CONTROL::RemoteController remoteController(100);
-BSP::IMU::HI12_float imu;
 
 extern DMA_HandleTypeDef hdma_uart5_rx;
-extern DMA_HandleTypeDef hdma_uart7_rx;
-
-// IMU circular DMA receive
-#define IMU_DMA_BUF_SIZE 164  // 两个 HI12 帧；半满、全满及 IDLE 时处理新增字节。
-static uint8_t imu_dma_buffer[IMU_DMA_BUF_SIZE];
-static uint16_t imu_dma_read_pos = 0U;
-static volatile bool imu_rx_active = false;
-
-static void StartImuReceive()
-{
-    auto &uart7 = HAL::UART::get_uart_bus_instance().get_uart7();
-    imu_rx_active = false;
-    if (HAL_UART_AbortReceive(uart7.get_handle()) != HAL_OK) return;
-    __HAL_UART_CLEAR_OREFLAG(uart7.get_handle());
-    imu.ResetReceiveBuffer();
-    imu_dma_read_pos = 0U;
-    HAL::UART::Data rx{imu_dma_buffer, IMU_DMA_BUF_SIZE};
-    imu_rx_active = uart7.receive_dma_idle(rx); // 启动失败时任务循环会重试。
-}
-
-// End IMU circular DMA receive
 
 // 视觉通信实例（文件作用域，HAL 回调需要访问其 RX 缓冲区）
 BSP::Vision::VisionCommunicator vision_comm;
 
 // ==================== HAL UART 回调 ====================
 
-// UART7 (IMU) 改用 DMA+Idle，不再使用逐字节 IT，此回调不再处理 IMU
+// DT7 和 RS485 使用 DMA+Idle，此回调无需处理接收数据。
 extern "C" void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
     (void)huart;
@@ -83,24 +60,7 @@ extern "C" void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t S
         __HAL_DMA_DISABLE_IT(&hdma_uart5_rx, DMA_IT_HT);
     }
 
-    // UART7 — IMU DMA+Idle 连续接收，Size 是环形缓冲区写入位置。
-    auto &uart7 = HAL::UART::get_uart_bus_instance().get_uart7();
-    if (huart == uart7.get_handle())
-    {
-        if (!imu_rx_active || Size == 0U || Size > IMU_DMA_BUF_SIZE || Size == imu_dma_read_pos) return;
-        if (Size < imu_dma_read_pos)
-        {
-            // 循环 DMA 回绕：先处理缓冲区尾部，再处理头部。
-            HAL::UART::Data tail{imu_dma_buffer + imu_dma_read_pos,
-                static_cast<uint16_t>(IMU_DMA_BUF_SIZE - imu_dma_read_pos)};
-            if (tail.size != 0U) uart7.trigger_rx_callbacks(tail);
-            imu_dma_read_pos = 0U;
-        }
-        HAL::UART::Data rx{imu_dma_buffer + imu_dma_read_pos,
-            static_cast<uint16_t>(Size - imu_dma_read_pos)};
-        uart7.trigger_rx_callbacks(rx);
-        imu_dma_read_pos = Size; // 相同位置的 HT/TC/IDLE 回调不重复解析。
-    }
+
 }
 
 extern "C" void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
@@ -126,7 +86,6 @@ extern "C" void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
         return;
     }
     auto &uart5 = HAL::UART::get_uart_bus_instance().get_uart5();
-    auto &uart7 = HAL::UART::get_uart_bus_instance().get_uart7();
 
     if (huart == uart5.get_handle())
     {
@@ -149,11 +108,7 @@ extern "C" void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
         uart5.receive_dma_idle(rx);
         __HAL_DMA_DISABLE_IT(&hdma_uart5_rx, DMA_IT_HT);
     }
-    else if (huart == uart7.get_handle())
-    {
-        // HAL 已处理接收错误；交给任务终止残留 DMA 并重新启动，失败会继续重试。
-        imu_rx_active = false;
-    }
+
 }
 
 //虚拟串口假回调 (见USB_DEVICE\App\usbd_cdc_if.c)
@@ -174,7 +129,6 @@ extern "C" void remote_control_task(void *argument)
     auto &uart2_485 = HAL::UART::get_uart_bus_instance().get_uart2();
     auto &uart3_485 = HAL::UART::get_uart_bus_instance().get_uart3();
     auto &uart5 = HAL::UART::get_uart_bus_instance().get_uart5();
-    auto &uart7 = HAL::UART::get_uart_bus_instance().get_uart7();
 
     // UART2 — RS485 第二路，预留接收数据处理。
     uart2_485.register_rx_callback([](const HAL::UART::Data &data) {
@@ -193,11 +147,6 @@ extern "C" void remote_control_task(void *argument)
             remoteController.parseData(data.buffer);
             remoteController.updateTimestamp();
         }
-    });
-
-    // UART7 回调：DMA 新增字节 → HI12 驱动跨回调拼帧。
-    uart7.register_rx_callback([](const HAL::UART::Data &data) {
-        imu.DataUpdate(data.buffer, data.size);
     });
 
     // 启动接收
@@ -220,20 +169,11 @@ extern "C" void remote_control_task(void *argument)
     uart5.receive_dma_idle(uart5_rx);
     __HAL_DMA_DISABLE_IT(&hdma_uart5_rx, DMA_IT_HT);
 
-    taskENTER_CRITICAL();
-    StartImuReceive(); // 循环 DMA 保留半满中断，正常接收期间不重启。
-    taskEXIT_CRITICAL();
-
     remoteController.SetDeadzone(66.0f);
 
-    static uint32_t vision_tick = 0;
 
     for (;;)
     {
-        // UART7/DMA 中断优先级均为 5，临界区避免恢复操作与接收回调交错。
-        taskENTER_CRITICAL();
-        if (!imu_rx_active) StartImuReceive();
-        taskEXIT_CRITICAL();
         if (!remoteController.isConnected())
         {
             remote.chassis_vx = 0.0f;
@@ -251,34 +191,7 @@ extern "C" void remote_control_task(void *argument)
             friction_motor.sendCAN();
         }
 
-        //if (imu.isConnected())
-        {
-            // 视觉模式：遥控器 S1上+S2上，或键鼠右键按住 ≥2s
-            uint8_t vision_mode = ((remoteController.get_s1() == BSP::REMOTE_CONTROL::RemoteController::UP &&
-                                    remoteController.get_s2() == BSP::REMOTE_CONTROL::RemoteController::UP) ||
-                                   input_dispatcher.IsVisionMode()) ? 1 : 0;
-
-            float quaternion[4] = {0.0f, 0.0f, 0.0f, 1.0f};
-
-            // 弹丸预估初速度：取2个摩擦轮转速的绝对值平均值，换算为线速度
-            // v (m/s) = RPM × π × d / 60,  d = 64.1mm
-            // 右侧摩擦轮反向旋转，取绝对值后参与平均
-            float abs_left  = friction_current_speed_left  < 0.0f ? -friction_current_speed_left  : friction_current_speed_left;
-            float abs_right = friction_current_speed_right < 0.0f ? -friction_current_speed_right : friction_current_speed_right;
-            float abs_bottom = friction_current_speed_bottom < 0.0f ? -friction_current_speed_bottom : friction_current_speed_bottom;
-            float avg_friction_rpm = (abs_left + abs_right + abs_bottom) / 3.0f;
-            float bullet_speed = avg_friction_rpm * 3.14159265358979323846f * 0.0641f / 60.0f;
-
-            constexpr float deg_to_rad = 3.14159265358979323846f / 180.0f;           
-						vision_comm.SendToVision(quaternion,
-                                     imu.GetAngle(2) * deg_to_rad,
-                                     imu.GetGyro(2) * deg_to_rad,
-                                     imu.GetAngle(1) * deg_to_rad,
-                                     imu.GetGyro(0) * deg_to_rad,
-                                     16.0f, 0U, vision_mode); // 暂不统计累计发弹数
-
-        }
-       
+        // 无 IMU 绝对姿态，停止向视觉发送姿态；USB 接收接口保留。
 
         vTaskDelay(2);
     }

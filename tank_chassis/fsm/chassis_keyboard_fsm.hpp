@@ -9,7 +9,7 @@ struct KeyboardMotionCommand
     float vy;
     bool shift_pressed;
     bool gyro_enabled;
-    bool follow_enabled;
+    bool follow_enabled; // 兼容保留，Z 停用后恒为 false
     bool stair_toggle;
     bool valid;
     bool imu_mode_request;
@@ -57,12 +57,9 @@ private:
 
     bool last_ctrl_pressed_ = false;
     bool gyro_enabled_ = false;
-    bool last_z_pressed_ = false;
     bool last_v_pressed_ = false;
     bool last_c_pressed_ = false;
     bool last_b_pressed_ = false;
-    // Keyboard mode defaults to follow; Reset() clears it until mode entry.
-    bool follow_enabled_ = false;
 
     KeyboardMotionCommand command_{};
 };

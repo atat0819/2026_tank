@@ -54,12 +54,15 @@ BSP::Motor::DM::J6248<2> rear_6248(
 // 输出限幅约束的是目标速度；MIT 内环的真实硬限流/限矩需在驱动器端设置。
 // 前左 4340 的角度外环：弧度误差转换为 rad/s 目标，速度内环由 MIT Kd 完成。
 ALG::PID::PID front_4340_left_pid = {
-    15.0f, 0.0f, 0.0f, 10.0f, 0.0f, 0.0f,
+    120.0f, 0.0f, 0.0f, 10.0f, 0.0f, 0.0f,
 };
 // 前右角度外环保留独立增益。
 ALG::PID::PID front_4340_right_pid = {
-    8.0f, 0.0f, 0.0f, 10.0f, 0.0f, 0.0f,
+    120.0f, 0.0f, 0.0f, 10.0f, 0.0f, 0.0f,
 };
+
+// 前两台 4340 共用的 MIT 速度阻尼增益。
+float FRONT_MIT_KD = 3.4f;
 
 // 后 6248 的 MIT 阻尼按模式独立调节；各模式左右共用，保护估算与发送一致，范围 0 < Kd <= 5。
 float REAR_IMU_MIT_KD = 3.5f;     // IMU 调平、姿态保持。
@@ -239,7 +242,8 @@ extern "C" void up_stair_task(void *argument)
                 false,
                 false,
                 false,
-                false);
+                false,
+                now_tick);
 
             // 禁用后部姿态状态机，清除 IMU 和左右反馈的控制权限。
             up_stair_behind_motor_fsm.Update(
@@ -282,7 +286,8 @@ extern "C" void up_stair_task(void *argument)
             front_right_feedback_valid,
             policy.front_hold_enabled,
             policy.front_stair_command_enabled,
-            command.front_target_requested);
+            command.front_target_requested,
+            now_tick);
 
         // 后 6248 使用公共 IMU 超时门限，避免快照层和控制层配置不一致。
         // tick 差值单位 ms；只有快照标志有效、未超时、角度/角速度均有限才可进入控制。
@@ -385,17 +390,17 @@ extern "C" void up_stair_task(void *argument)
                 now_tick))
             rear_6248.On(2, BSP::Motor::DM::Model::MIT);
 
-        // 前左角度外环输出直接送入 MIT 速度目标，Kp/Kd/前馈力矩在此填写。
+        // 前左角度外环输出乘速度启动比例后送入 MIT，最终目标角保持不变。
         // FSM 的目标角和反馈角都已展开成连续 rad，跨过 ±pi 不会出现整圈误差跳变。
-        // 外环限制轴速度到 ±10 rad/s；当前前腿没有后腿那套软启动/采样力矩限幅函数。
+        // 外环限制轴速度到 ±10 rad/s；启动比例与后腿收腿一致，按真实时间从 0 增至 1。
         if (front_left_feedback_valid && up_stair_fsm.Is_Enabled())
         {
             front_left_target_velocity = front_4340_left_pid.UpDate(
                 up_stair_fsm.Get_Target_Angle(1),
-                up_stair_fsm.Get_Position_Feedback(1));
+                up_stair_fsm.Get_Position_Feedback(1)) * up_stair_fsm.Get_Speed_Scale();
             // 电机端位置 Kp=0，因此当前位置字段不闭环；实际内环力矩由 Kd 的轴速度误差产生。
             front_4340.ctrl_Mit(1, up_stair_fsm.Get_Current_Angle(1), front_left_target_velocity,
-                                0.0f, 1.3f, 0.0f);
+                                0.0f, FRONT_MIT_KD, 0.0f);
         }
         else
         {
@@ -411,9 +416,9 @@ extern "C" void up_stair_task(void *argument)
         {
             const float target_velocity = front_4340_right_pid.UpDate(
                 up_stair_fsm.Get_Target_Angle(2),
-                up_stair_fsm.Get_Position_Feedback(2));
+                up_stair_fsm.Get_Position_Feedback(2)) * up_stair_fsm.Get_Speed_Scale();
             front_4340.ctrl_Mit(2, up_stair_fsm.Get_Current_Angle(2), target_velocity,
-                                0.0f, 1.3f, 0.0f);
+                                0.0f, FRONT_MIT_KD, 0.0f);
         }
         else
         {

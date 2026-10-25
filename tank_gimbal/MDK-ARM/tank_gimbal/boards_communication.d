@@ -705,7 +705,6 @@ tank_gimbal/boards_communication.o: \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__memory\allocator_destructor.h \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\stdexcept \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__memory\uses_allocator_construction.h \
-  ..\user\core\BSP\IMU\HI12_imu.hpp ..\user\core\BSP\IMU\HI12Base.hpp \
   ..\RtosTask\..\user\core\BSP\version\vision_communication.hpp \
   ..\user\core\Alg\PID\pid.hpp \
   ..\communication_between_boards\boards_communication.hpp \
@@ -820,5 +819,4 @@ tank_gimbal/boards_communication.o: \
   ..\RtosTask\..\feeder_fsm\feeder_fsm.hpp \
   ..\RtosTask\..\feeder_fsm\..\user\core\Alg\FSM\alg_fsm.hpp \
   ..\RtosTask\..\feeder_fsm\friction_fsm.hpp \
-  ..\user\core\Alg\Filter\Filter.hpp \
-  ..\communication_between_boards\..\user\core\BSP\Motor\DM\DmMotor.hpp
+  ..\user\core\Alg\Filter\Filter.hpp

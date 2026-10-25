@@ -2,38 +2,12 @@
 #include "gimbal_task.hpp"
 #include "boards_communication.hpp"
 #include "../user/core/HAL/FDCAN/fdcan_hal.hpp"
-#include "../user/core/BSP/Motor/DM/DmMotor.hpp"
 #include <string.h>
-
-extern BSP::Motor::DM::J4340<2> gimbal_motor;
-
-// ===== 标定常数（只标定一次）=====
-// 把枪管对准底盘正前方时，Keil watch 读 dm4340_state[0].angle_deg 的值 X，
-// 常数 = -X。标定后无论下电再上电还是 Keil 烧录，对准正前方时输出都是 0。
-// 2026-08-16 标定：摆正时 angle_deg = 200.55
-#define YAW_FRONT_OFFSET_DEG (-20.363f)
-
-    float yaw_offset_deg = 0.0f;
 
 float YawOffset_GetDeg(void)
 {
-    // Yaw（逻辑 ID 1）反馈超时后发送零偏移，避免底盘继续使用旧角度。
-    if (!gimbal_motor.isConnected(1, 1))
-    {
-        yaw_offset_deg = 0.0f;
-        return yaw_offset_deg;
-    }
-
-    // 直接用编码器绝对角度 + 标定常数，不需要上电调零：
-    // 驱动板重启后角度字段即真实位置，写死常数跨上下电可重复
-    // DM4340 mapping: motor ID 1 / state index 0 is Yaw.
-    // 直接读取驱动最新反馈，恢复在线的首帧不使用上一控制周期的缓存。
-    yaw_offset_deg = gimbal_motor.getAngleDeg(1) + YAW_FRONT_OFFSET_DEG;
-
-    while (yaw_offset_deg > 180.0f)  yaw_offset_deg -= 360.0f;
-    while (yaw_offset_deg < -180.0f) yaw_offset_deg += 360.0f;
-
-    return yaw_offset_deg;
+    // 旧 CAN 接口保留；Yaw 电机已取消，云台相对底盘无独立偏转。
+    return 0.0f;
 }
 
 

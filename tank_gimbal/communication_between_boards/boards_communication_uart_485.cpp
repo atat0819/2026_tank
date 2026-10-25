@@ -1,40 +1,16 @@
 #include "boards_communication_uart_485.hpp"
 #include "../user/core/HAL/UART/uart_hal.hpp"
-#include "../user/core/BSP/Motor/DM/DmMotor.hpp"
 #include <math.h>
 #include <string.h>
 
 static_assert(sizeof(float) == 4, "RS485 protocol requires 4-byte float");
 
-extern BSP::Motor::DM::J4340<2> gimbal_motor;
 static uint32_t last_send_tick = 0U;
 static volatile bool waiting_reply = false;
 
 void RS485_ReplyReceived(void)
 {
     waiting_reply = false;
-}
-
-// 与原 CAN 路径保持相同标定：编码器角加偏置，对准底盘正前方时为 0 度。
-#define YAW_FRONT_OFFSET_485_DEG (-20.363f)
-
-static float YawOffset485_GetDeg(void)
-{
-    float yaw_offset_deg = 0.0f;
-    // Yaw（逻辑 ID 1）反馈超时后发送零偏移，避免底盘继续使用旧角度。
-    if (!gimbal_motor.isConnected(1, 1))
-    {
-        return yaw_offset_deg;
-    }
-
-    // 直接读取最新编码器绝对角度加标定常数，恢复在线时不使用旧缓存。
-    // 偏移量单位为度，标定常数跨上下电使用，不需要上电调零。
-    yaw_offset_deg = gimbal_motor.getAngleDeg(1) + YAW_FRONT_OFFSET_485_DEG;
-
-    while (yaw_offset_deg > 180.0f)  yaw_offset_deg -= 360.0f;
-    while (yaw_offset_deg < -180.0f) yaw_offset_deg += 360.0f;
-
-    return yaw_offset_deg;
 }
 
 // CRC16/MCRF4XX：初值 0xFFFF，反射多项式 0x8408，无最终异或。
@@ -53,7 +29,8 @@ static uint16_t Boards485_Crc16(const uint8_t *data, uint16_t size)
     return crc;
 }
 
-HAL_StatusTypeDef RS485_SendBoardData(float chassis_vx, float chassis_vy,
+HAL_StatusTypeDef RS485_SendBoardData(int16_t right_stick_x, int16_t mouse_x,
+                                    float chassis_vx, float chassis_vy,
                                     uint8_t s1, uint8_t s2,
                                     float imu_yaw_deg, float gyro_z_deg_s,
                                     uint16_t keyboard)
@@ -77,7 +54,6 @@ HAL_StatusTypeDef RS485_SendBoardData(float chassis_vx, float chassis_vy,
     }
 
     static uint8_t tx_buffer[28];
-    const float yaw_offset_deg = YawOffset485_GetDeg();
     // 沿用原 CAN IMU 帧的度数含义，确保多圈或负角均落在 [0, 360)。
     float imu_yaw_0_360 = fmodf(imu_yaw_deg, 360.0f);
     if (imu_yaw_0_360 < 0.0f)
@@ -88,7 +64,8 @@ HAL_StatusTypeDef RS485_SendBoardData(float chassis_vx, float chassis_vy,
     // STM32H723 为小端，float 使用 IEEE754 单精度；逐字段拷贝避免结构体填充。
     tx_buffer[0] = 0x78;
     tx_buffer[1] = 0x91;
-    memcpy(&tx_buffer[2], &yaw_offset_deg, sizeof(float));
+    memcpy(&tx_buffer[2], &right_stick_x, sizeof(right_stick_x));
+    memcpy(&tx_buffer[4], &mouse_x, sizeof(mouse_x));
     memcpy(&tx_buffer[6], &chassis_vx, sizeof(float));
     memcpy(&tx_buffer[10], &chassis_vy, sizeof(float));
     tx_buffer[14] = s1;

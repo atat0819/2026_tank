@@ -1,6 +1,7 @@
 #ifndef GIMBAL_TASK_HPP
 #define GIMBAL_TASK_HPP
 
+#ifdef __cplusplus
 #include "FreeRTOS.h"   // FreeRTOS 核心头文件
 #include "queue.h"      // 队列相关类型/函数定义
 #include "cmsis_os.h"
@@ -11,9 +12,7 @@
 #include "Alg/PID/pid.hpp"
 #include "remote_control_task.hpp"
 #include "can_send_task.hpp"
-#ifdef __cplusplus
 extern "C" {
-#endif
 
 
 typedef struct
@@ -40,11 +39,14 @@ extern float friction_current_speed_bottom;
 
 
 
+#endif
+
 void gimbal_task(void *argument);
+
+#ifdef __cplusplus
 void DJI3508_feedback();
 float hz_to_rotor_angle_per_frame(float fire_hz);
 
-#ifdef __cplusplus
 }
 #endif
 

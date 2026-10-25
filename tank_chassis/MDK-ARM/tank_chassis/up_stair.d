@@ -810,8 +810,8 @@ tank_chassis/up_stair.o: ..\RtosTask\up_stair.cpp \
   ..\RtosTask\..\fsm\stair_mode_policy.hpp \
   ..\RtosTask\..\fsm\up_stair_fsm.hpp \
   ..\RtosTask\..\fsm\..\user\core\Alg\FSM\alg_fsm.hpp \
-  ..\RtosTask\..\fsm\up_stair_behind_motor_fsm.hpp \
   ..\RtosTask\..\fsm\..\user\core\Alg\UtilityFunction\SlopePlanning.hpp \
+  ..\RtosTask\..\fsm\up_stair_behind_motor_fsm.hpp \
   ..\RtosTask\..\fsm\rear_torque_safety.hpp \
   ..\RtosTask\..\fsm\motor_recovery_fsm.hpp \
   ..\RtosTask\can_send_task.hpp ..\user\core\HAL\FDCAN\fdcan_hal.hpp \

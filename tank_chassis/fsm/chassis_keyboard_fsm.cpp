@@ -6,7 +6,7 @@
  * 本文件只负责：
  * 1. 对 16 位原始按键掩码进行逐键去抖；
  * 2. 在键盘模式或键盘链路失效时清零控制状态；
- * 3. 将 CTRL、Z、V、C、B 按键的稳定按下沿转换为开关或一次性动作；
+ * 3. 将 CTRL、V、C、B 按键的稳定按下沿转换为开关或一次性动作；
  * 4. 将 W/S/A/D、SHIFT 等稳定按键转换为底盘运动和控制选项。
  *
  * 本文件不直接控制底盘电机。任务层通过 GetCommand() 读取本文件生成的
@@ -29,7 +29,7 @@ void ChassisKeyboardFSM::Init()
  * Reset() 用于初始化，也用于退出键盘模式或键盘链路掉线时的安全复位：
  * - 清除原始掩码和稳定掩码；
  * - 清除每个按键的去抖计时；
- * - 清除 CTRL、Z、V、C、B 的边沿检测状态；
+ * - 清除 CTRL、V、C、B 的边沿检测状态；
  * - 关闭陀螺和跟随选项；
  * - 将 command_ 恢复为全零无效命令。
  */
@@ -42,11 +42,9 @@ void ChassisKeyboardFSM::Reset()
     stable_mask_initialized_ = false;
     last_ctrl_pressed_ = false;
     gyro_enabled_ = false;
-    last_z_pressed_ = false;
     last_v_pressed_ = false;
     last_c_pressed_ = false;
     last_b_pressed_ = false;
-    follow_enabled_ = false;
     command_ = {};
 
     for (uint8_t i = 0; i < 16; ++i)
@@ -65,7 +63,7 @@ void ChassisKeyboardFSM::Reset()
  * - now_tick：当前系统 tick，用于 20 ms 去抖计时。
  *
  * 函数先检查键盘控制条件，然后完成首次进入同步、初始稳定掩码建立、
- * 各按键独立去抖、CTRL/Z/V/C/B 边沿处理，最后刷新运动命令。
+ * 各按键独立去抖、CTRL/V/C/B 边沿处理，最后刷新运动命令。
  */
 void ChassisKeyboardFSM::Update(uint16_t raw_key_mask,
                                 bool keyboard_mode,
@@ -86,7 +84,7 @@ void ChassisKeyboardFSM::Update(uint16_t raw_key_mask,
     command_.normal_mode_request = false;
 
     /*
-     * 第一次进入键盘模式只记录当前按键，不立即产生 CTRL/Z/V/C/B 的切换动作。
+     * 第一次进入键盘模式只记录当前按键，不立即产生 CTRL/V/C/B 的切换动作。
      * 这样可以避免进入键盘模式时已经按住的按键被误认为“新按下”。
      */
     if (first_sample_pending_)
@@ -94,9 +92,7 @@ void ChassisKeyboardFSM::Update(uint16_t raw_key_mask,
         last_raw_key_mask_ = raw_key_mask;
         first_sample_tick_ = now_tick;
         first_sample_pending_ = false;
-        // 进入键盘模式默认打开跟随；当前已按住的 CTRL/Z 会在后续稳定化时
-        // 同步为“已按下”，但不会产生一次新的翻转事件。
-        follow_enabled_ = true;
+        // Pitch 固定在底盘上，Z 跟随停用；CTRL 等按键仍按稳定沿触发。
         for (uint8_t i = 0; i < 16; ++i)
         {
             key_change_tick_[i] = now_tick;
@@ -107,7 +103,7 @@ void ChassisKeyboardFSM::Update(uint16_t raw_key_mask,
 
     /*
      * 首次样本建立阶段：要求整帧原始掩码连续稳定 KEY_DEBOUNCE_MS 后，才把
-     * 它作为稳定掩码。期间不执行 CTRL/Z/V/C/B 边沿动作，避免进入模式时误触发。
+     * 它作为稳定掩码。期间不执行 CTRL/V/C/B 边沿动作，避免进入模式时误触发。
      */
     if (!stable_mask_initialized_)
     {
@@ -123,7 +119,6 @@ void ChassisKeyboardFSM::Update(uint16_t raw_key_mask,
             stable_key_mask_ = last_raw_key_mask_;
             stable_mask_initialized_ = true;
             last_ctrl_pressed_ = (stable_key_mask_ & KEY_CTRL) != 0U;
-            last_z_pressed_ = (stable_key_mask_ & KEY_Z) != 0U;
             last_v_pressed_ = (stable_key_mask_ & KEY_V) != 0U;
             last_c_pressed_ = (stable_key_mask_ & KEY_C) != 0U;
             last_b_pressed_ = (stable_key_mask_ & KEY_B) != 0U;
@@ -178,13 +173,7 @@ void ChassisKeyboardFSM::Update(uint16_t raw_key_mask,
     }
     last_ctrl_pressed_ = ctrl_pressed;
 
-    // Z 采用稳定按下沿翻转跟随开关，长按不会重复翻转。
-    const bool z_pressed = (stable_key_mask_ & KEY_Z) != 0U;
-    if (z_pressed && !last_z_pressed_)
-    {
-        follow_enabled_ = !follow_enabled_;
-    }
-    last_z_pressed_ = z_pressed;
+    // Z 跟随停用，底盘旋转即整车 Yaw。
 
     // V/C 的稳定按下沿分别请求 IMU/NORMAL；长按不重复触发。
     const bool v_pressed = (stable_key_mask_ & KEY_V) != 0U;
@@ -215,9 +204,8 @@ void ChassisKeyboardFSM::Update(uint16_t raw_key_mask,
 /*
  * 根据稳定按键状态生成当前键盘控制命令。
  *
- * W/S 叠加生成前后方向 vx，A/D 叠加生成左右方向 vy；SHIFT、陀螺开关和
- * 跟随开关直接写入 command_。如果方向相反的按键同时按下，对应分量会
- * 相互抵消。
+ * W/S 叠加生成前后方向 vx，A/D 叠加生成左右方向 vy；SHIFT 和陀螺开关
+ * 写入 command_，跟随字段保持 false。相反方向按键同时按下时互相抵消。
  */
 void ChassisKeyboardFSM::UpdateCommand()
 {
@@ -248,5 +236,5 @@ void ChassisKeyboardFSM::UpdateCommand()
     command_.vy = lateral;
     command_.shift_pressed = (stable_key_mask_ & KEY_SHIFT) != 0U;
     command_.gyro_enabled = gyro_enabled_;
-    command_.follow_enabled = follow_enabled_;
+    command_.follow_enabled = false; // 保留输出结构兼容，Z 不再产生动作。
 }

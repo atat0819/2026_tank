@@ -136,11 +136,10 @@ void StartDefaultTask(void *argument)
   /* init code for USB_DEVICE */
   MX_USB_DEVICE_Init();
   /* USER CODE BEGIN StartDefaultTask */
-  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_15, GPIO_PIN_SET);
   /* Infinite loop */
   for(;;)
   {
-    osDelay(1);
+    osThreadExit();
   }
   /* USER CODE END StartDefaultTask */
 }

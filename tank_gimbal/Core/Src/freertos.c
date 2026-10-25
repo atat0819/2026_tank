@@ -28,6 +28,7 @@
 #include "can_send_task.hpp"
 #include "gimbal_task.hpp"
 #include "remote_control_task.hpp"
+#include "gantry_task.hpp"
 #include "usb_device.h"
 /* USER CODE END Includes */
 
@@ -63,6 +64,7 @@ const osThreadAttr_t defaultTask_attributes = {
 TaskHandle_t xRemoteHandle;
 TaskHandle_t xCanSendHandle;
 TaskHandle_t xGimbalHandle;
+TaskHandle_t xGantryHandle;
 
 
 extern void MX_USB_DEVICE_Init(void);
@@ -110,6 +112,8 @@ void MX_FREERTOS_Init(void) {
   xTaskCreate(can_send_task, "CAN_Send_Task", 2048, NULL, osPriorityAboveNormal+2, &xCanSendHandle);
   xTaskCreate(gimbal_task, "Gimbal_Task", 1024, NULL, osPriorityAboveNormal+1, &xGimbalHandle);
   xTaskCreate(remote_control_task, "Remote_Control_Task", 512, NULL, osPriorityAboveNormal, &xRemoteHandle);
+  xTaskCreate(gantry_task, "Gantry_Task", 512, NULL, osPriorityAboveNormal, &xGantryHandle);
+
 
   /* USER CODE END RTOS_THREADS */
 
@@ -134,7 +138,7 @@ void StartDefaultTask(void *argument)
   /* Infinite loop */
   for(;;)
   {
-    osDelay(1);
+    osThreadExit();
   }
   /* USER CODE END StartDefaultTask */
 }

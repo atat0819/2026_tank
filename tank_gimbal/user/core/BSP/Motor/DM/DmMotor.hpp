@@ -402,8 +402,8 @@ enum Model
         J4340(uint16_t Init_id, const uint8_t (&ids)[N], const uint32_t (&send_idxs)[N],
               HAL::FDCAN::FdcanDeviceId fdcan_device_id = HAL::FDCAN::FdcanDeviceId::HAL_Fdcan2)
             : DMMotorBase<N>(Init_id, ids, send_idxs, 
-                            Parameters(-3.14159f, 3.14159f, -50.0f, 50.0f,
-                                       -9.0f, 9.0f, 0.0f, 500.0f, 0.0f, 5.0f),
+                            Parameters(-3.14f, 3.14f, -10.0f, 10.0f,
+                                       -27.0f, 27.0f, 0.0f, 500.0f, 0.0f, 5.0f),
                             fdcan_device_id)
         {
         }

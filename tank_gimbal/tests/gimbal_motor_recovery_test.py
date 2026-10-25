@@ -1,4 +1,4 @@
-"""Compile the task's recovery branch and exercise the real recovery FSM."""
+"""Compile actual single-Pitch dropout/recovery branches and the recovery FSM."""
 from pathlib import Path
 import subprocess
 import tempfile
@@ -8,81 +8,58 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class RecoveryTest(unittest.TestCase):
-    maxDiff = 1000
-
-    def test_independent_dropout_and_recovery(self):
+    def test_pitch_dropout_and_recovery(self):
         task = (ROOT / "RtosTask/can_send_task.cpp").read_text(encoding="utf-8-sig")
-        self.assertTrue("static bool yaw_motor_was_offline" in task,
-                        "dropout state must be independent per axis")
         begin = task.index("  // 电机掉线按轴处理：")
-        end = task.index("  if (feedback_source_changed)", begin)
-        dropout = task[begin:end]
-        self.assertNotIn("continue;", dropout)
+        dropout = task[begin:task.index("   // 电机恢复按轴处理：", begin)]
         begin = task.index("   // 电机恢复按轴处理：")
-        end = task.index("   // 遥控恢复：", begin)
-        recovery = task[begin:end]
-        for axis, other in (("Yaw", "pitch"), ("Pitch", "yaw")):
-            body = task.split(f"static void Reset{axis}ControlState()", 1)[1].split("\n}", 1)[0]
-            self.assertNotIn(other + "_", body)
-        # Compile the actual dropout/recovery branches to check partial recovery.
+        recovery = task[begin:task.index("   // 遥控恢复：", begin)]
+        self.assertNotIn("continue;", dropout)
+        self.assertNotIn("yaw_motor_was_offline", task)
+        inputs = task.split("Struct_Gimbal_Input pitch_input", 1)[1].split(
+            "pitch_gimbal_fsm.Update(pitch_input", 1)[0]
+        for value in ("if (!pitch_motor_online)", "pitch_input = {};",
+                      "pitch_input.s1 = Remote::DOWN;", "pitch_input.s2 = Remote::DOWN;"):
+            self.assertIn(value, inputs)
         harness = r'''
 #include <cassert>
-bool yaw_motor_was_offline=false, pitch_motor_was_offline=false;
-int yaw_resets=0, pitch_resets=0;
-float yaw_current_angle=1, pitch_current_angle=2;
-void ResetYawControlState() { ++yaw_resets; }
+bool pitch_motor_was_offline=false;
+int pitch_resets=0;
+float pitch_current_angle=2;
 void ResetPitchControlState() { ++pitch_resets; }
 struct Fsm { int anchors=0; float target=0;
     void ReAnchor(float angle) { ++anchors; target=angle; }
-} yaw_gimbal_fsm, pitch_gimbal_fsm;
-void step(bool yaw_motor_online, bool pitch_motor_online) {
+} pitch_gimbal_fsm;
+void step(bool pitch_motor_online) {
 DROPOUT
 RECOVERY
 }
 int main() {
-    step(false,true);
-    assert(yaw_resets==1 && pitch_resets==0);
-    step(false,true);
-    assert(yaw_resets==2 && pitch_resets==0);
-    step(true,true);
-    assert(yaw_gimbal_fsm.anchors==1 && pitch_gimbal_fsm.anchors==0);
-    assert(yaw_gimbal_fsm.target==yaw_current_angle);
-    step(true,false);
-    assert(yaw_resets==3 && pitch_resets==1);
-    step(false,false);
-    assert(yaw_resets==4 && pitch_resets==2);
-    step(false,true);
-    assert(yaw_gimbal_fsm.anchors==1 && pitch_gimbal_fsm.anchors==1);
+    step(true);
+    assert(pitch_resets==0 && pitch_gimbal_fsm.anchors==0);
+    step(false); step(false);
+    assert(pitch_resets==2 && pitch_gimbal_fsm.anchors==0);
+    step(true);
+    assert(pitch_resets==3 && pitch_gimbal_fsm.anchors==1);
     assert(pitch_gimbal_fsm.target==pitch_current_angle);
-    step(true,true);
-    assert(yaw_gimbal_fsm.anchors==2 && pitch_gimbal_fsm.anchors==1);
-    step(true,true);
-    assert(yaw_resets==6 && pitch_resets==3);
+    step(true);
+    assert(pitch_resets==3 && pitch_gimbal_fsm.anchors==1);
+    pitch_current_angle=4;
+    step(false); step(true);
+    assert(pitch_resets==5 && pitch_gimbal_fsm.anchors==2);
+    assert(pitch_gimbal_fsm.target==4);
 }
 '''.replace("DROPOUT", dropout).replace("RECOVERY", recovery)
         self.compile_and_run(harness)
-        for axis in ("yaw", "pitch"):
-            input_guard = f"if (!{axis}_motor_online)"
-            input_begin = task.index(f"Struct_Gimbal_Input {axis}_input")
-            input_end = task.index(f"{axis}_gimbal_fsm.Update({axis}_input", input_begin)
-            axis_input = task[input_begin:input_end]
-            self.assertIn(input_guard, axis_input)
-            self.assertIn(f"{axis}_input = {{}};", axis_input)
-            self.assertIn(f"{axis}_input.s1 = Remote::DOWN;", axis_input)
-            self.assertIn(f"{axis}_input.s2 = Remote::DOWN;", axis_input)
 
     def test_task_recovery(self):
         task = (ROOT / "RtosTask/can_send_task.cpp").read_text(encoding="utf-8-sig")
-        self.assertIn("MotorRecoveryFSM gimbal_recovery_fsm[2]", task)
-        self.assertIn('"../feeder_fsm/motor_recovery_fsm.hpp"', task)
+        self.assertIn("MotorRecoveryFSM pitch_recovery_fsm;", task)
         remote_fault = task.split("gimbal_remote_offline = 1;", 1)[1].split("continue;", 1)[0]
-        for axis in (0, 1):
-            self.assertIn(f"gimbal_recovery_fsm[{axis}].Force_Enable_On_Next_Check();", remote_fault)
-            self.assertIn(f"gimbal_recovery_fsm[{axis}].Init(", task)
+        self.assertIn("pitch_recovery_fsm.Force_Enable_On_Next_Check();", remote_fault)
+        self.assertIn("pitch_recovery_fsm.Init(", task)
         begin = task.index("  // 电机恢复使能：")
-        end = task.index("  // 电机掉线按轴处理：", begin)
-        branch = task[begin:end]
-        self.assertLess(begin, task.index("if (yaw_motor_online && yaw_motor_was_offline)"))
+        branch = task[begin:task.index("  // 电机掉线按轴处理：", begin)]
         harness = r'''
 #include <cassert>
 #include "feeder_fsm/motor_recovery_fsm.hpp"
@@ -90,37 +67,35 @@ namespace Remote { enum { UP=1, DOWN=2, MIDDLE=3 }; }
 enum class InputSource { Remote, KeyMouse };
 struct { int s1=Remote::UP, s2=Remote::UP; } RemoteData;
 struct { InputSource GetSource() { return InputSource::Remote; } } input_dispatcher;
-namespace BSP { namespace Motor { namespace DM { enum { MIT=0 }; } } }
-struct { int calls[2]={0,0}; void On(int id, int) { ++calls[id-1]; } } gimbal_motor;
-MotorRecoveryFSM gimbal_recovery_fsm[2];
-unsigned now_tick;
+namespace BSP::Motor::DM { enum { MIT=0 }; }
+struct { int calls=0; void On(int slot, int) { assert(slot==1); ++calls; } } gimbal_motor;
+MotorRecoveryFSM pitch_recovery_fsm;
+unsigned now_tick=0;
 unsigned HAL_GetTick() { return now_tick; }
-void step(bool yaw_motor_online, bool pitch_motor_online) {
+void step(bool pitch_motor_online) {
 BRANCH
 }
 int main() {
-    for (auto &fsm : gimbal_recovery_fsm) fsm.Init(0);
-    step(true,true); // initial online edge
-    step(true,true);
-    assert(gimbal_motor.calls[0]==1 && gimbal_motor.calls[1]==1);
-    now_tick=10; step(false,true); // first dropout: only yaw retries
-    assert(gimbal_motor.calls[0]==2 && gimbal_motor.calls[1]==1);
-    now_tick=109; step(false,true);
-    assert(gimbal_motor.calls[0]==2);
-    now_tick=110; step(false,true);
-    assert(gimbal_motor.calls[0]==3);
-    now_tick=111; step(true,false); // yaw recovery and pitch dropout
-    assert(gimbal_motor.calls[0]==4 && gimbal_motor.calls[1]==2);
+    pitch_recovery_fsm.Init(0);
+    step(true); step(true);
+    assert(gimbal_motor.calls==1);
+    now_tick=10; step(false);
+    assert(gimbal_motor.calls==2);
+    now_tick=109; step(false);
+    assert(gimbal_motor.calls==2);
+    now_tick=110; step(false);
+    assert(gimbal_motor.calls==3);
+    now_tick=111; step(true);
+    assert(gimbal_motor.calls==4);
     RemoteData.s1=Remote::DOWN; RemoteData.s2=Remote::DOWN;
-    now_tick=500; step(false,false); step(true,true);
-    assert(gimbal_motor.calls[0]==4 && gimbal_motor.calls[1]==2);
+    now_tick=500; step(false); step(true);
+    assert(gimbal_motor.calls==4);
     RemoteData.s1=Remote::UP; RemoteData.s2=Remote::UP;
-    step(true,true); step(true,true);
-    assert(gimbal_motor.calls[0]==5 && gimbal_motor.calls[1]==3);
-    // Same re-arm operation as the remote-fault branch, even with live feedback.
-    for (auto &fsm : gimbal_recovery_fsm) fsm.Force_Enable_On_Next_Check();
-    step(true,true);
-    assert(gimbal_motor.calls[0]==6 && gimbal_motor.calls[1]==4);
+    step(true); step(true);
+    assert(gimbal_motor.calls==5);
+    pitch_recovery_fsm.Force_Enable_On_Next_Check();
+    step(true);
+    assert(gimbal_motor.calls==6);
     MotorRecoveryFSM wrap;
     wrap.Init(0xfffffff0U);
     assert(wrap.Should_Enable(false,0xfffffff0U));

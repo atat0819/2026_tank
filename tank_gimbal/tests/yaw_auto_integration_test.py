@@ -8,25 +8,16 @@ PROJECT = (ROOT / "MDK-ARM/tank_gimbal.uvprojx").read_text(encoding="utf-8")
 
 
 class YawAutoIntegrationTest(unittest.TestCase):
-    def test_vision_yaw_uses_all_three_reference_values_and_motor_feedback(self):
-        vision = TASK.split("if (yaw_mode == GIMBAL_MODE_VISION)", 1)[1].split("\n    else", 1)[0]
-        for value in (
-            "yaw_target_angle",
-            "vision_comm.GetYawVelocity()",
-            "vision_comm.GetYawAcceleration()",
-            "yaw_current_angle",
-            "yaw_current_speed",
-            "gimbal_motor.getTorque(1)",
-            "YawAutoLqrEso_Calc",
-        ):
-            self.assertIn(value, vision)
-        self.assertNotIn("yaw_version_angle_imu_pid.UpDate", vision)
-        self.assertNotIn("yaw_version_speed_imu_pid.UpDate", vision)
+    def test_removed_yaw_has_no_control_or_motor_definition(self):
+        self.assertNotIn("YawAutoLqrEso_", TASK)
+        self.assertNotIn("yaw_gimbal_fsm", TASK)
+        self.assertNotIn("yaw_motor_online", TASK)
+        self.assertIn("J4340<1> gimbal_motor", TASK)
+        self.assertNotIn("gimbal_motor.ctrl_Mit(2,", TASK)
 
-    def test_mode_and_limit_changes_reset_controller_and_keep_final_guard(self):
-        self.assertIn("YawAutoLqrEso_Reset(&yaw_auto_ctrl", TASK)
-        self.assertIn("yaw_mode_changed != 0U || yaw_limit_reset != 0U", TASK)
-        self.assertIn("yaw_gimbal_fsm.Limit_Torque(yaw_control_output)", TASK)
+    def test_pitch_keeps_mode_reset_and_final_guard(self):
+        self.assertIn("pitch_mode_changed != 0U || pitch_limit_reset != 0U", TASK)
+        self.assertIn("pitch_gimbal_fsm.Limit_Torque(pitch_control_output)", TASK)
 
     def test_keil_compiles_upstream_controller(self):
         self.assertIn("yaw_auto_lqr_eso_controller.c", PROJECT)

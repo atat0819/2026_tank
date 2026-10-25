@@ -703,7 +703,6 @@ tank_gimbal/remote_control_task.o: ..\RtosTask\remote_control_task.cpp \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__memory\allocator_destructor.h \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\stdexcept \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__memory\uses_allocator_construction.h \
-  ..\user\core\BSP\IMU\HI12_imu.hpp ..\user\core\BSP\IMU\HI12Base.hpp \
   ..\RtosTask\..\user\core\BSP\version\vision_communication.hpp \
   ..\Core\Inc\usart.h ..\RtosTask\..\user\core\HAL\UART\uart_hal.hpp \
   ..\RtosTask\..\user\core\HAL\UART\interface\uart_bus.hpp \

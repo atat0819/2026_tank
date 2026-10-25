@@ -47,11 +47,8 @@ UART_HandleTypeDef *last_tx=nullptr, *last_rx=nullptr;
 unsigned starts=0, ht_disables=0;
 HAL_StatusTypeDef tx_result=HAL_OK;
 int rx_event=HAL_UART_RXEVENT_IDLE;
-DMA_HandleTypeDef hdma_uart5_rx, hdma_uart7_rx, dma2, dma3;
-uint8_t receivedata[18], imu_dma_buffer[164];
-#define IMU_DMA_BUF_SIZE 164
-uint16_t imu_dma_read_pos=0;
-volatile bool imu_rx_active=false;
+DMA_HandleTypeDef hdma_uart5_rx, dma2, dma3;
+uint8_t receivedata[18];
 '''
 main = r'''
 int main() {
@@ -88,6 +85,8 @@ int main() {
     HAL_UARTEx_RxEventCallback(&huart1,3);
     assert(calls2==1 && calls3==1 && starts==before+2);
     assert(ht_disables==2);
+    HAL_UARTEx_RxEventCallback(&huart7,82);
+    assert(calls2==1 && calls3==1 && starts==before+2 && ht_disables==2);
 }
 '''
 with tempfile.TemporaryDirectory(prefix="rs485_uart_") as directory:

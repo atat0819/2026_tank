@@ -1,0 +1,1892 @@
+[
+  {
+    "tick": 831347,
+    "tick_end": 831347,
+    "command": [
+      0,
+      0,
+      0
+    ],
+    "state": 0,
+    "hold": [
+      0,
+      0
+    ],
+    "controllable": [
+      0,
+      0
+    ],
+    "angles_deg": [
+      93.90425474727334,
+      4.803835967810048
+    ],
+    "position_deg": [
+      90.52590658000165,
+      12.120853701104627
+    ],
+    "pitch": 0.0,
+    "pitch_rate": 0.0,
+    "roll": 0.0,
+    "pitch_target": 1.0,
+    "roll_target": 1.5,
+    "pitch_error": 1.0,
+    "roll_error": -1.5,
+    "output_scale": 0.0,
+    "roll_tau_raw": [
+      -3.0,
+      -3.0
+    ],
+    "pitch_velocity": [
+      -0.0877312421798706,
+      0.0877312421798706
+    ],
+    "estimated_torque": [
+      0.0,
+      0.0
+    ],
+    "frames": [],
+    "fdcan": {
+      "error": 0,
+      "ECR": 0,
+      "PSR": 0,
+      "TXBRP": 0,
+      "TXBTO": 0
+    }
+  },
+  {
+    "tick": 831347,
+    "tick_end": 831347,
+    "command": [
+      0,
+      0,
+      0
+    ],
+    "state": 0,
+    "hold": [
+      0,
+      0
+    ],
+    "controllable": [
+      0,
+      0
+    ],
+    "angles_deg": [
+      93.90425474727334,
+      4.803835967810048
+    ],
+    "position_deg": [
+      90.52590658000165,
+      12.120853701104627
+    ],
+    "pitch": 0.0,
+    "pitch_rate": 0.0,
+    "roll": 0.0,
+    "pitch_target": 1.0,
+    "roll_target": 1.5,
+    "pitch_error": 1.0,
+    "roll_error": -1.5,
+    "output_scale": 0.0,
+    "roll_tau_raw": [
+      -3.0,
+      -3.0
+    ],
+    "pitch_velocity": [
+      -0.0877312421798706,
+      0.0877312421798706
+    ],
+    "estimated_torque": [
+      0.0,
+      0.0
+    ],
+    "frames": [],
+    "fdcan": {
+      "error": 0,
+      "ECR": 0,
+      "PSR": 0,
+      "TXBRP": 0,
+      "TXBTO": 0
+    }
+  },
+  {
+    "tick": 831347,
+    "tick_end": 831347,
+    "command": [
+      0,
+      0,
+      0
+    ],
+    "state": 0,
+    "hold": [
+      0,
+      0
+    ],
+    "controllable": [
+      0,
+      0
+    ],
+    "angles_deg": [
+      93.90425474727334,
+      4.803835967810048
+    ],
+    "position_deg": [
+      90.52590658000165,
+      12.120853701104627
+    ],
+    "pitch": 0.0,
+    "pitch_rate": 0.0,
+    "roll": 0.0,
+    "pitch_target": 1.0,
+    "roll_target": 1.5,
+    "pitch_error": 1.0,
+    "roll_error": -1.5,
+    "output_scale": 0.0,
+    "roll_tau_raw": [
+      -3.0,
+      -3.0
+    ],
+    "pitch_velocity": [
+      -0.0877312421798706,
+      0.0877312421798706
+    ],
+    "estimated_torque": [
+      0.0,
+      0.0
+    ],
+    "frames": [],
+    "fdcan": {
+      "error": 0,
+      "ECR": 0,
+      "PSR": 0,
+      "TXBRP": 0,
+      "TXBTO": 0
+    }
+  },
+  {
+    "tick": 831347,
+    "tick_end": 831347,
+    "command": [
+      0,
+      0,
+      0
+    ],
+    "state": 0,
+    "hold": [
+      0,
+      0
+    ],
+    "controllable": [
+      0,
+      0
+    ],
+    "angles_deg": [
+      93.90425474727334,
+      4.803835967810048
+    ],
+    "position_deg": [
+      90.52590658000165,
+      12.120853701104627
+    ],
+    "pitch": 0.0,
+    "pitch_rate": 0.0,
+    "roll": 0.0,
+    "pitch_target": 1.0,
+    "roll_target": 1.5,
+    "pitch_error": 1.0,
+    "roll_error": -1.5,
+    "output_scale": 0.0,
+    "roll_tau_raw": [
+      -3.0,
+      -3.0
+    ],
+    "pitch_velocity": [
+      -0.0877312421798706,
+      0.0877312421798706
+    ],
+    "estimated_torque": [
+      0.0,
+      0.0
+    ],
+    "frames": [],
+    "fdcan": {
+      "error": 0,
+      "ECR": 0,
+      "PSR": 0,
+      "TXBRP": 0,
+      "TXBTO": 0
+    }
+  },
+  {
+    "tick": 831347,
+    "tick_end": 831347,
+    "command": [
+      0,
+      0,
+      0
+    ],
+    "state": 0,
+    "hold": [
+      0,
+      0
+    ],
+    "controllable": [
+      0,
+      0
+    ],
+    "angles_deg": [
+      93.90425474727334,
+      4.803835967810048
+    ],
+    "position_deg": [
+      90.52590658000165,
+      12.120853701104627
+    ],
+    "pitch": 0.0,
+    "pitch_rate": 0.0,
+    "roll": 0.0,
+    "pitch_target": 1.0,
+    "roll_target": 1.5,
+    "pitch_error": 1.0,
+    "roll_error": -1.5,
+    "output_scale": 0.0,
+    "roll_tau_raw": [
+      -3.0,
+      -3.0
+    ],
+    "pitch_velocity": [
+      -0.0877312421798706,
+      0.0877312421798706
+    ],
+    "estimated_torque": [
+      0.0,
+      0.0
+    ],
+    "frames": [],
+    "fdcan": {
+      "error": 0,
+      "ECR": 0,
+      "PSR": 0,
+      "TXBRP": 0,
+      "TXBTO": 0
+    }
+  },
+  {
+    "tick": 831347,
+    "tick_end": 831347,
+    "command": [
+      0,
+      0,
+      0
+    ],
+    "state": 0,
+    "hold": [
+      0,
+      0
+    ],
+    "controllable": [
+      0,
+      0
+    ],
+    "angles_deg": [
+      93.90425474727334,
+      4.803835967810048
+    ],
+    "position_deg": [
+      90.52590658000165,
+      12.120853701104627
+    ],
+    "pitch": 0.0,
+    "pitch_rate": 0.0,
+    "roll": 0.0,
+    "pitch_target": 1.0,
+    "roll_target": 1.5,
+    "pitch_error": 1.0,
+    "roll_error": -1.5,
+    "output_scale": 0.0,
+    "roll_tau_raw": [
+      -3.0,
+      -3.0
+    ],
+    "pitch_velocity": [
+      -0.0877312421798706,
+      0.0877312421798706
+    ],
+    "estimated_torque": [
+      0.0,
+      0.0
+    ],
+    "frames": [],
+    "fdcan": {
+      "error": 0,
+      "ECR": 0,
+      "PSR": 1799,
+      "TXBRP": 0,
+      "TXBTO": 0
+    }
+  },
+  {
+    "tick": 831347,
+    "tick_end": 831347,
+    "command": [
+      0,
+      0,
+      0
+    ],
+    "state": 0,
+    "hold": [
+      0,
+      0
+    ],
+    "controllable": [
+      0,
+      0
+    ],
+    "angles_deg": [
+      93.90425474727334,
+      4.803835967810048
+    ],
+    "position_deg": [
+      90.52590658000165,
+      12.120853701104627
+    ],
+    "pitch": 0.0,
+    "pitch_rate": 0.0,
+    "roll": 0.0,
+    "pitch_target": 1.0,
+    "roll_target": 1.5,
+    "pitch_error": 1.0,
+    "roll_error": -1.5,
+    "output_scale": 0.0,
+    "roll_tau_raw": [
+      -3.0,
+      -3.0
+    ],
+    "pitch_velocity": [
+      -0.0877312421798706,
+      0.0877312421798706
+    ],
+    "estimated_torque": [
+      0.0,
+      0.0
+    ],
+    "frames": [],
+    "fdcan": {
+      "error": 0,
+      "ECR": 0,
+      "PSR": 1799,
+      "TXBRP": 0,
+      "TXBTO": 0
+    }
+  },
+  {
+    "tick": 831347,
+    "tick_end": 831347,
+    "command": [
+      0,
+      0,
+      0
+    ],
+    "state": 0,
+    "hold": [
+      0,
+      0
+    ],
+    "controllable": [
+      0,
+      0
+    ],
+    "angles_deg": [
+      93.90425474727334,
+      4.803835967810048
+    ],
+    "position_deg": [
+      90.52590658000165,
+      12.120853701104627
+    ],
+    "pitch": 0.0,
+    "pitch_rate": 0.0,
+    "roll": 0.0,
+    "pitch_target": 1.0,
+    "roll_target": 1.5,
+    "pitch_error": 1.0,
+    "roll_error": -1.5,
+    "output_scale": 0.0,
+    "roll_tau_raw": [
+      -3.0,
+      -3.0
+    ],
+    "pitch_velocity": [
+      -0.0877312421798706,
+      0.0877312421798706
+    ],
+    "estimated_torque": [
+      0.0,
+      0.0
+    ],
+    "frames": [],
+    "fdcan": {
+      "error": 0,
+      "ECR": 0,
+      "PSR": 1799,
+      "TXBRP": 0,
+      "TXBTO": 0
+    }
+  },
+  {
+    "tick": 831347,
+    "tick_end": 831347,
+    "command": [
+      0,
+      0,
+      0
+    ],
+    "state": 0,
+    "hold": [
+      0,
+      0
+    ],
+    "controllable": [
+      0,
+      0
+    ],
+    "angles_deg": [
+      93.90425474727334,
+      4.803835967810048
+    ],
+    "position_deg": [
+      90.52590658000165,
+      12.120853701104627
+    ],
+    "pitch": 0.0,
+    "pitch_rate": 0.0,
+    "roll": 0.0,
+    "pitch_target": 1.0,
+    "roll_target": 1.5,
+    "pitch_error": 1.0,
+    "roll_error": -1.5,
+    "output_scale": 0.0,
+    "roll_tau_raw": [
+      -3.0,
+      -3.0
+    ],
+    "pitch_velocity": [
+      -0.0877312421798706,
+      0.0877312421798706
+    ],
+    "estimated_torque": [
+      0.0,
+      0.0
+    ],
+    "frames": [],
+    "fdcan": {
+      "error": 0,
+      "ECR": 0,
+      "PSR": 1799,
+      "TXBRP": 0,
+      "TXBTO": 0
+    }
+  },
+  {
+    "tick": 831347,
+    "tick_end": 831347,
+    "command": [
+      0,
+      0,
+      0
+    ],
+    "state": 0,
+    "hold": [
+      0,
+      0
+    ],
+    "controllable": [
+      0,
+      0
+    ],
+    "angles_deg": [
+      93.90425474727334,
+      4.803835967810048
+    ],
+    "position_deg": [
+      90.52590658000165,
+      12.120853701104627
+    ],
+    "pitch": 0.0,
+    "pitch_rate": 0.0,
+    "roll": 0.0,
+    "pitch_target": 1.0,
+    "roll_target": 1.5,
+    "pitch_error": 1.0,
+    "roll_error": -1.5,
+    "output_scale": 0.0,
+    "roll_tau_raw": [
+      -3.0,
+      -3.0
+    ],
+    "pitch_velocity": [
+      -0.0877312421798706,
+      0.0877312421798706
+    ],
+    "estimated_torque": [
+      0.0,
+      0.0
+    ],
+    "frames": [],
+    "fdcan": {
+      "error": 0,
+      "ECR": 0,
+      "PSR": 0,
+      "TXBRP": 0,
+      "TXBTO": 0
+    }
+  },
+  {
+    "tick": 831347,
+    "tick_end": 831347,
+    "command": [
+      0,
+      0,
+      0
+    ],
+    "state": 0,
+    "hold": [
+      0,
+      0
+    ],
+    "controllable": [
+      0,
+      0
+    ],
+    "angles_deg": [
+      93.90425474727334,
+      4.803835967810048
+    ],
+    "position_deg": [
+      90.52590658000165,
+      12.120853701104627
+    ],
+    "pitch": 0.0,
+    "pitch_rate": 0.0,
+    "roll": 0.0,
+    "pitch_target": 1.0,
+    "roll_target": 1.5,
+    "pitch_error": 1.0,
+    "roll_error": -1.5,
+    "output_scale": 0.0,
+    "roll_tau_raw": [
+      -3.0,
+      -3.0
+    ],
+    "pitch_velocity": [
+      -0.0877312421798706,
+      0.0877312421798706
+    ],
+    "estimated_torque": [
+      0.0,
+      0.0
+    ],
+    "frames": [],
+    "fdcan": {
+      "error": 0,
+      "ECR": 0,
+      "PSR": 0,
+      "TXBRP": 0,
+      "TXBTO": 0
+    }
+  },
+  {
+    "tick": 831347,
+    "tick_end": 831347,
+    "command": [
+      0,
+      0,
+      0
+    ],
+    "state": 0,
+    "hold": [
+      0,
+      0
+    ],
+    "controllable": [
+      0,
+      0
+    ],
+    "angles_deg": [
+      93.90425474727334,
+      4.803835967810048
+    ],
+    "position_deg": [
+      90.52590658000165,
+      12.120853701104627
+    ],
+    "pitch": 0.0,
+    "pitch_rate": 0.0,
+    "roll": 0.0,
+    "pitch_target": 1.0,
+    "roll_target": 1.5,
+    "pitch_error": 1.0,
+    "roll_error": -1.5,
+    "output_scale": 0.0,
+    "roll_tau_raw": [
+      -3.0,
+      -3.0
+    ],
+    "pitch_velocity": [
+      -0.0877312421798706,
+      0.0877312421798706
+    ],
+    "estimated_torque": [
+      0.0,
+      0.0
+    ],
+    "frames": [],
+    "fdcan": {
+      "error": 0,
+      "ECR": 0,
+      "PSR": 0,
+      "TXBRP": 0,
+      "TXBTO": 0
+    }
+  },
+  {
+    "tick": 831347,
+    "tick_end": 831347,
+    "command": [
+      0,
+      0,
+      0
+    ],
+    "state": 0,
+    "hold": [
+      0,
+      0
+    ],
+    "controllable": [
+      0,
+      0
+    ],
+    "angles_deg": [
+      93.90425474727334,
+      4.803835967810048
+    ],
+    "position_deg": [
+      90.52590658000165,
+      12.120853701104627
+    ],
+    "pitch": 0.0,
+    "pitch_rate": 0.0,
+    "roll": 0.0,
+    "pitch_target": 1.0,
+    "roll_target": 1.5,
+    "pitch_error": 1.0,
+    "roll_error": -1.5,
+    "output_scale": 0.0,
+    "roll_tau_raw": [
+      -3.0,
+      -3.0
+    ],
+    "pitch_velocity": [
+      -0.0877312421798706,
+      0.0877312421798706
+    ],
+    "estimated_torque": [
+      0.0,
+      0.0
+    ],
+    "frames": [],
+    "fdcan": {
+      "error": 0,
+      "ECR": 0,
+      "PSR": 0,
+      "TXBRP": 0,
+      "TXBTO": 0
+    }
+  },
+  {
+    "tick": 831347,
+    "tick_end": 831347,
+    "command": [
+      0,
+      0,
+      0
+    ],
+    "state": 0,
+    "hold": [
+      0,
+      0
+    ],
+    "controllable": [
+      0,
+      0
+    ],
+    "angles_deg": [
+      93.90425474727334,
+      4.803835967810048
+    ],
+    "position_deg": [
+      90.52590658000165,
+      12.120853701104627
+    ],
+    "pitch": 0.0,
+    "pitch_rate": 0.0,
+    "roll": 0.0,
+    "pitch_target": 1.0,
+    "roll_target": 1.5,
+    "pitch_error": 1.0,
+    "roll_error": -1.5,
+    "output_scale": 0.0,
+    "roll_tau_raw": [
+      -3.0,
+      -3.0
+    ],
+    "pitch_velocity": [
+      -0.0877312421798706,
+      0.0877312421798706
+    ],
+    "estimated_torque": [
+      0.0,
+      0.0
+    ],
+    "frames": [],
+    "fdcan": {
+      "error": 0,
+      "ECR": 0,
+      "PSR": 0,
+      "TXBRP": 0,
+      "TXBTO": 0
+    }
+  },
+  {
+    "tick": 831347,
+    "tick_end": 831347,
+    "command": [
+      0,
+      0,
+      0
+    ],
+    "state": 0,
+    "hold": [
+      0,
+      0
+    ],
+    "controllable": [
+      0,
+      0
+    ],
+    "angles_deg": [
+      93.90425474727334,
+      4.803835967810048
+    ],
+    "position_deg": [
+      90.52590658000165,
+      12.120853701104627
+    ],
+    "pitch": 0.0,
+    "pitch_rate": 0.0,
+    "roll": 0.0,
+    "pitch_target": 1.0,
+    "roll_target": 1.5,
+    "pitch_error": 1.0,
+    "roll_error": -1.5,
+    "output_scale": 0.0,
+    "roll_tau_raw": [
+      -3.0,
+      -3.0
+    ],
+    "pitch_velocity": [
+      -0.0877312421798706,
+      0.0877312421798706
+    ],
+    "estimated_torque": [
+      0.0,
+      0.0
+    ],
+    "frames": [],
+    "fdcan": {
+      "error": 0,
+      "ECR": 0,
+      "PSR": 0,
+      "TXBRP": 0,
+      "TXBTO": 0
+    }
+  },
+  {
+    "tick": 831347,
+    "tick_end": 831347,
+    "command": [
+      0,
+      0,
+      0
+    ],
+    "state": 0,
+    "hold": [
+      0,
+      0
+    ],
+    "controllable": [
+      0,
+      0
+    ],
+    "angles_deg": [
+      93.90425474727334,
+      4.803835967810048
+    ],
+    "position_deg": [
+      90.52590658000165,
+      12.120853701104627
+    ],
+    "pitch": 0.0,
+    "pitch_rate": 0.0,
+    "roll": 0.0,
+    "pitch_target": 1.0,
+    "roll_target": 1.5,
+    "pitch_error": 1.0,
+    "roll_error": -1.5,
+    "output_scale": 0.0,
+    "roll_tau_raw": [
+      -3.0,
+      -3.0
+    ],
+    "pitch_velocity": [
+      -0.0877312421798706,
+      0.0877312421798706
+    ],
+    "estimated_torque": [
+      0.0,
+      0.0
+    ],
+    "frames": [],
+    "fdcan": {
+      "error": 0,
+      "ECR": 0,
+      "PSR": 0,
+      "TXBRP": 0,
+      "TXBTO": 0
+    }
+  },
+  {
+    "tick": 831347,
+    "tick_end": 831347,
+    "command": [
+      0,
+      0,
+      0
+    ],
+    "state": 0,
+    "hold": [
+      0,
+      0
+    ],
+    "controllable": [
+      0,
+      0
+    ],
+    "angles_deg": [
+      93.90425474727334,
+      4.803835967810048
+    ],
+    "position_deg": [
+      90.52590658000165,
+      12.120853701104627
+    ],
+    "pitch": 0.0,
+    "pitch_rate": 0.0,
+    "roll": 0.0,
+    "pitch_target": 1.0,
+    "roll_target": 1.5,
+    "pitch_error": 1.0,
+    "roll_error": -1.5,
+    "output_scale": 0.0,
+    "roll_tau_raw": [
+      -3.0,
+      -3.0
+    ],
+    "pitch_velocity": [
+      -0.0877312421798706,
+      0.0877312421798706
+    ],
+    "estimated_torque": [
+      0.0,
+      0.0
+    ],
+    "frames": [],
+    "fdcan": {
+      "error": 0,
+      "ECR": 0,
+      "PSR": 0,
+      "TXBRP": 0,
+      "TXBTO": 0
+    }
+  },
+  {
+    "tick": 831347,
+    "tick_end": 831347,
+    "command": [
+      0,
+      0,
+      0
+    ],
+    "state": 0,
+    "hold": [
+      0,
+      0
+    ],
+    "controllable": [
+      0,
+      0
+    ],
+    "angles_deg": [
+      93.90425474727334,
+      4.803835967810048
+    ],
+    "position_deg": [
+      90.52590658000165,
+      12.120853701104627
+    ],
+    "pitch": 0.0,
+    "pitch_rate": 0.0,
+    "roll": 0.0,
+    "pitch_target": 1.0,
+    "roll_target": 1.5,
+    "pitch_error": 1.0,
+    "roll_error": -1.5,
+    "output_scale": 0.0,
+    "roll_tau_raw": [
+      -3.0,
+      -3.0
+    ],
+    "pitch_velocity": [
+      -0.0877312421798706,
+      0.0877312421798706
+    ],
+    "estimated_torque": [
+      0.0,
+      0.0
+    ],
+    "frames": [],
+    "fdcan": {
+      "error": 0,
+      "ECR": 0,
+      "PSR": 0,
+      "TXBRP": 0,
+      "TXBTO": 0
+    }
+  },
+  {
+    "tick": 831347,
+    "tick_end": 831347,
+    "command": [
+      0,
+      0,
+      0
+    ],
+    "state": 0,
+    "hold": [
+      0,
+      0
+    ],
+    "controllable": [
+      0,
+      0
+    ],
+    "angles_deg": [
+      93.90425474727334,
+      4.803835967810048
+    ],
+    "position_deg": [
+      90.52590658000165,
+      12.120853701104627
+    ],
+    "pitch": 0.0,
+    "pitch_rate": 0.0,
+    "roll": 0.0,
+    "pitch_target": 1.0,
+    "roll_target": 1.5,
+    "pitch_error": 1.0,
+    "roll_error": -1.5,
+    "output_scale": 0.0,
+    "roll_tau_raw": [
+      -3.0,
+      -3.0
+    ],
+    "pitch_velocity": [
+      -0.0877312421798706,
+      0.0877312421798706
+    ],
+    "estimated_torque": [
+      0.0,
+      0.0
+    ],
+    "frames": [],
+    "fdcan": {
+      "error": 0,
+      "ECR": 0,
+      "PSR": 0,
+      "TXBRP": 0,
+      "TXBTO": 0
+    }
+  },
+  {
+    "tick": 831347,
+    "tick_end": 831347,
+    "command": [
+      0,
+      0,
+      0
+    ],
+    "state": 0,
+    "hold": [
+      0,
+      0
+    ],
+    "controllable": [
+      0,
+      0
+    ],
+    "angles_deg": [
+      93.90425474727334,
+      4.803835967810048
+    ],
+    "position_deg": [
+      90.52590658000165,
+      12.120853701104627
+    ],
+    "pitch": 0.0,
+    "pitch_rate": 0.0,
+    "roll": 0.0,
+    "pitch_target": 1.0,
+    "roll_target": 1.5,
+    "pitch_error": 1.0,
+    "roll_error": -1.5,
+    "output_scale": 0.0,
+    "roll_tau_raw": [
+      -3.0,
+      -3.0
+    ],
+    "pitch_velocity": [
+      -0.0877312421798706,
+      0.0877312421798706
+    ],
+    "estimated_torque": [
+      0.0,
+      0.0
+    ],
+    "frames": [],
+    "fdcan": {
+      "error": 0,
+      "ECR": 0,
+      "PSR": 0,
+      "TXBRP": 0,
+      "TXBTO": 0
+    }
+  },
+  {
+    "tick": 831347,
+    "tick_end": 831347,
+    "command": [
+      0,
+      0,
+      0
+    ],
+    "state": 0,
+    "hold": [
+      0,
+      0
+    ],
+    "controllable": [
+      0,
+      0
+    ],
+    "angles_deg": [
+      93.90425474727334,
+      4.803835967810048
+    ],
+    "position_deg": [
+      90.52590658000165,
+      12.120853701104627
+    ],
+    "pitch": 0.0,
+    "pitch_rate": 0.0,
+    "roll": 0.0,
+    "pitch_target": 1.0,
+    "roll_target": 1.5,
+    "pitch_error": 1.0,
+    "roll_error": -1.5,
+    "output_scale": 0.0,
+    "roll_tau_raw": [
+      -3.0,
+      -3.0
+    ],
+    "pitch_velocity": [
+      -0.0877312421798706,
+      0.0877312421798706
+    ],
+    "estimated_torque": [
+      0.0,
+      0.0
+    ],
+    "frames": [],
+    "fdcan": {
+      "error": 0,
+      "ECR": 0,
+      "PSR": 0,
+      "TXBRP": 0,
+      "TXBTO": 0
+    }
+  },
+  {
+    "tick": 831347,
+    "tick_end": 831347,
+    "command": [
+      0,
+      0,
+      0
+    ],
+    "state": 0,
+    "hold": [
+      0,
+      0
+    ],
+    "controllable": [
+      0,
+      0
+    ],
+    "angles_deg": [
+      93.90425474727334,
+      4.803835967810048
+    ],
+    "position_deg": [
+      90.52590658000165,
+      12.120853701104627
+    ],
+    "pitch": 0.0,
+    "pitch_rate": 0.0,
+    "roll": 0.0,
+    "pitch_target": 1.0,
+    "roll_target": 1.5,
+    "pitch_error": 1.0,
+    "roll_error": -1.5,
+    "output_scale": 0.0,
+    "roll_tau_raw": [
+      -3.0,
+      -3.0
+    ],
+    "pitch_velocity": [
+      -0.0877312421798706,
+      0.0877312421798706
+    ],
+    "estimated_torque": [
+      0.0,
+      0.0
+    ],
+    "frames": [],
+    "fdcan": {
+      "error": 0,
+      "ECR": 0,
+      "PSR": 0,
+      "TXBRP": 0,
+      "TXBTO": 0
+    }
+  },
+  {
+    "tick": 831347,
+    "tick_end": 831347,
+    "command": [
+      0,
+      0,
+      0
+    ],
+    "state": 0,
+    "hold": [
+      0,
+      0
+    ],
+    "controllable": [
+      0,
+      0
+    ],
+    "angles_deg": [
+      93.90425474727334,
+      4.803835967810048
+    ],
+    "position_deg": [
+      90.52590658000165,
+      12.120853701104627
+    ],
+    "pitch": 0.0,
+    "pitch_rate": 0.0,
+    "roll": 0.0,
+    "pitch_target": 1.0,
+    "roll_target": 1.5,
+    "pitch_error": 1.0,
+    "roll_error": -1.5,
+    "output_scale": 0.0,
+    "roll_tau_raw": [
+      -3.0,
+      -3.0
+    ],
+    "pitch_velocity": [
+      -0.0877312421798706,
+      0.0877312421798706
+    ],
+    "estimated_torque": [
+      0.0,
+      0.0
+    ],
+    "frames": [],
+    "fdcan": {
+      "error": 0,
+      "ECR": 0,
+      "PSR": 0,
+      "TXBRP": 0,
+      "TXBTO": 0
+    }
+  },
+  {
+    "tick": 831347,
+    "tick_end": 831347,
+    "command": [
+      0,
+      0,
+      0
+    ],
+    "state": 0,
+    "hold": [
+      0,
+      0
+    ],
+    "controllable": [
+      0,
+      0
+    ],
+    "angles_deg": [
+      93.90425474727334,
+      4.803835967810048
+    ],
+    "position_deg": [
+      90.52590658000165,
+      12.120853701104627
+    ],
+    "pitch": 0.0,
+    "pitch_rate": 0.0,
+    "roll": 0.0,
+    "pitch_target": 1.0,
+    "roll_target": 1.5,
+    "pitch_error": 1.0,
+    "roll_error": -1.5,
+    "output_scale": 0.0,
+    "roll_tau_raw": [
+      -3.0,
+      -3.0
+    ],
+    "pitch_velocity": [
+      -0.0877312421798706,
+      0.0877312421798706
+    ],
+    "estimated_torque": [
+      0.0,
+      0.0
+    ],
+    "frames": [],
+    "fdcan": {
+      "error": 0,
+      "ECR": 0,
+      "PSR": 0,
+      "TXBRP": 0,
+      "TXBTO": 0
+    }
+  },
+  {
+    "tick": 831347,
+    "tick_end": 831347,
+    "command": [
+      0,
+      0,
+      0
+    ],
+    "state": 0,
+    "hold": [
+      0,
+      0
+    ],
+    "controllable": [
+      0,
+      0
+    ],
+    "angles_deg": [
+      93.90425474727334,
+      4.803835967810048
+    ],
+    "position_deg": [
+      90.52590658000165,
+      12.120853701104627
+    ],
+    "pitch": 0.0,
+    "pitch_rate": 0.0,
+    "roll": 0.0,
+    "pitch_target": 1.0,
+    "roll_target": 1.5,
+    "pitch_error": 1.0,
+    "roll_error": -1.5,
+    "output_scale": 0.0,
+    "roll_tau_raw": [
+      -3.0,
+      -3.0
+    ],
+    "pitch_velocity": [
+      -0.0877312421798706,
+      0.0877312421798706
+    ],
+    "estimated_torque": [
+      0.0,
+      0.0
+    ],
+    "frames": [],
+    "fdcan": {
+      "error": 0,
+      "ECR": 0,
+      "PSR": 0,
+      "TXBRP": 0,
+      "TXBTO": 0
+    }
+  },
+  {
+    "tick": 831347,
+    "tick_end": 831347,
+    "command": [
+      0,
+      0,
+      0
+    ],
+    "state": 0,
+    "hold": [
+      0,
+      0
+    ],
+    "controllable": [
+      0,
+      0
+    ],
+    "angles_deg": [
+      93.90425474727334,
+      4.803835967810048
+    ],
+    "position_deg": [
+      90.52590658000165,
+      12.120853701104627
+    ],
+    "pitch": 0.0,
+    "pitch_rate": 0.0,
+    "roll": 0.0,
+    "pitch_target": 1.0,
+    "roll_target": 1.5,
+    "pitch_error": 1.0,
+    "roll_error": -1.5,
+    "output_scale": 0.0,
+    "roll_tau_raw": [
+      -3.0,
+      -3.0
+    ],
+    "pitch_velocity": [
+      -0.0877312421798706,
+      0.0877312421798706
+    ],
+    "estimated_torque": [
+      0.0,
+      0.0
+    ],
+    "frames": [],
+    "fdcan": {
+      "error": 0,
+      "ECR": 0,
+      "PSR": 0,
+      "TXBRP": 0,
+      "TXBTO": 0
+    }
+  },
+  {
+    "tick": 831347,
+    "tick_end": 831347,
+    "command": [
+      0,
+      0,
+      0
+    ],
+    "state": 0,
+    "hold": [
+      0,
+      0
+    ],
+    "controllable": [
+      0,
+      0
+    ],
+    "angles_deg": [
+      93.90425474727334,
+      4.803835967810048
+    ],
+    "position_deg": [
+      90.52590658000165,
+      12.120853701104627
+    ],
+    "pitch": 0.0,
+    "pitch_rate": 0.0,
+    "roll": 0.0,
+    "pitch_target": 1.0,
+    "roll_target": 1.5,
+    "pitch_error": 1.0,
+    "roll_error": -1.5,
+    "output_scale": 0.0,
+    "roll_tau_raw": [
+      -3.0,
+      -3.0
+    ],
+    "pitch_velocity": [
+      -0.0877312421798706,
+      0.0877312421798706
+    ],
+    "estimated_torque": [
+      0.0,
+      0.0
+    ],
+    "frames": [],
+    "fdcan": {
+      "error": 0,
+      "ECR": 0,
+      "PSR": 0,
+      "TXBRP": 0,
+      "TXBTO": 0
+    }
+  },
+  {
+    "tick": 831347,
+    "tick_end": 831347,
+    "command": [
+      0,
+      0,
+      0
+    ],
+    "state": 0,
+    "hold": [
+      0,
+      0
+    ],
+    "controllable": [
+      0,
+      0
+    ],
+    "angles_deg": [
+      93.90425474727334,
+      4.803835967810048
+    ],
+    "position_deg": [
+      90.52590658000165,
+      12.120853701104627
+    ],
+    "pitch": 0.0,
+    "pitch_rate": 0.0,
+    "roll": 0.0,
+    "pitch_target": 1.0,
+    "roll_target": 1.5,
+    "pitch_error": 1.0,
+    "roll_error": -1.5,
+    "output_scale": 0.0,
+    "roll_tau_raw": [
+      -3.0,
+      -3.0
+    ],
+    "pitch_velocity": [
+      -0.0877312421798706,
+      0.0877312421798706
+    ],
+    "estimated_torque": [
+      0.0,
+      0.0
+    ],
+    "frames": [],
+    "fdcan": {
+      "error": 0,
+      "ECR": 0,
+      "PSR": 0,
+      "TXBRP": 0,
+      "TXBTO": 0
+    }
+  },
+  {
+    "tick": 831347,
+    "tick_end": 831347,
+    "command": [
+      0,
+      0,
+      0
+    ],
+    "state": 0,
+    "hold": [
+      0,
+      0
+    ],
+    "controllable": [
+      0,
+      0
+    ],
+    "angles_deg": [
+      93.90425474727334,
+      4.803835967810048
+    ],
+    "position_deg": [
+      90.52590658000165,
+      12.120853701104627
+    ],
+    "pitch": 0.0,
+    "pitch_rate": 0.0,
+    "roll": 0.0,
+    "pitch_target": 1.0,
+    "roll_target": 1.5,
+    "pitch_error": 1.0,
+    "roll_error": -1.5,
+    "output_scale": 0.0,
+    "roll_tau_raw": [
+      -3.0,
+      -3.0
+    ],
+    "pitch_velocity": [
+      -0.0877312421798706,
+      0.0877312421798706
+    ],
+    "estimated_torque": [
+      0.0,
+      0.0
+    ],
+    "frames": [],
+    "fdcan": {
+      "error": 0,
+      "ECR": 0,
+      "PSR": 0,
+      "TXBRP": 0,
+      "TXBTO": 0
+    }
+  },
+  {
+    "tick": 831347,
+    "tick_end": 831347,
+    "command": [
+      0,
+      0,
+      0
+    ],
+    "state": 0,
+    "hold": [
+      0,
+      0
+    ],
+    "controllable": [
+      0,
+      0
+    ],
+    "angles_deg": [
+      93.90425474727334,
+      4.803835967810048
+    ],
+    "position_deg": [
+      90.52590658000165,
+      12.120853701104627
+    ],
+    "pitch": 0.0,
+    "pitch_rate": 0.0,
+    "roll": 0.0,
+    "pitch_target": 1.0,
+    "roll_target": 1.5,
+    "pitch_error": 1.0,
+    "roll_error": -1.5,
+    "output_scale": 0.0,
+    "roll_tau_raw": [
+      -3.0,
+      -3.0
+    ],
+    "pitch_velocity": [
+      -0.0877312421798706,
+      0.0877312421798706
+    ],
+    "estimated_torque": [
+      0.0,
+      0.0
+    ],
+    "frames": [],
+    "fdcan": {
+      "error": 0,
+      "ECR": 0,
+      "PSR": 0,
+      "TXBRP": 0,
+      "TXBTO": 0
+    }
+  },
+  {
+    "tick": 831347,
+    "tick_end": 831347,
+    "command": [
+      0,
+      0,
+      0
+    ],
+    "state": 0,
+    "hold": [
+      0,
+      0
+    ],
+    "controllable": [
+      0,
+      0
+    ],
+    "angles_deg": [
+      93.90425474727334,
+      4.803835967810048
+    ],
+    "position_deg": [
+      90.52590658000165,
+      12.120853701104627
+    ],
+    "pitch": 0.0,
+    "pitch_rate": 0.0,
+    "roll": 0.0,
+    "pitch_target": 1.0,
+    "roll_target": 1.5,
+    "pitch_error": 1.0,
+    "roll_error": -1.5,
+    "output_scale": 0.0,
+    "roll_tau_raw": [
+      -3.0,
+      -3.0
+    ],
+    "pitch_velocity": [
+      -0.0877312421798706,
+      0.0877312421798706
+    ],
+    "estimated_torque": [
+      0.0,
+      0.0
+    ],
+    "frames": [],
+    "fdcan": {
+      "error": 0,
+      "ECR": 0,
+      "PSR": 0,
+      "TXBRP": 0,
+      "TXBTO": 0
+    }
+  },
+  {
+    "tick": 831347,
+    "tick_end": 831347,
+    "command": [
+      0,
+      0,
+      0
+    ],
+    "state": 0,
+    "hold": [
+      0,
+      0
+    ],
+    "controllable": [
+      0,
+      0
+    ],
+    "angles_deg": [
+      93.90425474727334,
+      4.803835967810048
+    ],
+    "position_deg": [
+      90.52590658000165,
+      12.120853701104627
+    ],
+    "pitch": 0.0,
+    "pitch_rate": 0.0,
+    "roll": 0.0,
+    "pitch_target": 1.0,
+    "roll_target": 1.5,
+    "pitch_error": 1.0,
+    "roll_error": -1.5,
+    "output_scale": 0.0,
+    "roll_tau_raw": [
+      -3.0,
+      -3.0
+    ],
+    "pitch_velocity": [
+      -0.0877312421798706,
+      0.0877312421798706
+    ],
+    "estimated_torque": [
+      0.0,
+      0.0
+    ],
+    "frames": [],
+    "fdcan": {
+      "error": 0,
+      "ECR": 0,
+      "PSR": 0,
+      "TXBRP": 0,
+      "TXBTO": 0
+    }
+  },
+  {
+    "tick": 831347,
+    "tick_end": 831347,
+    "command": [
+      0,
+      0,
+      0
+    ],
+    "state": 0,
+    "hold": [
+      0,
+      0
+    ],
+    "controllable": [
+      0,
+      0
+    ],
+    "angles_deg": [
+      93.90425474727334,
+      4.803835967810048
+    ],
+    "position_deg": [
+      90.52590658000165,
+      12.120853701104627
+    ],
+    "pitch": 0.0,
+    "pitch_rate": 0.0,
+    "roll": 0.0,
+    "pitch_target": 1.0,
+    "roll_target": 1.5,
+    "pitch_error": 1.0,
+    "roll_error": -1.5,
+    "output_scale": 0.0,
+    "roll_tau_raw": [
+      -3.0,
+      -3.0
+    ],
+    "pitch_velocity": [
+      -0.0877312421798706,
+      0.0877312421798706
+    ],
+    "estimated_torque": [
+      0.0,
+      0.0
+    ],
+    "frames": [],
+    "fdcan": {
+      "error": 0,
+      "ECR": 0,
+      "PSR": 0,
+      "TXBRP": 0,
+      "TXBTO": 0
+    }
+  },
+  {
+    "tick": 831347,
+    "tick_end": 831347,
+    "command": [
+      0,
+      0,
+      0
+    ],
+    "state": 0,
+    "hold": [
+      0,
+      0
+    ],
+    "controllable": [
+      0,
+      0
+    ],
+    "angles_deg": [
+      93.90425474727334,
+      4.803835967810048
+    ],
+    "position_deg": [
+      90.52590658000165,
+      12.120853701104627
+    ],
+    "pitch": 0.0,
+    "pitch_rate": 0.0,
+    "roll": 0.0,
+    "pitch_target": 1.0,
+    "roll_target": 1.5,
+    "pitch_error": 1.0,
+    "roll_error": -1.5,
+    "output_scale": 0.0,
+    "roll_tau_raw": [
+      -3.0,
+      -3.0
+    ],
+    "pitch_velocity": [
+      -0.0877312421798706,
+      0.0877312421798706
+    ],
+    "estimated_torque": [
+      0.0,
+      0.0
+    ],
+    "frames": [],
+    "fdcan": {
+      "error": 0,
+      "ECR": 0,
+      "PSR": 0,
+      "TXBRP": 0,
+      "TXBTO": 0
+    }
+  },
+  {
+    "tick": 831347,
+    "tick_end": 831347,
+    "command": [
+      0,
+      0,
+      0
+    ],
+    "state": 0,
+    "hold": [
+      0,
+      0
+    ],
+    "controllable": [
+      0,
+      0
+    ],
+    "angles_deg": [
+      93.90425474727334,
+      4.803835967810048
+    ],
+    "position_deg": [
+      90.52590658000165,
+      12.120853701104627
+    ],
+    "pitch": 0.0,
+    "pitch_rate": 0.0,
+    "roll": 0.0,
+    "pitch_target": 1.0,
+    "roll_target": 1.5,
+    "pitch_error": 1.0,
+    "roll_error": -1.5,
+    "output_scale": 0.0,
+    "roll_tau_raw": [
+      -3.0,
+      -3.0
+    ],
+    "pitch_velocity": [
+      -0.0877312421798706,
+      0.0877312421798706
+    ],
+    "estimated_torque": [
+      0.0,
+      0.0
+    ],
+    "frames": [],
+    "fdcan": {
+      "error": 0,
+      "ECR": 0,
+      "PSR": 0,
+      "TXBRP": 0,
+      "TXBTO": 0
+    }
+  }
+]

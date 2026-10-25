@@ -1,6 +1,6 @@
 #include "input_dispatcher.hpp"
 #include "../user/core/BSP/RemoteControl/DT7.hpp"
-#include "main.h"   // HAL_GetTick 消抖/视觉计时
+#include "main.h"   // HAL_GetTick 消抖计时
 
 using Remote = BSP::REMOTE_CONTROL::RemoteController;
 
@@ -57,17 +57,6 @@ void InputDispatcher::Update(uint8_t s1, uint8_t s2, uint16_t keyboard,
         heat_limit_bypassed_ = !heat_limit_bypassed_;
     }
 
-    // ---- 7. 视觉模式判定（tick 差值：右键确认按下后持续按住 ≥0.3s 判定） ----
-    if (right_button_confirmed_) {
-        // 首次确认按下时记录起始 tick（已按着则保持不变）
-        if (right_hold_start_tick_ == 0) {
-            right_hold_start_tick_ = HAL_GetTick();
-        }
-        vision_mode_ = (HAL_GetTick() - right_hold_start_tick_) >= VISION_HOLD_THRESHOLD;
-    } else {
-        right_hold_start_tick_ = 0;
-        vision_mode_ = false;
-    }
 }
 
 void InputDispatcher::ResetKeyMouseState()
@@ -86,10 +75,6 @@ void InputDispatcher::ResetKeyMouseState()
     confirmed_v_     = false;
     left_button_confirmed_  = false;
     right_button_confirmed_ = false;
-
-    // 视觉判定归零
-    right_hold_start_tick_ = 0;
-    vision_mode_ = false;
 
     // 翻转状态重置：切出键鼠 = 摩擦轮自动关闭，重进需重新按 R 开启
     r_toggle_on_   = false;

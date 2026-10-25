@@ -2,6 +2,7 @@
 #define UP_STAIR_FSM_HPP
 
 #include "../user/core/Alg/FSM/alg_fsm.hpp"
+#include "../user/core/Alg/UtilityFunction/SlopePlanning.hpp"
 #include <stdint.h>
 
 enum Enum_Up_Stair_Status
@@ -19,20 +20,21 @@ class Class_Up_Stair_FSM : public Class_FSM
 public:
     // 编码器和机械限位配置：下标 0 对应电机 1，下标 1 对应电机 2。
     // 起始角大于终止角时，表示有效区间跨过 ±π 接缝。
-    // 左前：139° -> -160°，连续控制为 139° -> 200°；两端各放宽 15°。
-    // 右前：-109° -> 172°，连续控制为 251° -> 172°；安全区间为 157° -> -94°。
+    // 左前：13.32° -> 90.94°；两端各放宽 15°，安全区间为 -1.68° -> 105.94°。
+    // 右前：-19.04° -> -98.65°；两端各放宽 15°，安全区间为 -113.65° -> -4.04°。
     static constexpr float LIMIT_START_RAD[2] = {   // 两侧电机的机械限位起始角
-        124.0f * 3.14159265359f / 180.0f,
-        157.0f * 3.14159265359f / 180.0f};
+        -1.68f * 3.14159265359f / 180.0f,
+        -113.65f * 3.14159265359f / 180.0f};
     static constexpr float LIMIT_END_RAD[2] = {    // 两侧电机的机械限位终止角
-        -145.0f * 3.14159265359f / 180.0f,
-        -94.0f * 3.14159265359f / 180.0f};
+        105.94f * 3.14159265359f / 180.0f,
+        -4.04f * 3.14159265359f / 180.0f};
     static constexpr float HOME_ANGLE_RAD[2] = {    // 两侧电机的机械初始角
-        139.0f * 3.14159265359f / 180.0f,
-        -109.0f * 3.14159265359f / 180.0f};
+        13.32f * 3.14159265359f / 180.0f,
+        -19.04f * 3.14159265359f / 180.0f};
     static constexpr float TARGET_ANGLE_RAD[2] = {    // 两侧电机的上台阶目标角
-        -160.0f * 3.14159265359f / 180.0f,
-        172.0f * 3.14159265359f / 180.0f};
+        90.94f * 3.14159265359f / 180.0f,
+        -98.65f * 3.14159265359f / 180.0f};
+    static constexpr uint32_t SPEED_RAMP_TIME_MS = 1000U; // 动作开始后，速度比例从 0 到 1 的时间
 
     // 初始化状态机和角度配置；启动后默认保持初始位置。
     void Init();
@@ -45,7 +47,8 @@ public:
                 bool right_feedback_valid,
                 bool mechanism_enabled,
                 bool stair_command_enabled,
-                bool target_requested);
+                bool target_requested,
+                uint32_t now_tick); // 当前毫秒 tick，用于速度比例软启动
 
     // 获取指定电机当前状态对应的目标角度，单位：弧度。
     float Get_Target_Angle(uint8_t id) const;
@@ -55,6 +58,8 @@ public:
     float Get_Position_Feedback(uint8_t id) const;
     // 返回目标角度减控制反馈角度的误差，单位：弧度。
     float Get_Position_Error(uint8_t id) const;
+    // 左右位置环输出共用的速度启动比例，范围 0 到 1。
+    float Get_Speed_Scale() const;
     // 判断指定电机角度是否处于配置的机械安全范围内。
     bool Is_Angle_Valid(uint8_t id, float angle) const;
     // 返回当前前部状态枚举值。
@@ -80,6 +85,8 @@ private:
     float raw_angle_[2] = {0.0f, 0.0f};       // 两个电机最近一次有效的原始角度
     float control_angle_[2] = {0.0f, 0.0f};   // 展开后的连续控制角度
     float target_angle_[2] = {0.0f, 0.0f};    // 状态机当前要求的目标角度
+    Alg::Utility::SlopePlanning speed_planner_{0.0f, 0.0f}; // 只规划速度比例，最终目标角不变
+    uint32_t speed_last_tick_ = 0U;
 
     bool last_target_requested_ = false;    // 恢复时同步目标，避免重放故障前动作
     bool config_valid_ = false;               // 静态机械配置是否有效

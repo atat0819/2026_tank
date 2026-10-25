@@ -1,0 +1,1827 @@
+{
+  "axf": "C:\\Users\\hp\\Desktop\\2026_tank\\tank_chassis\\MDK-ARM\\tank_chassis\\tank_chassis.axf",
+  "samples": [
+    {
+      "tick": 472380,
+      "command": [
+        1,
+        1,
+        0
+      ],
+      "state": 1,
+      "limit_holding": [
+        0,
+        0
+      ],
+      "limit_release_pending": [
+        0,
+        0
+      ],
+      "motor_velocity": [
+        -0.1831502914428711,
+        0.15873050689697266
+      ],
+      "position_deg": [
+        90.58082130092855,
+        8.215146628016237
+      ],
+      "retract_target_deg": [
+        90.08999707698226,
+        8.430000473642743
+      ],
+      "speed_scale": 1.0,
+      "config": {
+        "pitch_target": 1.0,
+        "roll_target": 1.5,
+        "roll_kp": 2.0,
+        "roll_max": 6.0,
+        "angle_start_deg": [
+          29.600001051368015,
+          4.430000077741386
+        ],
+        "angle_end_deg": [
+          94.08999491156267,
+          68.93000272639105
+        ],
+        "direction": [
+          1,
+          -1
+        ],
+        "gain": [
+          1.0,
+          1.0
+        ],
+        "retract_ff": [
+          2.0,
+          -3.0
+        ]
+      },
+      "config_valid": 1,
+      "controllable": [
+        1,
+        1
+      ],
+      "angle_deg": [
+        90.51492363581626,
+        8.275566481414169
+      ],
+      "pitch_roll_rate": [
+        1.3159630298614502,
+        0.9181918501853943,
+        0.5530712008476257
+      ],
+      "output_scale": 0.0234999880194664,
+      "feedback_degraded": 0,
+      "pid_left": {
+        "output": 0.0,
+        "target_deg": 90.08999707698226,
+        "feedback_deg": 90.16336013885736
+      },
+      "pid_right": {
+        "output": 0.0,
+        "target_deg": 8.430000473642743,
+        "feedback_deg": 7.522988917905485
+      },
+      "estimated_torque": [
+        -0.06110553443431854,
+        -0.04578598216176033
+      ],
+      "global_pitch_velocity": [
+        -0.315814733505249,
+        0.315814733505249
+      ],
+      "tick_end": 472411
+    },
+    {
+      "tick": 472532,
+      "command": [
+        1,
+        1,
+        0
+      ],
+      "state": 1,
+      "limit_holding": [
+        0,
+        0
+      ],
+      "limit_release_pending": [
+        0,
+        0
+      ],
+      "motor_velocity": [
+        -0.7594614028930664,
+        0.5299148559570312
+      ],
+      "position_deg": [
+        86.37850643294318,
+        11.450661879364636
+      ],
+      "retract_target_deg": [
+        90.08999707698226,
+        8.430000473642743
+      ],
+      "speed_scale": 1.0,
+      "config": {
+        "pitch_target": 1.0,
+        "roll_target": 1.5,
+        "roll_kp": 2.0,
+        "roll_max": 6.0,
+        "angle_start_deg": [
+          29.600001051368015,
+          4.430000077741386
+        ],
+        "angle_end_deg": [
+          94.08999491156267,
+          68.93000272639105
+        ],
+        "direction": [
+          1,
+          -1
+        ],
+        "gain": [
+          1.0,
+          1.0
+        ],
+        "retract_ff": [
+          2.0,
+          -3.0
+        ]
+      },
+      "config_valid": 1,
+      "controllable": [
+        1,
+        1
+      ],
+      "angle_deg": [
+        86.114833810224,
+        11.631948760315115
+      ],
+      "pitch_roll_rate": [
+        1.6124796867370605,
+        3.442058563232422,
+        0.6657006144523621
+      ],
+      "output_scale": 0.09950011223554611,
+      "feedback_degraded": 0,
+      "pid_left": {
+        "output": 0.0,
+        "target_deg": 90.08999707698226,
+        "feedback_deg": 90.16336013885736
+      },
+      "pid_right": {
+        "output": 0.0,
+        "target_deg": 8.430000473642743,
+        "feedback_deg": 7.522988917905485
+      },
+      "estimated_torque": [
+        -0.1178245097398758,
+        -0.1346435546875
+      ],
+      "global_pitch_velocity": [
+        -0.6428060531616211,
+        0.6428060531616211
+      ],
+      "tick_end": 472562
+    },
+    {
+      "tick": 472683,
+      "command": [
+        1,
+        1,
+        0
+      ],
+      "state": 1,
+      "limit_holding": [
+        0,
+        0
+      ],
+      "limit_release_pending": [
+        0,
+        0
+      ],
+      "motor_velocity": [
+        -1.316239356994629,
+        0.7985324859619141
+      ],
+      "position_deg": [
+        77.37508767281577,
+        17.169128478931093
+      ],
+      "retract_target_deg": [
+        90.08999707698226,
+        8.430000473642743
+      ],
+      "speed_scale": 1.0,
+      "config": {
+        "pitch_target": 1.0,
+        "roll_target": 1.5,
+        "roll_kp": 2.0,
+        "roll_max": 6.0,
+        "angle_start_deg": [
+          29.600001051368015,
+          4.430000077741386
+        ],
+        "angle_end_deg": [
+          94.08999491156267,
+          68.93000272639105
+        ],
+        "direction": [
+          1,
+          -1
+        ],
+        "gain": [
+          1.0,
+          1.0
+        ],
+        "retract_ff": [
+          2.0,
+          -3.0
+        ]
+      },
+      "config_valid": 1,
+      "controllable": [
+        1,
+        1
+      ],
+      "angle_deg": [
+        76.9191315645824,
+        17.443797706213985
+      ],
+      "pitch_roll_rate": [
+        2.101652145385742,
+        0.9178203344345093,
+        0.7006509304046631
+      ],
+      "output_scale": 0.17499952018260956,
+      "feedback_degraded": 0,
+      "pid_left": {
+        "output": 0.0,
+        "target_deg": 90.08999707698226,
+        "feedback_deg": 90.16336013885736
+      },
+      "pid_right": {
+        "output": 0.0,
+        "target_deg": 8.430000473642743,
+        "feedback_deg": 7.522988917905485
+      },
+      "estimated_torque": [
+        -0.08436369895935059,
+        -0.14062565565109253
+      ],
+      "global_pitch_velocity": [
+        -1.057112455368042,
+        1.057112455368042
+      ],
+      "tick_end": 472712
+    },
+    {
+      "tick": 472834,
+      "command": [
+        1,
+        1,
+        0
+      ],
+      "state": 1,
+      "limit_holding": [
+        0,
+        0
+      ],
+      "limit_release_pending": [
+        0,
+        0
+      ],
+      "motor_velocity": [
+        -1.7557992935180664,
+        0.9255189895629883
+      ],
+      "position_deg": [
+        63.89387885509804,
+        24.920095450953262
+      ],
+      "retract_target_deg": [
+        90.08999707698226,
+        8.430000473642743
+      ],
+      "speed_scale": 1.0,
+      "config": {
+        "pitch_target": 1.0,
+        "roll_target": 1.5,
+        "roll_kp": 2.0,
+        "roll_max": 6.0,
+        "angle_start_deg": [
+          29.600001051368015,
+          4.430000077741386
+        ],
+        "angle_end_deg": [
+          94.08999491156267,
+          68.93000272639105
+        ],
+        "direction": [
+          1,
+          -1
+        ],
+        "gain": [
+          1.0,
+          1.0
+        ],
+        "retract_ff": [
+          2.0,
+          -3.0
+        ]
+      },
+      "config_valid": 1,
+      "controllable": [
+        1,
+        1
+      ],
+      "angle_deg": [
+        63.39478327206687,
+        25.189259545765125
+      ],
+      "pitch_roll_rate": [
+        1.6013356447219849,
+        -4.225917816162109,
+        0.7111855149269104
+      ],
+      "output_scale": 0.2499985545873642,
+      "feedback_degraded": 0,
+      "pid_left": {
+        "output": 0.0,
+        "target_deg": 90.08999707698226,
+        "feedback_deg": 90.16336013885736
+      },
+      "pid_right": {
+        "output": 0.0,
+        "target_deg": 8.430000473642743,
+        "feedback_deg": 7.522988917905485
+      },
+      "estimated_torque": [
+        0.6983215808868408,
+        -0.7383931875228882
+      ],
+      "global_pitch_velocity": [
+        -0.5390732288360596,
+        0.5390732288360596
+      ],
+      "tick_end": 472863
+    },
+    {
+      "tick": 472984,
+      "command": [
+        1,
+        1,
+        0
+      ],
+      "state": 1,
+      "limit_holding": [
+        0,
+        0
+      ],
+      "limit_release_pending": [
+        0,
+        0
+      ],
+      "motor_velocity": [
+        -1.7753353118896484,
+        0.6471309661865234
+      ],
+      "position_deg": [
+        48.55752235691315,
+        31.73197971399038
+      ],
+      "retract_target_deg": [
+        90.08999707698226,
+        8.430000473642743
+      ],
+      "speed_scale": 1.0,
+      "config": {
+        "pitch_target": 1.0,
+        "roll_target": 1.5,
+        "roll_kp": 2.0,
+        "roll_max": 6.0,
+        "angle_start_deg": [
+          29.600001051368015,
+          4.430000077741386
+        ],
+        "angle_end_deg": [
+          94.08999491156267,
+          68.93000272639105
+        ],
+        "direction": [
+          1,
+          -1
+        ],
+        "gain": [
+          1.0,
+          1.0
+        ],
+        "retract_ff": [
+          2.0,
+          -3.0
+        ]
+      },
+      "config_valid": 1,
+      "controllable": [
+        1,
+        1
+      ],
+      "angle_deg": [
+        47.947777709327774,
+        31.918498519845087
+      ],
+      "pitch_roll_rate": [
+        1.4033293724060059,
+        -0.8573333024978638,
+        0.6799018979072571
+      ],
+      "output_scale": 0.3254975974559784,
+      "feedback_degraded": 0,
+      "pid_left": {
+        "output": 0.0,
+        "target_deg": 90.08999707698226,
+        "feedback_deg": 90.16336013885736
+      },
+      "pid_right": {
+        "output": 0.0,
+        "target_deg": 8.430000473642743,
+        "feedback_deg": 7.522988917905485
+      },
+      "estimated_torque": [
+        1.0867106914520264,
+        -0.8359429240226746
+      ],
+      "global_pitch_velocity": [
+        -0.3719213604927063,
+        0.3719240128993988
+      ],
+      "tick_end": 473014
+    },
+    {
+      "tick": 473136,
+      "command": [
+        1,
+        1,
+        0
+      ],
+      "state": 1,
+      "limit_holding": [
+        0,
+        0
+      ],
+      "limit_release_pending": [
+        0,
+        0
+      ],
+      "motor_velocity": [
+        -1.623931884765625,
+        0.5152626037597656
+      ],
+      "position_deg": [
+        33.56098143031473,
+        36.66464670992521
+      ],
+      "retract_target_deg": [
+        90.08999707698226,
+        8.430000473642743
+      ],
+      "speed_scale": 1.0,
+      "config": {
+        "pitch_target": 1.0,
+        "roll_target": 1.5,
+        "roll_kp": 2.0,
+        "roll_max": 6.0,
+        "angle_start_deg": [
+          29.600001051368015,
+          4.430000077741386
+        ],
+        "angle_end_deg": [
+          94.08999491156267,
+          68.93000272639105
+        ],
+        "direction": [
+          1,
+          -1
+        ],
+        "gain": [
+          1.0,
+          1.0
+        ],
+        "retract_ff": [
+          2.0,
+          -3.0
+        ]
+      },
+      "config_valid": 1,
+      "controllable": [
+        1,
+        1
+      ],
+      "angle_deg": [
+        33.01210742861251,
+        36.84042845840466
+      ],
+      "pitch_roll_rate": [
+        1.3562135696411133,
+        0.045549310743808746,
+        0.6381303668022156
+      ],
+      "output_scale": 0.4009966254234314,
+      "feedback_degraded": 0,
+      "pid_left": {
+        "output": 0.0,
+        "target_deg": 90.08999707698226,
+        "feedback_deg": 90.16336013885736
+      },
+      "pid_right": {
+        "output": 0.0,
+        "target_deg": 8.430000473642743,
+        "feedback_deg": 7.522988917905485
+      },
+      "estimated_torque": [
+        1.0398011207580566,
+        -0.9195626974105835
+      ],
+      "global_pitch_velocity": [
+        -0.3364342451095581,
+        0.3364342451095581
+      ],
+      "tick_end": 473165
+    },
+    {
+      "tick": 473287,
+      "command": [
+        1,
+        1,
+        0
+      ],
+      "state": 1,
+      "limit_holding": [
+        1,
+        0
+      ],
+      "limit_release_pending": [
+        0,
+        0
+      ],
+      "motor_velocity": [
+        0.09035396575927734,
+        0.39804649353027344
+      ],
+      "position_deg": [
+        29.770622591929516,
+        40.729661115214974
+      ],
+      "retract_target_deg": [
+        90.08999707698226,
+        8.430000473642743
+      ],
+      "speed_scale": 1.0,
+      "config": {
+        "pitch_target": 1.0,
+        "roll_target": 1.5,
+        "roll_kp": 2.0,
+        "roll_max": 6.0,
+        "angle_start_deg": [
+          29.600001051368015,
+          4.430000077741386
+        ],
+        "angle_end_deg": [
+          94.08999491156267,
+          68.93000272639105
+        ],
+        "direction": [
+          1,
+          -1
+        ],
+        "gain": [
+          1.0,
+          1.0
+        ],
+        "retract_ff": [
+          2.0,
+          -3.0
+        ]
+      },
+      "config_valid": 1,
+      "controllable": [
+        1,
+        1
+      ],
+      "angle_deg": [
+        29.792602140678618,
+        40.872480370759945
+      ],
+      "pitch_roll_rate": [
+        1.228731393814087,
+        0.37468844652175903,
+        0.4669632911682129
+      ],
+      "output_scale": 0.47699564695358276,
+      "feedback_degraded": 0,
+      "pid_left": {
+        "output": 0.0,
+        "target_deg": 90.08999707698226,
+        "feedback_deg": 90.16336013885736
+      },
+      "pid_right": {
+        "output": 0.0,
+        "target_deg": 8.430000473642743,
+        "feedback_deg": 7.522988917905485
+      },
+      "estimated_torque": [
+        2.195232629776001,
+        -1.2826647758483887
+      ],
+      "global_pitch_velocity": [
+        -0.2209823876619339,
+        0.2209823876619339
+      ],
+      "tick_end": 473318
+    },
+    {
+      "tick": 473439,
+      "command": [
+        1,
+        1,
+        0
+      ],
+      "state": 1,
+      "limit_holding": [
+        1,
+        0
+      ],
+      "limit_release_pending": [
+        0,
+        0
+      ],
+      "motor_velocity": [
+        -0.0024423599243164062,
+        0.3247861862182617
+      ],
+      "position_deg": [
+        29.78161919649324,
+        43.954179761999654
+      ],
+      "retract_target_deg": [
+        90.08999707698226,
+        8.430000473642743
+      ],
+      "speed_scale": 1.0,
+      "config": {
+        "pitch_target": 1.0,
+        "roll_target": 1.5,
+        "roll_kp": 2.0,
+        "roll_max": 6.0,
+        "angle_start_deg": [
+          29.600001051368015,
+          4.430000077741386
+        ],
+        "angle_end_deg": [
+          94.08999491156267,
+          68.93000272639105
+        ],
+        "direction": [
+          1,
+          -1
+        ],
+        "gain": [
+          1.0,
+          1.0
+        ],
+        "retract_ff": [
+          2.0,
+          -3.0
+        ]
+      },
+      "config_valid": 1,
+      "controllable": [
+        1,
+        1
+      ],
+      "angle_deg": [
+        29.78161919649324,
+        44.06405018498848
+      ],
+      "pitch_roll_rate": [
+        1.2243437767028809,
+        -0.15248346328735352,
+        0.4260842204093933
+      ],
+      "output_scale": 0.5524978041648865,
+      "feedback_degraded": 0,
+      "pid_left": {
+        "output": 0.0,
+        "target_deg": 90.08999707698226,
+        "feedback_deg": 90.16336013885736
+      },
+      "pid_right": {
+        "output": 0.0,
+        "target_deg": 8.430000473642743,
+        "feedback_deg": 7.522988917905485
+      },
+      "estimated_torque": [
+        2.5595862865448,
+        -1.377065896987915
+      ],
+      "global_pitch_velocity": [
+        -0.21435272693634033,
+        0.21410317718982697
+      ],
+      "tick_end": 473469
+    },
+    {
+      "tick": 473591,
+      "command": [
+        1,
+        1,
+        0
+      ],
+      "state": 1,
+      "limit_holding": [
+        1,
+        0
+      ],
+      "limit_release_pending": [
+        0,
+        0
+      ],
+      "motor_velocity": [
+        -0.0024423599243164062,
+        0.1880340576171875
+      ],
+      "position_deg": [
+        29.78161919649324,
+        46.19543803624764
+      ],
+      "retract_target_deg": [
+        90.08999707698226,
+        8.430000473642743
+      ],
+      "speed_scale": 1.0,
+      "config": {
+        "pitch_target": 1.0,
+        "roll_target": 1.5,
+        "roll_kp": 2.0,
+        "roll_max": 6.0,
+        "angle_start_deg": [
+          29.600001051368015,
+          4.430000077741386
+        ],
+        "angle_end_deg": [
+          94.08999491156267,
+          68.93000272639105
+        ],
+        "direction": [
+          1,
+          -1
+        ],
+        "gain": [
+          1.0,
+          1.0
+        ],
+        "retract_ff": [
+          2.0,
+          -3.0
+        ]
+      },
+      "config_valid": 1,
+      "controllable": [
+        1,
+        1
+      ],
+      "angle_deg": [
+        29.78161919649324,
+        46.266840833830955
+      ],
+      "pitch_roll_rate": [
+        1.2440261840820312,
+        -0.019436433911323547,
+        0.4597669839859009
+      ],
+      "output_scale": 0.6290013790130615,
+      "feedback_degraded": 0,
+      "pid_left": {
+        "output": 0.0,
+        "target_deg": 90.08999707698226,
+        "feedback_deg": 90.16336013885736
+      },
+      "pid_right": {
+        "output": 0.0,
+        "target_deg": 8.430000473642743,
+        "feedback_deg": 7.522988917905485
+      },
+      "estimated_torque": [
+        2.8965508937835693,
+        -1.193490982055664
+      ],
+      "global_pitch_velocity": [
+        -0.23295365273952484,
+        0.23295365273952484
+      ],
+      "tick_end": 473621
+    },
+    {
+      "tick": 473742,
+      "command": [
+        1,
+        1,
+        0
+      ],
+      "state": 1,
+      "limit_holding": [
+        1,
+        0
+      ],
+      "limit_release_pending": [
+        0,
+        0
+      ],
+      "motor_velocity": [
+        -0.0024423599243164062,
+        0.10988998413085938
+      ],
+      "position_deg": [
+        29.787110668585928,
+        47.4369068801675
+      ],
+      "retract_target_deg": [
+        90.08999707698226,
+        8.430000473642743
+      ],
+      "speed_scale": 1.0,
+      "config": {
+        "pitch_target": 1.0,
+        "roll_target": 1.5,
+        "roll_kp": 2.0,
+        "roll_max": 6.0,
+        "angle_start_deg": [
+          29.600001051368015,
+          4.430000077741386
+        ],
+        "angle_end_deg": [
+          94.08999491156267,
+          68.93000272639105
+        ],
+        "direction": [
+          1,
+          -1
+        ],
+        "gain": [
+          1.0,
+          1.0
+        ],
+        "retract_ff": [
+          2.0,
+          -3.0
+        ]
+      },
+      "config_valid": 1,
+      "controllable": [
+        1,
+        1
+      ],
+      "angle_deg": [
+        29.787110668585928,
+        47.48085231728736
+      ],
+      "pitch_roll_rate": [
+        1.2587714195251465,
+        0.13063234090805054,
+        0.493882417678833
+      ],
+      "output_scale": 0.7045049071311951,
+      "feedback_degraded": 0,
+      "pid_left": {
+        "output": 0.0,
+        "target_deg": 90.08999707698226,
+        "feedback_deg": 90.16336013885736
+      },
+      "pid_right": {
+        "output": 0.0,
+        "target_deg": 8.430000473642743,
+        "feedback_deg": 7.522988917905485
+      },
+      "estimated_torque": [
+        7.295297132524502e-39,
+        -1.0623483657836914
+      ],
+      "global_pitch_velocity": [
+        -0.24890923500061035,
+        0.24890923500061035
+      ],
+      "tick_end": 473773
+    },
+    {
+      "tick": 473895,
+      "command": [
+        1,
+        1,
+        0
+      ],
+      "state": 1,
+      "limit_holding": [
+        1,
+        0
+      ],
+      "limit_release_pending": [
+        0,
+        0
+      ],
+      "motor_velocity": [
+        0.0024423599243164062,
+        0.09523773193359375
+      ],
+      "position_deg": [
+        29.798093612771307,
+        48.3817406084337
+      ],
+      "retract_target_deg": [
+        90.08999707698226,
+        8.430000473642743
+      ],
+      "speed_scale": 1.0,
+      "config": {
+        "pitch_target": 1.0,
+        "roll_target": 1.5,
+        "roll_kp": 2.0,
+        "roll_max": 6.0,
+        "angle_start_deg": [
+          29.600001051368015,
+          4.430000077741386
+        ],
+        "angle_end_deg": [
+          94.08999491156267,
+          68.93000272639105
+        ],
+        "direction": [
+          1,
+          -1
+        ],
+        "gain": [
+          1.0,
+          1.0
+        ],
+        "retract_ff": [
+          2.0,
+          -3.0
+        ]
+      },
+      "config_valid": 1,
+      "controllable": [
+        1,
+        1
+      ],
+      "angle_deg": [
+        29.803585084864,
+        48.420194573460876
+      ],
+      "pitch_roll_rate": [
+        1.2608352899551392,
+        0.028969483450055122,
+        0.5141478776931763
+      ],
+      "output_scale": 0.7805084586143494,
+      "feedback_degraded": 0,
+      "pid_left": {
+        "output": 0.0,
+        "target_deg": 90.08999707698226,
+        "feedback_deg": 90.16336013885736
+      },
+      "pid_right": {
+        "output": 0.0,
+        "target_deg": 8.430000473642743,
+        "feedback_deg": 7.522988917905485
+      },
+      "estimated_torque": [
+        3.5440797805786133,
+        -1.1509006023406982
+      ],
+      "global_pitch_velocity": [
+        -0.2505945563316345,
+        0.2505840063095093
+      ],
+      "tick_end": 473924
+    },
+    {
+      "tick": 474046,
+      "command": [
+        1,
+        1,
+        0
+      ],
+      "state": 1,
+      "limit_holding": [
+        1,
+        0
+      ],
+      "limit_release_pending": [
+        0,
+        0
+      ],
+      "motor_velocity": [
+        -0.0024423599243164062,
+        0.09035396575927734
+      ],
+      "position_deg": [
+        29.83105610570579,
+        49.23869712283852
+      ],
+      "retract_target_deg": [
+        90.08999707698226,
+        8.430000473642743
+      ],
+      "speed_scale": 1.0,
+      "config": {
+        "pitch_target": 1.0,
+        "roll_target": 1.5,
+        "roll_kp": 2.0,
+        "roll_max": 6.0,
+        "angle_start_deg": [
+          29.600001051368015,
+          4.430000077741386
+        ],
+        "angle_end_deg": [
+          94.08999491156267,
+          68.93000272639105
+        ],
+        "direction": [
+          1,
+          -1
+        ],
+        "gain": [
+          1.0,
+          1.0
+        ],
+        "retract_ff": [
+          2.0,
+          -3.0
+        ]
+      },
+      "config_valid": 1,
+      "controllable": [
+        1,
+        1
+      ],
+      "angle_deg": [
+        29.83105610570579,
+        49.27164595539466
+      ],
+      "pitch_roll_rate": [
+        1.2480515241622925,
+        -0.15224923193454742,
+        0.46819818019866943
+      ],
+      "output_scale": 0.8565120100975037,
+      "feedback_degraded": 0,
+      "pid_left": {
+        "output": 0.0,
+        "target_deg": 90.08999707698226,
+        "feedback_deg": 90.16336013885736
+      },
+      "pid_right": {
+        "output": 0.0,
+        "target_deg": 8.430000473642743,
+        "feedback_deg": 7.522988917905485
+      },
+      "estimated_torque": [
+        3.8421630859375,
+        -1.340282678604126
+      ],
+      "global_pitch_velocity": [
+        -0.23586905002593994,
+        0.23586905002593994
+      ],
+      "tick_end": 474076
+    },
+    {
+      "tick": 474198,
+      "command": [
+        1,
+        1,
+        0
+      ],
+      "state": 1,
+      "limit_holding": [
+        1,
+        0
+      ],
+      "limit_release_pending": [
+        0,
+        0
+      ],
+      "motor_velocity": [
+        0.0073261260986328125,
+        0.0610504150390625
+      ],
+      "position_deg": [
+        29.86401859864027,
+        49.84292297757453
+      ],
+      "retract_target_deg": [
+        90.08999707698226,
+        8.430000473642743
+      ],
+      "speed_scale": 1.0,
+      "config": {
+        "pitch_target": 1.0,
+        "roll_target": 1.5,
+        "roll_kp": 2.0,
+        "roll_max": 6.0,
+        "angle_start_deg": [
+          29.600001051368015,
+          4.430000077741386
+        ],
+        "angle_end_deg": [
+          94.08999491156267,
+          68.93000272639105
+        ],
+        "direction": [
+          1,
+          -1
+        ],
+        "gain": [
+          1.0,
+          1.0
+        ],
+        "retract_ff": [
+          2.0,
+          -3.0
+        ]
+      },
+      "config_valid": 1,
+      "controllable": [
+        1,
+        1
+      ],
+      "angle_deg": [
+        29.86401859864027,
+        49.86491618670197
+      ],
+      "pitch_roll_rate": [
+        1.2998669147491455,
+        1.9342381954193115,
+        0.5125364065170288
+      ],
+      "output_scale": 0.9320155382156372,
+      "feedback_degraded": 0,
+      "pid_left": {
+        "output": 0.0,
+        "target_deg": 90.08999707698226,
+        "feedback_deg": 90.16336013885736
+      },
+      "pid_right": {
+        "output": 0.0,
+        "target_deg": 8.430000473642743,
+        "feedback_deg": 7.522988917905485
+      },
+      "estimated_torque": [
+        4.08786153793335,
+        -0.5011835694313049
+      ],
+      "global_pitch_velocity": [
+        -0.3158210813999176,
+        0.3158210813999176
+      ],
+      "tick_end": 474227
+    },
+    {
+      "tick": 474349,
+      "command": [
+        1,
+        1,
+        0
+      ],
+      "state": 2,
+      "limit_holding": [
+        1,
+        0
+      ],
+      "limit_release_pending": [
+        0,
+        0
+      ],
+      "motor_velocity": [
+        -0.0024423599243164062,
+        0.27106189727783203
+      ],
+      "position_deg": [
+        29.875001542825654,
+        51.10090721890748
+      ],
+      "retract_target_deg": [
+        90.08999707698226,
+        8.430000473642743
+      ],
+      "speed_scale": 1.0,
+      "config": {
+        "pitch_target": 1.0,
+        "roll_target": 1.5,
+        "roll_kp": 2.0,
+        "roll_max": 6.0,
+        "angle_start_deg": [
+          29.600001051368015,
+          4.430000077741386
+        ],
+        "angle_end_deg": [
+          94.08999491156267,
+          68.93000272639105
+        ],
+        "direction": [
+          1,
+          -1
+        ],
+        "gain": [
+          1.0,
+          1.0
+        ],
+        "retract_ff": [
+          2.0,
+          -3.0
+        ]
+      },
+      "config_valid": 1,
+      "controllable": [
+        1,
+        1
+      ],
+      "angle_deg": [
+        29.875001542825654,
+        51.19428956523989
+      ],
+      "pitch_roll_rate": [
+        1.801814317703247,
+        6.167044639587402,
+        0.6431737542152405
+      ],
+      "output_scale": 1.0,
+      "feedback_degraded": 0,
+      "pid_left": {
+        "output": 0.0,
+        "target_deg": 90.08999707698226,
+        "feedback_deg": 90.16336013885736
+      },
+      "pid_right": {
+        "output": 0.0,
+        "target_deg": 8.430000473642743,
+        "feedback_deg": 7.522988917905485
+      },
+      "estimated_torque": [
+        4.344186305999756,
+        0.17470377683639526
+      ],
+      "global_pitch_velocity": [
+        -0.8344501256942749,
+        0.8344501256942749
+      ],
+      "tick_end": 474378
+    },
+    {
+      "tick": 474500,
+      "command": [
+        1,
+        1,
+        0
+      ],
+      "state": 2,
+      "limit_holding": [
+        1,
+        0
+      ],
+      "limit_release_pending": [
+        0,
+        0
+      ],
+      "motor_velocity": [
+        0.0024423599243164062,
+        1.1355314254760742
+      ],
+      "position_deg": [
+        29.880493014918343,
+        56.49525402160015
+      ],
+      "retract_target_deg": [
+        90.08999707698226,
+        8.430000473642743
+      ],
+      "speed_scale": 1.0,
+      "config": {
+        "pitch_target": 1.0,
+        "roll_target": 1.5,
+        "roll_kp": 2.0,
+        "roll_max": 6.0,
+        "angle_start_deg": [
+          29.600001051368015,
+          4.430000077741386
+        ],
+        "angle_end_deg": [
+          94.08999491156267,
+          68.93000272639105
+        ],
+        "direction": [
+          1,
+          -1
+        ],
+        "gain": [
+          1.0,
+          1.0
+        ],
+        "retract_ff": [
+          2.0,
+          -3.0
+        ]
+      },
+      "config_valid": 1,
+      "controllable": [
+        1,
+        1
+      ],
+      "angle_deg": [
+        29.880493014918343,
+        57.05964621309664
+      ],
+      "pitch_roll_rate": [
+        3.524477243423462,
+        16.52810287475586,
+        0.6677106022834778
+      ],
+      "output_scale": 1.0,
+      "feedback_degraded": 0,
+      "pid_left": {
+        "output": 0.0,
+        "target_deg": 90.08999707698226,
+        "feedback_deg": 90.16336013885736
+      },
+      "pid_right": {
+        "output": 0.0,
+        "target_deg": 8.430000473642743,
+        "feedback_deg": 7.522988917905485
+      },
+      "estimated_torque": [
+        4.330384731292725,
+        2.0083134174346924
+      ],
+      "global_pitch_velocity": [
+        -2.664435386657715,
+        2.664435386657715
+      ],
+      "tick_end": 474531
+    },
+    {
+      "tick": 474652,
+      "command": [
+        1,
+        1,
+        0
+      ],
+      "state": 2,
+      "limit_holding": [
+        0,
+        0
+      ],
+      "limit_release_pending": [
+        0,
+        0
+      ],
+      "motor_velocity": [
+        -0.15384578704833984,
+        0.1196584701538086
+      ],
+      "position_deg": [
+        29.792602140678618,
+        69.84384788639291
+      ],
+      "retract_target_deg": [
+        90.08999707698226,
+        8.430000473642743
+      ],
+      "speed_scale": 1.0,
+      "config": {
+        "pitch_target": 1.0,
+        "roll_target": 1.5,
+        "roll_kp": 2.0,
+        "roll_max": 6.0,
+        "angle_start_deg": [
+          29.600001051368015,
+          4.430000077741386
+        ],
+        "angle_end_deg": [
+          94.08999491156267,
+          68.93000272639105
+        ],
+        "direction": [
+          1,
+          -1
+        ],
+        "gain": [
+          1.0,
+          1.0
+        ],
+        "retract_ff": [
+          2.0,
+          -3.0
+        ]
+      },
+      "config_valid": 1,
+      "controllable": [
+        1,
+        0
+      ],
+      "angle_deg": [
+        29.74890259036888,
+        70.85460660052807
+      ],
+      "pitch_roll_rate": [
+        5.197202205657959,
+        4.7320756912231445,
+        0.6946975588798523
+      ],
+      "output_scale": 1.0,
+      "feedback_degraded": 1,
+      "pid_left": {
+        "output": 0.0,
+        "target_deg": 90.08999707698226,
+        "feedback_deg": 90.16336013885736
+      },
+      "pid_right": {
+        "output": 0.0,
+        "target_deg": 8.430000473642743,
+        "feedback_deg": 7.522988917905485
+      },
+      "estimated_torque": [
+        0.0,
+        0.0
+      ],
+      "global_pitch_velocity": [
+        -3.900890350341797,
+        3.900890350341797
+      ],
+      "tick_end": 474681
+    },
+    {
+      "tick": 474803,
+      "command": [
+        1,
+        1,
+        0
+      ],
+      "state": 1,
+      "limit_holding": [
+        1,
+        1
+      ],
+      "limit_release_pending": [
+        0,
+        0
+      ],
+      "motor_velocity": [
+        -0.0024423599243164062,
+        -0.012209892272949219
+      ],
+      "position_deg": [
+        29.331181881109238,
+        69.37141736188147
+      ],
+      "retract_target_deg": [
+        90.08999707698226,
+        8.430000473642743
+      ],
+      "speed_scale": 1.0,
+      "config": {
+        "pitch_target": 1.0,
+        "roll_target": 1.5,
+        "roll_kp": 2.0,
+        "roll_max": 6.0,
+        "angle_start_deg": [
+          29.600001051368015,
+          4.430000077741386
+        ],
+        "angle_end_deg": [
+          94.08999491156267,
+          68.93000272639105
+        ],
+        "direction": [
+          1,
+          -1
+        ],
+        "gain": [
+          1.0,
+          1.0
+        ],
+        "retract_ff": [
+          2.0,
+          -3.0
+        ]
+      },
+      "config_valid": 1,
+      "controllable": [
+        1,
+        1
+      ],
+      "angle_deg": [
+        29.331181881109238,
+        69.37141736188147
+      ],
+      "pitch_roll_rate": [
+        5.405182361602783,
+        0.00772954523563385,
+        0.804115891456604
+      ],
+      "output_scale": 0.056999750435352325,
+      "feedback_degraded": 0,
+      "pid_left": {
+        "output": 0.0,
+        "target_deg": 90.08999707698226,
+        "feedback_deg": 90.16336013885736
+      },
+      "pid_right": {
+        "output": 0.0,
+        "target_deg": 8.430000473642743,
+        "feedback_deg": 7.522988917905485
+      },
+      "estimated_torque": [
+        0.3597903251647949,
+        1.8191040092540472e-38
+      ],
+      "global_pitch_velocity": [
+        -4.218849182128906,
+        4.212523460388184
+      ],
+      "tick_end": 474835
+    },
+    {
+      "tick": 474957,
+      "command": [
+        1,
+        1,
+        0
+      ],
+      "state": 1,
+      "limit_holding": [
+        1,
+        1
+      ],
+      "limit_release_pending": [
+        0,
+        0
+      ],
+      "motor_velocity": [
+        0.0024423599243164062,
+        -0.0024423599243164062
+      ],
+      "position_deg": [
+        29.342164825294617,
+        69.37690883397416
+      ],
+      "retract_target_deg": [
+        90.08999707698226,
+        8.430000473642743
+      ],
+      "speed_scale": 1.0,
+      "config": {
+        "pitch_target": 1.0,
+        "roll_target": 1.5,
+        "roll_kp": 2.0,
+        "roll_max": 6.0,
+        "angle_start_deg": [
+          29.600001051368015,
+          4.430000077741386
+        ],
+        "angle_end_deg": [
+          94.08999491156267,
+          68.93000272639105
+        ],
+        "direction": [
+          1,
+          -1
+        ],
+        "gain": [
+          1.0,
+          1.0
+        ],
+        "retract_ff": [
+          2.0,
+          -3.0
+        ]
+      },
+      "config_valid": 1,
+      "controllable": [
+        1,
+        1
+      ],
+      "angle_deg": [
+        29.347656297387307,
+        69.37690883397416
+      ],
+      "pitch_roll_rate": [
+        4.388535976409912,
+        -11.242087364196777,
+        0.8684283494949341
+      ],
+      "output_scale": 0.13350005447864532,
+      "feedback_degraded": 0,
+      "pid_left": {
+        "output": 0.0,
+        "target_deg": 90.08999707698226,
+        "feedback_deg": 90.16336013885736
+      },
+      "pid_right": {
+        "output": 0.0,
+        "target_deg": 8.430000473642743,
+        "feedback_deg": 7.522988917905485
+      },
+      "estimated_torque": [
+        0.7816183567047119,
+        -0.8566635847091675
+      ],
+      "global_pitch_velocity": [
+        -3.0871102809906006,
+        3.0871102809906006
+      ],
+      "tick_end": 474986
+    },
+    {
+      "tick": 475108,
+      "command": [
+        1,
+        1,
+        0
+      ],
+      "state": 1,
+      "limit_holding": [
+        1,
+        1
+      ],
+      "limit_release_pending": [
+        0,
+        0
+      ],
+      "motor_velocity": [
+        -0.0024423599243164062,
+        -0.0024423599243164062
+      ],
+      "position_deg": [
+        29.517946573774065,
+        69.37141736188147
+      ],
+      "retract_target_deg": [
+        90.08999707698226,
+        8.430000473642743
+      ],
+      "speed_scale": 1.0,
+      "config": {
+        "pitch_target": 1.0,
+        "roll_target": 1.5,
+        "roll_kp": 2.0,
+        "roll_max": 6.0,
+        "angle_start_deg": [
+          29.600001051368015,
+          4.430000077741386
+        ],
+        "angle_end_deg": [
+          94.08999491156267,
+          68.93000272639105
+        ],
+        "direction": [
+          1,
+          -1
+        ],
+        "gain": [
+          1.0,
+          1.0
+        ],
+        "retract_ff": [
+          2.0,
+          -3.0
+        ]
+      },
+      "config_valid": 1,
+      "controllable": [
+        1,
+        1
+      ],
+      "angle_deg": [
+        29.517946573774065,
+        69.37141736188147
+      ],
+      "pitch_roll_rate": [
+        2.035809278488159,
+        -19.837345123291016,
+        0.6962019205093384
+      ],
+      "output_scale": 0.2094990760087967,
+      "feedback_degraded": 0,
+      "pid_left": {
+        "output": 0.0,
+        "target_deg": 90.08999707698226,
+        "feedback_deg": 90.16336013885736
+      },
+      "pid_right": {
+        "output": 0.0,
+        "target_deg": 8.430000473642743,
+        "feedback_deg": 7.522988917905485
+      },
+      "estimated_torque": [
+        1.129551649093628,
+        -1.2811616659164429
+      ],
+      "global_pitch_velocity": [
+        -0.7067381739616394,
+        0.6208006739616394
+      ],
+      "tick_end": 475138
+    },
+    {
+      "tick": 475260,
+      "command": [
+        1,
+        1,
+        0
+      ],
+      "state": 1,
+      "limit_holding": [
+        1,
+        1
+      ],
+      "limit_release_pending": [
+        0,
+        0
+      ],
+      "motor_velocity": [
+        0.0024423599243164062,
+        -0.0024423599243164062
+      ],
+      "position_deg": [
+        29.55640053880124,
+        69.33297705723264
+      ],
+      "retract_target_deg": [
+        90.08999707698226,
+        8.430000473642743
+      ],
+      "speed_scale": 1.0,
+      "config": {
+        "pitch_target": 1.0,
+        "roll_target": 1.5,
+        "roll_kp": 2.0,
+        "roll_max": 6.0,
+        "angle_start_deg": [
+          29.600001051368015,
+          4.430000077741386
+        ],
+        "angle_end_deg": [
+          94.08999491156267,
+          68.93000272639105
+        ],
+        "direction": [
+          1,
+          -1
+        ],
+        "gain": [
+          1.0,
+          1.0
+        ],
+        "retract_ff": [
+          2.0,
+          -3.0
+        ]
+      },
+      "config_valid": 1,
+      "controllable": [
+        1,
+        1
+      ],
+      "angle_deg": [
+        29.55640053880124,
+        69.33297705723264
+      ],
+      "pitch_roll_rate": [
+        1.1101340055465698,
+        -1.1870570182800293,
+        0.2916581630706787
+      ],
+      "output_scale": 0.28549811244010925,
+      "feedback_degraded": 0,
+      "pid_left": {
+        "output": 0.0,
+        "target_deg": 90.08999707698226,
+        "feedback_deg": 90.16336013885736
+      },
+      "pid_right": {
+        "output": 0.0,
+        "target_deg": 8.430000473642743,
+        "feedback_deg": 7.522988917905485
+      },
+      "estimated_torque": [
+        1.5220627784729004,
+        2.066392550551912e-38
+      ],
+      "global_pitch_velocity": [
+        -0.10013687610626221,
+        0.10013687610626221
+      ],
+      "tick_end": 475290
+    }
+  ],
+  "flash_compare_bytes": 172516,
+  "flash_mismatch": []
+}

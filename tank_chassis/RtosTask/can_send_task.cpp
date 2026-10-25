@@ -47,6 +47,7 @@ bool yaw_offset_updated = false; //标志位，表示是否接收到新的云台
 
 // 定义全局变量来存储云台底盘速度数据
 Gimbal_Chassis_communicate_t gimbalChassis_communicate;
+ControlInputSnapshot chassis_input_watch{}; // Keil observation copy, written by the drive task.
 
 uint8_t gimbalChassisSpeedUpdated = 0;
 
@@ -65,7 +66,10 @@ static volatile bool gimbal_yaw_received = false;
 void Chassis485_ApplyData(const Chassis485Data &data)
 {
     const uint32_t now = HAL_GetTick();
-    gimbalChassis_communicate.yaw_offset_deg = data.yaw_offset_deg;
+    // Pitch 固定在车体上，相对 Yaw 偏角为 0；原 IMU 字段只保留协议位置。
+    gimbalChassis_communicate.yaw_offset_deg = 0.0f;
+    gimbalChassis_communicate.right_stick_x = data.right_stick_x;
+    gimbalChassis_communicate.mouse_x = data.s1 == 3U && data.s2 == 3U ? data.mouse_x : 0;
     gimbalChassis_communicate.vx = data.vx;
     gimbalChassis_communicate.vy = data.vy;
     gimbalChassis_communicate.s1 = data.s1;
@@ -122,6 +126,8 @@ ControlInputSnapshot GetControlInputSnapshot(uint32_t now_tick)
         input.s2 = gimbal_s2;
         input.keyboard = gimbal_keyboard;
         input.keyboard_online = gimbal_keyboard_online;
+        input.wz = static_cast<float>(gimbalChassis_communicate.right_stick_x) / 660.0f;
+        input.mouse_x = gimbalChassis_communicate.mouse_x;
         input.vx = gimbalChassis_communicate.vx;
         input.vy = gimbalChassis_communicate.vy;
         input.yaw_offset_deg = gimbalChassis_communicate.yaw_offset_deg;
@@ -241,8 +247,8 @@ float motor_target_speed[4];
 float motor_output[4];
 float motor_output_pre[4];  // 功率控制前的电流，用于VOFA对比
 float current_speed_rads[4];
-float c = 3.0f; // 本地遥控器摇杆旋转倍率(rad/s)，原为2，增大左右转向指令
-float phase_comp = 0.0f;   // 这个变量用于补偿系统的相位滞后，具体值需要通过实验调整
+float c = 3.0f; // 本地/云台遥控摇杆旋转倍率(rad/s)
+float phase_comp = 0.0f; // Pitch 固定在车体上，此补偿保持为 0
     float yaw_offset_rad = 0.0f;
 // 底盘预测功率 (W), 每个控制周期由 post_power 赋值更新 (只赋值不累加!)
 // 其他文件读取: extern float chassis_power_pred;
@@ -388,6 +394,7 @@ osDelay(500);
          taskEXIT_CRITICAL();
          const uint32_t now_tick = HAL_GetTick();
          const ControlInputSnapshot input = GetControlInputSnapshot(now_tick);
+         chassis_input_watch = input;
          const bool source_changed = input.source != last_input_source;
          last_input_source = input.source;
          const bool keyboard_mode =
@@ -402,6 +409,7 @@ osDelay(500);
              now_tick);
         const KeyboardMotionCommand& keyboard_cmd =
             keyboard_fsm.GetCommand();
+
 
          const StairModePolicy stair_policy = EvaluateStairModePolicy(
              input.s1, input.s2, input.source != ControlInputSource::NONE,
@@ -513,7 +521,7 @@ osDelay(500);
            chassis_fsm.StateUpdate(
                input.s1, input.s2, input.source != ControlInputSource::NONE);
            wz_cmd = chassis_fsm.Get_wz_cmd(yaw_offset_rad);
-           if (input.source == ControlInputSource::LOCAL && !keyboard_mode &&
+           if (input.source != ControlInputSource::NONE && !keyboard_mode &&
                chassis_fsm.Get_Mode() != CHASSIS_GYRO_SPIN)
            {
                // 与云台遥控器 yaw 的摇杆方向一致：右摇杆向右对应负角速度。
@@ -524,33 +532,17 @@ osDelay(500);
            {
                wz_cmd = chassis_fsm.gyro_spin_speed;
            }
-           else if (input.source == ControlInputSource::LOCAL && keyboard_cmd.valid)
+           else if (keyboard_cmd.valid)
            {
-               // 本地键鼠档位：鼠标向右为负向旋转。6 度/秒/计数，限幅到 4 rad/s。
-               // 鼠标停止时 DBUS 的 X 位移归零；失联或切源由上面的零输出分支处理。
+               // 两种接收机接法均保持最新采样，沿用 2 度/秒/计数与 +/-4 rad/s 限幅。
                wz_cmd = -static_cast<float>(input.mouse_x) *
-                        (2.0f * M_PI / 180.0f);
+                        (1.0f * M_PI / 180.0f);
                if (wz_cmd > 4.0f) wz_cmd = 4.0f;
                if (wz_cmd < -4.0f) wz_cmd = -4.0f;
            }
-           else if (keyboard_cmd.valid && keyboard_cmd.follow_enabled)
-           {
-               wz_cmd = chassis_fsm.Get_follow_wz_cmd(yaw_offset_rad);
-           }
-           else if (keyboard_cmd.valid)
-           {
-               wz_cmd = 0.0f;
-           }
 
         // 2. 获取电机当前反馈 (当前轮速)
-        phase_comp = 0.0f; // 这里暂时不使用相位补偿，后续可以根据实际情况调整
-if (input.source == ControlInputSource::GIMBAL &&
-    (chassis_fsm.Get_Mode() == CHASSIS_GYRO_SPIN ||
-    (keyboard_cmd.valid &&
-     (keyboard_cmd.gyro_enabled || keyboard_cmd.follow_enabled))))
-{
-    phase_comp = (0.01f * wz_cmd);  // 逆时针转为正，顺时针转为负
-}
+        phase_comp = 0.0f; // Pitch 固定在车体上，无相对云台旋转的相位补偿。
             // --- A. 运动学逆解算：底盘速度 -> 4个轮子的目标转速 ---
             // 直接解算遥控器给出的目标值
             if (keyboard_cmd.valid)

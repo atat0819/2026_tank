@@ -18,6 +18,7 @@ constexpr float Class_Up_Stair_FSM::LIMIT_START_RAD[2];
 constexpr float Class_Up_Stair_FSM::LIMIT_END_RAD[2];
 constexpr float Class_Up_Stair_FSM::HOME_ANGLE_RAD[2];
 constexpr float Class_Up_Stair_FSM::TARGET_ANGLE_RAD[2];
+constexpr uint32_t Class_Up_Stair_FSM::SPEED_RAMP_TIME_MS;
 
 namespace
 {
@@ -42,6 +43,8 @@ void Class_Up_Stair_FSM::Init()
     Class_FSM::Init(UP_STAIR_STATUS_COUNT, UP_STAIR_DISABLED);
 
     last_target_requested_ = false;
+    speed_planner_ = Alg::Utility::SlopePlanning(0.0f, 0.0f);
+    speed_last_tick_ = 0U;
 
     // 检查机械限位、初始角度和目标角度配置是否相互匹配。
     config_valid_ = Validate_Configuration();
@@ -194,8 +197,14 @@ void Class_Up_Stair_FSM::Refresh_Target()
                                       ? TARGET_ANGLE_RAD[i]
                                       : HOME_ANGLE_RAD[i];
 
-        // 目标角也经过机械区间展开；右前初始位 -109°展开为 251°，目标位为 172°。
-        target_angle_[i] = To_Control_Angle(i, raw_target);
+        // 目标角按机械区间转换；当前左右标定区间都不跨 ±π，保持原始角度。
+        const float target = To_Control_Angle(i, raw_target);
+        if (target_angle_[i] != target)
+        {
+            // 只有最终目标改变才重新软启动；MOVING 转 HOLD 不会重置比例。
+            speed_planner_ = Alg::Utility::SlopePlanning(0.0f, 0.0f);
+        }
+        target_angle_[i] = target;
     }
 }
 
@@ -247,6 +256,7 @@ bool Class_Up_Stair_FSM::Both_Motors_At_Target(bool left_valid,
  *   mechanism_enabled：上层是否允许前部位置控制。
  *   stair_command_enabled：当前是否允许执行上台阶动作；为 false 时回初始位。
  *   target_requested：明确目标请求，true 去目标位，false 回初始位。
+ *   now_tick：本周期毫秒 tick，速度比例按真实经过时间推进。
  *
  * 本函数每次调用的大致顺序：
  * 1. 检查反馈链路和机械角度是否有效；
@@ -263,7 +273,8 @@ void Class_Up_Stair_FSM::Update(float current_left_angle,
                                 bool right_feedback_valid,
                                 bool mechanism_enabled,
                                 bool stair_command_enabled,
-                                bool target_requested)
+                                bool target_requested,
+                                uint32_t now_tick)
 {
     // 反馈必须同时满足“链路有效”和“角度位于机械安全范围”。
     const bool left_valid = left_feedback_valid &&
@@ -277,6 +288,8 @@ void Class_Up_Stair_FSM::Update(float current_left_angle,
     if (!mechanism_enabled || !config_valid_ || !left_valid || !right_valid)
     {
         Set_Status(UP_STAIR_DISABLED);
+        speed_planner_ = Alg::Utility::SlopePlanning(0.0f, 0.0f);
+        speed_last_tick_ = now_tick;
         last_target_requested_ = target_requested;
         Refresh_Target();
         return;
@@ -293,6 +306,18 @@ void Class_Up_Stair_FSM::Update(float current_left_angle,
         raw_angle_[1] = current_right_angle;
         control_angle_[1] = To_Control_Angle(1U, raw_angle_[1]);
     }
+
+    // 首次启用/恢复时从零比例起步，禁用期间的时间不计入斜坡。
+    if (Get_Now_Status_Serial() == UP_STAIR_DISABLED)
+    {
+        speed_last_tick_ = now_tick;
+    }
+    const float speed_step = fminf(1.0f,
+        static_cast<float>(now_tick - speed_last_tick_) / SPEED_RAMP_TIME_MS);
+    speed_last_tick_ = now_tick;
+    speed_planner_.SetIncreaseValue(speed_step);
+    // 与后腿收腿一致：反馈传 0，避免实测反馈跳过 0→1 的比例斜坡。
+    speed_planner_.TIM_Calculate_PeriodElapsedCallback(1.0f, 0.0f);
 
     // 从 DISABLED 重新启用时，先执行回初始位流程，不直接响应旧的上台阶动作。
     if (Get_Now_Status_Serial() == UP_STAIR_DISABLED)
@@ -367,7 +392,7 @@ void Class_Up_Stair_FSM::Update(float current_left_angle,
  * 获取指定电机的目标控制角度。
  *
  * 返回的是经过 To_Control_Angle() 处理后的目标角度。
- * 当前电机 2 的原始目标 60°仍返回 60°；跨 ±π 接缝时才展开。
+ * 当前左右标定区间不跨 ±π，返回原始目标角；跨接缝时才展开。
  * 无效 ID 返回 0。
  */
 float Class_Up_Stair_FSM::Get_Target_Angle(uint8_t id) const
@@ -411,6 +436,11 @@ float Class_Up_Stair_FSM::Get_Position_Feedback(uint8_t id) const
         return 0.0f;
     }
     return control_angle_[id - 1U];
+}
+
+float Class_Up_Stair_FSM::Get_Speed_Scale() const
+{
+    return speed_planner_.GetOut();
 }
 
 /*

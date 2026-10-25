@@ -1,4 +1,4 @@
-"""Verify the actual Yaw outer-loop expression selects independent PID objects."""
+"""Compile actual encoder PID calls and the remote/keymouse outer-loop selection."""
 from pathlib import Path
 import re
 import subprocess
@@ -8,79 +8,44 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 
 
-class YawFeedbackPidTest(unittest.TestCase):
-    def test_all_nonvision_pid_pairs(self):
-        task = (ROOT / "RtosTask/can_send_task.cpp").read_text(encoding="utf-8-sig")
-        stems = [f"{axis}_{loop}" for axis in ("yaw", "pitch")
-                 for loop in ("angle", "angle_to_speed", "keymouse_angle",
-                              "keymouse_angle_to_speed", "remote_speed", "keymouse_speed")]
-        stems.remove("yaw_keymouse_speed")
-        stems.remove("pitch_keymouse_speed")
-        self.assertNotRegex(task, r"\b(?:yaw|pitch)_keymouse_speed_(?:imu|encoder)_pid\b")
+class EncoderPidTest(unittest.TestCase):
+    def test_encoder_pid_calls_and_resets(self):
+        task = (ROOT / "RtosTask/can_send_task.cpp").read_text(encoding="utf-8")
+        stems = ["pitch_angle", "pitch_keymouse_angle"]
+        self.assertTrue("_imu_pid" not in task, "IMU PID remains active")
         for stem in stems:
-            for source in ("imu", "encoder"):
-                self.assertTrue(f"ALG::PID::PID {stem}_{source}_pid(" in task,
-                                f"missing independent {stem}_{source}_pid")
-                self.assertEqual(task.count(f"{stem}_{source}_pid.reset();"), 3)
-            self.assertNotRegex(task, rf"\b{stem}_pid\b")
-        calls = re.findall(r"\(using_encoder\s*\?\s*(\w+_encoder_pid)\s*:\s*(\w+_imu_pid)\)\.UpDate\(([^)]*)\)", task)
-        self.assertEqual({enc.removesuffix("_encoder_pid") for enc, _, _ in calls}, set(stems))
-        declarations = []
-        checks = []
-        for enc, imu, args in calls:
-            declarations.extend((f"ALG::PID::PID {imu}(2,0,0,100,10,10);",
-                                 f"ALG::PID::PID {enc}(7,0,0,100,10,10);"))
-            expression = f"(using_encoder ? {enc} : {imu}).UpDate({args})"
-            checks.append(f"{imu}.reset(); {enc}.reset(); using_encoder=false; "
-                          f"assert({expression}==2); assert({enc}.getOutput()==0); "
-                          f"using_encoder=true; assert({expression}==7); assert({imu}.getOutput()==2);")
+            self.assertIn(f"ALG::PID::PID {stem}_encoder_pid(", task)
+            self.assertEqual(task.count(f"{stem}_encoder_pid.reset();"), 3)
+        calls = re.findall(r"\b(pitch_\w+_encoder_pid)\.UpDate\(([^)]*)\)", task)
+        self.assertEqual({name.removesuffix("_encoder_pid") for name, _ in calls}, set(stems))
         harness = '#include <cassert>\n#include "user/core/Alg/PID/pid.hpp"\n'
-        harness += "\n".join(declarations)
-        harness += "\nint main() { bool using_encoder=false; float yaw_error=1,pitch_error=1; "
-        harness += "float yaw_target_speed=1,pitch_target_speed=1,yaw_current_speed=0,pitch_current_speed=0;\n"
-        harness += "\n".join(checks) + "\n}\n"
+        harness += "\n".join(f"ALG::PID::PID {name}(7,0,0,100,10,10);" for name, _ in calls)
+        harness += "\nint main() { float pitch_error=1;\n"
+        harness += "\n".join(f"{name}.reset(); assert({name}.UpDate({args})==7);" for name, args in calls)
+        harness += "\n}\n"
         self.compile_and_run(harness)
 
-    def test_pid_selection_and_reset(self):
-        task = (ROOT / "RtosTask/can_send_task.cpp").read_text(encoding="utf-8-sig")
-        self.assertTrue("ALG::PID::PID yaw_angle_encoder_pid(" in task,
-                        "encoder mode needs its own Yaw angle PID")
-        self.assertTrue("ALG::PID::PID yaw_angle_imu_pid(" in task)
-        self.assertIsNone(re.search(r"\byaw_angle_pid\b|\byaw_angle_pid1\b", task))
-        for marker in ("static void ResetYawControlState()",
-                       "if (yaw_mode_changed != 0U || yaw_limit_reset != 0U)",
-                       "if (yaw_gimbal_fsm.Get_Control_Type() == GIMBAL_CONTROL_STOP"):
-            body = task.split(marker, 1)[1].split("\n}", 1)[0]
-            for source in ("imu", "encoder"):
-                self.assertIn(f"yaw_angle_{source}_pid.reset();", body)
-        begin = task.index("yaw_target_speed = is_keymouse")
+    def test_remote_and_keymouse_use_their_encoder_gains(self):
+        task = (ROOT / "RtosTask/can_send_task.cpp").read_text(encoding="utf-8")
+        begin = task.index("pitch_target_speed = is_keymouse")
         expression = task[begin:task.index(";", begin) + 1]
         harness = r'''
 #include <cassert>
 #include "user/core/Alg/PID/pid.hpp"
-ALG::PID::PID yaw_angle_imu_pid(2,0,0,100,10,10);
-ALG::PID::PID yaw_angle_encoder_pid(7,0,0,100,10,10);
-ALG::PID::PID yaw_keymouse_angle_imu_pid(11,0,0,100,10,10);
-ALG::PID::PID yaw_keymouse_angle_encoder_pid(13,0,0,100,10,10);
-float select(bool is_keymouse, bool using_encoder) {
-    float yaw_error=1, yaw_target_speed=0;
+ALG::PID::PID pitch_angle_encoder_pid(7,0,0,100,10,10);
+ALG::PID::PID pitch_keymouse_angle_encoder_pid(13,0,0,100,10,10);
+float select(bool is_keymouse) {
+    float pitch_error=1,pitch_target_speed=0;
     EXPRESSION
-    return yaw_target_speed;
+    return pitch_target_speed;
 }
 int main() {
-    yaw_angle_imu_pid.reset();
-    yaw_angle_encoder_pid.reset();
-    yaw_keymouse_angle_imu_pid.reset();
-    yaw_keymouse_angle_encoder_pid.reset();
-    assert(select(false,false)==2);
-    assert(yaw_angle_encoder_pid.getOutput()==0);
-    assert(select(false,true)==7);
-    assert(yaw_angle_imu_pid.getOutput()==2);
-    assert(select(true,false)==11);
-    assert(select(true,true)==13);
-    yaw_angle_encoder_pid.setK(9,0,0);
-    assert(select(false,false)==2);
-    assert(select(false,true)==9);
+    assert(select(false)==7);
+    assert(pitch_keymouse_angle_encoder_pid.getOutput()==0);
+    assert(select(true)==13);
+    pitch_angle_encoder_pid.setK(9,0,0);
+    assert(select(false)==9);
+    assert(select(true)==13);
 }
 '''.replace("EXPRESSION", expression)
         self.compile_and_run(harness)

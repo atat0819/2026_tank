@@ -32,8 +32,8 @@ public:
     /// 右键消抖后的原始状态
     bool IsRightButtonHeld() const { return right_button_confirmed_; }
 
-    /// 右键按住超过 0.3 秒 → 视觉模式
-    bool IsVisionMode() const { return vision_mode_; }
+    /// 右键现由龙门架独占；保留查询接口供现有云台调用。
+    bool IsVisionMode() const { return false; }
 
     /// 左键消抖后是否按下
     bool IsLeftButtonPressed() const { return left_button_confirmed_; }
@@ -84,8 +84,6 @@ private:
     bool right_button_confirmed_ = false;
     bool prev_raw_right_ = false;
     uint32_t stable_since_right_ = 0;   // 右键输入稳定的起始 tick
-    uint32_t right_hold_start_tick_ = 0;   // 右键确认按下的起始 tick（视觉判定基准）
-    bool vision_mode_ = false;
 
     // 鼠标左键
     bool left_button_confirmed_ = false;
@@ -96,7 +94,6 @@ private:
     uint16_t keyboard_mask_ = 0;
 
     static constexpr uint32_t DEBOUNCE_THRESHOLD    = 30;    // 消抖 30ms
-    static constexpr uint32_t VISION_HOLD_THRESHOLD = 300;   // 视觉延时 300ms
 };
 
 // 全局键鼠输入状态机实例（定义于 input_dispatcher.cpp），
