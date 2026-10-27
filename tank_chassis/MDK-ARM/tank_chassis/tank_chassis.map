@@ -9570,6 +9570,7 @@ Removing Unused input sections from the image.
     Removing chassis_fsm.o(.ARM.exidx.text._ZN9Class_FSM10Set_StatusEh), (8 bytes).
     Removing up_stair_fsm.o(.ARM.exidx.text._ZN9Class_FSM21Get_Now_Status_SerialEv), (8 bytes).
     Removing up_stair_fsm.o(.ARM.exidx.text._ZN3Alg7Utility13SlopePlanning16SetIncreaseValueEf), (8 bytes).
+    Removing up_stair_fsm.o(.rodata._ZN18Class_Up_Stair_FSM16LIMIT_MARGIN_DEGE), (4 bytes).
     Removing up_stair_fsm.o(.rodata._ZN18Class_Up_Stair_FSM18SPEED_RAMP_TIME_MSE), (4 bytes).
     Removing up_stair_behind_motor_fsm.o(.ARM.exidx.text._ZSt8isfinited), (8 bytes).
     Removing up_stair_behind_motor_fsm.o(.ARM.exidx.text._ZN3Alg7Utility13SlopePlanning16SetDecreaseValueEf), (8 bytes).
@@ -9592,7 +9593,7 @@ Removing Unused input sections from the image.
     Removing up_stair_behind_motor_fsm.o(.rodata._ZN31Class_Up_Stair_Behind_Motor_FSM26RETRACT_SPEED_RAMP_TIME_MSE), (4 bytes).
     Removing super_cupacitor.o(.ARM.exidx.text._ZN13Communication14SuperCapacitor12resetTimeoutEv), (8 bytes).
 
-3371 unused section(s) (total 188034 bytes) removed from the image.
+3372 unused section(s) (total 188038 bytes) removed from the image.
 
 ==============================================================================
 
@@ -12862,46 +12863,46 @@ Memory Map of the image
     Exec Addr    Load Addr    Size         Type   Attr      Idx    E Section Name        Object
 
     0x08000000   0x08000000   0x000002cc   Data   RO            3    RESET               startup_stm32h723xx.o
-    0x080002cc   0x080002cc   0x00000000   Code   RO         5391  * .ARM.Collect$$$$00000000  mc_w.l(entry.o)
-    0x080002cc   0x080002cc   0x00000004   Code   RO         5454    .ARM.Collect$$$$00000001  mc_w.l(entry2.o)
-    0x080002d0   0x080002d0   0x00000004   Code   RO         5457    .ARM.Collect$$$$00000004  mc_w.l(entry5.o)
-    0x080002d4   0x080002d4   0x00000000   Code   RO         5459    .ARM.Collect$$$$00000008  mc_w.l(entry7b.o)
-    0x080002d4   0x080002d4   0x00000004   Code   RO         5460    .ARM.Collect$$$$00000009  mc_w.l(entry8a.o)
-    0x080002d8   0x080002d8   0x00000000   Code   RO         5461    .ARM.Collect$$$$0000000A  mc_w.l(entry8b.o)
-    0x080002d8   0x080002d8   0x00000008   Code   RO         5462    .ARM.Collect$$$$0000000B  mc_w.l(entry9a.o)
-    0x080002e0   0x080002e0   0x00000000   Code   RO         5464    .ARM.Collect$$$$0000000D  mc_w.l(entry10a.o)
-    0x080002e0   0x080002e0   0x00000004   Code   RO         5465    .ARM.Collect$$$$0000000E  mc_w.l(entry10b.o)
-    0x080002e4   0x080002e4   0x00000000   Code   RO         5466    .ARM.Collect$$$$0000000F  mc_w.l(entry11a.o)
-    0x080002e4   0x080002e4   0x00000004   Code   RO         5455    .ARM.Collect$$$$00002712  mc_w.l(entry2.o)
+    0x080002cc   0x080002cc   0x00000000   Code   RO         5392  * .ARM.Collect$$$$00000000  mc_w.l(entry.o)
+    0x080002cc   0x080002cc   0x00000004   Code   RO         5455    .ARM.Collect$$$$00000001  mc_w.l(entry2.o)
+    0x080002d0   0x080002d0   0x00000004   Code   RO         5458    .ARM.Collect$$$$00000004  mc_w.l(entry5.o)
+    0x080002d4   0x080002d4   0x00000000   Code   RO         5460    .ARM.Collect$$$$00000008  mc_w.l(entry7b.o)
+    0x080002d4   0x080002d4   0x00000004   Code   RO         5461    .ARM.Collect$$$$00000009  mc_w.l(entry8a.o)
+    0x080002d8   0x080002d8   0x00000000   Code   RO         5462    .ARM.Collect$$$$0000000A  mc_w.l(entry8b.o)
+    0x080002d8   0x080002d8   0x00000008   Code   RO         5463    .ARM.Collect$$$$0000000B  mc_w.l(entry9a.o)
+    0x080002e0   0x080002e0   0x00000000   Code   RO         5465    .ARM.Collect$$$$0000000D  mc_w.l(entry10a.o)
+    0x080002e0   0x080002e0   0x00000004   Code   RO         5466    .ARM.Collect$$$$0000000E  mc_w.l(entry10b.o)
+    0x080002e4   0x080002e4   0x00000000   Code   RO         5467    .ARM.Collect$$$$0000000F  mc_w.l(entry11a.o)
+    0x080002e4   0x080002e4   0x00000004   Code   RO         5456    .ARM.Collect$$$$00002712  mc_w.l(entry2.o)
     0x080002e8   0x080002e8   0x0000002c   Code   RO            4    .text               startup_stm32h723xx.o
-    0x08000314   0x08000314   0x00000062   Code   RO         5394    .text               mc_w.l(uldiv.o)
-    0x08000376   0x08000376   0x00000040   Code   RO         5398    .text               mc_w.l(memmovea.o)
-    0x080003b6   0x080003b6   0x00000024   Code   RO         5400    .text               mc_w.l(memseta.o)
-    0x080003da   0x080003da   0x0000000e   Code   RO         5402    .text               mc_w.l(strlen.o)
-    0x080003e8   0x080003e8   0x00000028   Code   RO         5411    .text               mc_w.l(cpp_init.o)
-    0x08000410   0x08000410   0x0000000a   Code   RO         5413    .text               mc_w.l(cxa_atexit.o)
-    0x0800041a   0x0800041a   0x0000001e   Code   RO         5469    .text               mc_w.l(llshl.o)
-    0x08000438   0x08000438   0x00000020   Code   RO         5471    .text               mc_w.l(llushr.o)
-    0x08000458   0x08000458   0x00000024   Code   RO         5531    .text               mc_w.l(memalign.o)
-    0x0800047c   0x0800047c   0x00000000   Code   RO         5540    .text               mc_w.l(iusefp.o)
-    0x0800047c   0x0800047c   0x0000002e   Code   RO         5541    .text               mc_w.l(aeabi_atexit.o)
+    0x08000314   0x08000314   0x00000062   Code   RO         5395    .text               mc_w.l(uldiv.o)
+    0x08000376   0x08000376   0x00000040   Code   RO         5399    .text               mc_w.l(memmovea.o)
+    0x080003b6   0x080003b6   0x00000024   Code   RO         5401    .text               mc_w.l(memseta.o)
+    0x080003da   0x080003da   0x0000000e   Code   RO         5403    .text               mc_w.l(strlen.o)
+    0x080003e8   0x080003e8   0x00000028   Code   RO         5412    .text               mc_w.l(cpp_init.o)
+    0x08000410   0x08000410   0x0000000a   Code   RO         5414    .text               mc_w.l(cxa_atexit.o)
+    0x0800041a   0x0800041a   0x0000001e   Code   RO         5470    .text               mc_w.l(llshl.o)
+    0x08000438   0x08000438   0x00000020   Code   RO         5472    .text               mc_w.l(llushr.o)
+    0x08000458   0x08000458   0x00000024   Code   RO         5532    .text               mc_w.l(memalign.o)
+    0x0800047c   0x0800047c   0x00000000   Code   RO         5541    .text               mc_w.l(iusefp.o)
+    0x0800047c   0x0800047c   0x0000002e   Code   RO         5542    .text               mc_w.l(aeabi_atexit.o)
     0x080004aa   0x080004aa   0x00000002   PAD
-    0x080004ac   0x080004ac   0x00000030   Code   RO         5558    .text               mc_w.l(init.o)
-    0x080004dc   0x080004dc   0x0000002c   Code   RO         5574    .text               mc_w.l(uidiv.o)
-    0x08000508   0x08000508   0x00000008   Code   RO         5578    .text               mc_w.l(cpp_dtor.o)
-    0x08000510   0x08000510   0x00000042   Code   RO         5581    .text               mc_w.l(cxa_finalize.o)
-    0x08000552   0x08000552   0x0000014e   Code   RO         5583    .text               mf_w.l(dadd.o)
-    0x080006a0   0x080006a0   0x000000e4   Code   RO         5585    .text               mf_w.l(dmul.o)
-    0x08000784   0x08000784   0x000000de   Code   RO         5587    .text               mf_w.l(ddiv.o)
-    0x08000862   0x08000862   0x00000030   Code   RO         5589    .text               mf_w.l(dfixul.o)
+    0x080004ac   0x080004ac   0x00000030   Code   RO         5559    .text               mc_w.l(init.o)
+    0x080004dc   0x080004dc   0x0000002c   Code   RO         5575    .text               mc_w.l(uidiv.o)
+    0x08000508   0x08000508   0x00000008   Code   RO         5579    .text               mc_w.l(cpp_dtor.o)
+    0x08000510   0x08000510   0x00000042   Code   RO         5582    .text               mc_w.l(cxa_finalize.o)
+    0x08000552   0x08000552   0x0000014e   Code   RO         5584    .text               mf_w.l(dadd.o)
+    0x080006a0   0x080006a0   0x000000e4   Code   RO         5586    .text               mf_w.l(dmul.o)
+    0x08000784   0x08000784   0x000000de   Code   RO         5588    .text               mf_w.l(ddiv.o)
+    0x08000862   0x08000862   0x00000030   Code   RO         5590    .text               mf_w.l(dfixul.o)
     0x08000892   0x08000892   0x00000002   PAD
-    0x08000894   0x08000894   0x00000030   Code   RO         5591    .text               mf_w.l(cdrcmple.o)
-    0x080008c4   0x080008c4   0x00000000   Code   RO         5593    .text               mc_w.l(semi.o)
-    0x080008c4   0x080008c4   0x00000024   Code   RO         5594    .text               mc_w.l(llsshr.o)
-    0x080008e8   0x080008e8   0x00000000   Code   RO         5596    .text               mc_w.l(iusesemip.o)
-    0x080008e8   0x080008e8   0x00000002   Code   RO         5597    .text               mc_w.l(cpp_final.o)
-    0x080008ea   0x080008ea   0x000000ba   Code   RO         5599    .text               mf_w.l(depilogue.o)
-    0x080009a4   0x080009a4   0x0000003a   Code   RO         5608    .text               mc_w.l(__dczerorl.o)
+    0x08000894   0x08000894   0x00000030   Code   RO         5592    .text               mf_w.l(cdrcmple.o)
+    0x080008c4   0x080008c4   0x00000000   Code   RO         5594    .text               mc_w.l(semi.o)
+    0x080008c4   0x080008c4   0x00000024   Code   RO         5595    .text               mc_w.l(llsshr.o)
+    0x080008e8   0x080008e8   0x00000000   Code   RO         5597    .text               mc_w.l(iusesemip.o)
+    0x080008e8   0x080008e8   0x00000002   Code   RO         5598    .text               mc_w.l(cpp_final.o)
+    0x080008ea   0x080008ea   0x000000ba   Code   RO         5600    .text               mf_w.l(depilogue.o)
+    0x080009a4   0x080009a4   0x0000003a   Code   RO         5609    .text               mc_w.l(__dczerorl.o)
     0x080009de   0x080009de   0x00000002   PAD
     0x080009e0   0x080009e0   0x00000004   Code   RO          172    .text.BusFault_Handler  stm32h7xx_it.o
     0x080009e4   0x080009e4   0x00000004   PAD
@@ -13525,19 +13526,19 @@ Memory Map of the image
     0x080161dc   0x080161dc   0x00000004   PAD
     0x080161e0   0x080161e0   0x00000124   Code   RO         4367    .text._Z11ControlTaskv  can_send_task.o
     0x08016304   0x08016304   0x00000004   PAD
-    0x08016308   0x08016308   0x00000246   Code   RO         5243    .text._Z16Chassis485_ParsePKht  boards_communication_uart_485.o
+    0x08016308   0x08016308   0x00000246   Code   RO         5244    .text._Z16Chassis485_ParsePKht  boards_communication_uart_485.o
     0x0801654e   0x0801654e   0x00000002   PAD
     0x08016550   0x08016550   0x000000f4   Code   RO           38    .text._Z16MX_FREERTOS_Initv  freertos.o
     0x08016644   0x08016644   0x00000004   PAD
     0x08016648   0x08016648   0x00000010   Code   RO           40    .text._Z16StartDefaultTaskPv  freertos.o
-    0x08016658   0x08016658   0x00000078   Code   RO         5256    .text._Z17Referee485_Updatettth  gimbal_refree_uart_485.o
-    0x080166d0   0x080166d0   0x0000000e   Code   RO         5241    .text._Z18Chassis485_ResetRxv  boards_communication_uart_485.o
+    0x08016658   0x08016658   0x00000078   Code   RO         5257    .text._Z17Referee485_Updatettth  gimbal_refree_uart_485.o
+    0x080166d0   0x080166d0   0x0000000e   Code   RO         5242    .text._Z18Chassis485_ResetRxv  boards_communication_uart_485.o
     0x080166de   0x080166de   0x00000002   PAD
     0x080166e0   0x080166e0   0x000000d0   Code   RO           13    .text._Z18SystemClock_Configv  main.o
     0x080167b0   0x080167b0   0x000000ae   Code   RO         4562    .text._Z18UpdateStairCommandR12StairCommandbbbb  can_send_task.o
     0x0801685e   0x0801685e   0x00000002   PAD
     0x08016860   0x08016860   0x00000158   Code   RO         4309    .text._Z20Chassis485_ApplyDataRK14Chassis485Data  can_send_task.o
-    0x080169b8   0x080169b8   0x00000116   Code   RO         5258    .text._Z20Referee485_SendReplyv  gimbal_refree_uart_485.o
+    0x080169b8   0x080169b8   0x00000116   Code   RO         5259    .text._Z20Referee485_SendReplyv  gimbal_refree_uart_485.o
     0x08016ace   0x08016ace   0x00000002   PAD
     0x08016ad0   0x08016ad0   0x0000006c   Code   RO         4732    .text._Z21GetImuControlSnapshotR18ImuControlSnapshot  remote_task.o
     0x08016b3c   0x08016b3c   0x00000004   PAD
@@ -13553,7 +13554,7 @@ Memory Map of the image
     0x08017030   0x08017030   0x000000a6   Code   RO           15    .text._ZL14Board_LED_Initv  main.o
     0x080170d6   0x080170d6   0x00000002   PAD
     0x080170d8   0x080170d8   0x00000068   Code   RO         4365    .text._ZL26ChassisMotorSendCANCheckedv  can_send_task.o
-    0x08017140   0x08017140   0x00000098   Code   RO         5245    .text._ZL5Crc16PKht  boards_communication_uart_485.o
+    0x08017140   0x08017140   0x00000098   Code   RO         5246    .text._ZL5Crc16PKht  boards_communication_uart_485.o
     0x080171d8   0x080171d8   0x000000a6   Code   RO         3367    .text._ZL9Hi14Crc16PKh  hi14.o
     0x0801727e   0x0801727e   0x00000002   PAD
     0x08017280   0x08017280   0x00000056   Code   RO         5042    .text._ZN11Chassis_FSM10Get_wz_cmdEf  chassis_fsm.o
@@ -13580,13 +13581,13 @@ Memory Map of the image
     0x08017798   0x08017798   0x000000b4   Code   RO         4961    .text._ZN12_GLOBAL__N_122SendAllStairMotorsZeroEffff  up_stair.o
     0x0801784c   0x0801784c   0x00000004   PAD
     0x08017850   0x08017850   0x00000100   Code   RO         3640    .text._ZN12_GLOBAL__N_19SetCommonERN16RM_RefereeSystem21graphic_data_struct_tEPKchh  rmrefereesystemui.o
-    0x08017950   0x08017950   0x0000000e   Code   RO         5292    .text._ZN13Communication14SuperCapacitor12resetTimeoutEv  super_cupacitor.o
+    0x08017950   0x08017950   0x0000000e   Code   RO         5293    .text._ZN13Communication14SuperCapacitor12resetTimeoutEv  super_cupacitor.o
     0x0801795e   0x0801795e   0x00000002   PAD
-    0x08017960   0x08017960   0x000000f6   Code   RO         5284    .text._ZN13Communication14SuperCapacitor14sendToSuperCapEfhfhh  super_cupacitor.o
+    0x08017960   0x08017960   0x000000f6   Code   RO         5285    .text._ZN13Communication14SuperCapacitor14sendToSuperCapEfhfhh  super_cupacitor.o
     0x08017a56   0x08017a56   0x00000002   PAD
-    0x08017a58   0x08017a58   0x00000030   Code   RO         5282    .text._ZN13Communication14SuperCapacitor18updateOnlineStatusEv  super_cupacitor.o
-    0x08017a88   0x08017a88   0x000000a0   Code   RO         5280    .text._ZN13Communication14SuperCapacitor5parseERKN3HAL5FDCAN5FrameE  super_cupacitor.o
-    0x08017b28   0x08017b28   0x00000024   Code   RO         5278    .text._ZN13Communication14SuperCapacitorC2Ej  super_cupacitor.o
+    0x08017a58   0x08017a58   0x00000030   Code   RO         5283    .text._ZN13Communication14SuperCapacitor18updateOnlineStatusEv  super_cupacitor.o
+    0x08017a88   0x08017a88   0x000000a0   Code   RO         5281    .text._ZN13Communication14SuperCapacitor5parseERKN3HAL5FDCAN5FrameE  super_cupacitor.o
+    0x08017b28   0x08017b28   0x00000024   Code   RO         5279    .text._ZN13Communication14SuperCapacitorC2Ej  super_cupacitor.o
     0x08017b4c   0x08017b4c   0x00000004   PAD
     0x08017b50   0x08017b50   0x00000088   Code   RO         5015    .text._ZN16MotorRecoveryFSM13Should_EnableEbj  up_stair.o
     0x08017bd8   0x08017bd8   0x00000010   Code   RO         5013    .text._ZN16MotorRecoveryFSM26Force_Enable_On_Next_CheckEv  up_stair.o
@@ -13655,16 +13656,16 @@ Memory Map of the image
     0x08019934   0x08019934   0x00000004   PAD
     0x08019938   0x08019938   0x00000054   Code   RO         3287    .text._ZN20SecondOrderLPFFilterC2Efff  filter.o
     0x0801998c   0x0801998c   0x00000004   PAD
-    0x08019990   0x08019990   0x0000005c   Code   RO         5146    .text._ZN31Class_Up_Stair_Behind_Motor_FSM14Start_RecoveryEj  up_stair_behind_motor_fsm.o
+    0x08019990   0x08019990   0x0000005c   Code   RO         5147    .text._ZN31Class_Up_Stair_Behind_Motor_FSM14Start_RecoveryEj  up_stair_behind_motor_fsm.o
     0x080199ec   0x080199ec   0x00000004   PAD
-    0x080199f0   0x080199f0   0x000000a8   Code   RO         5150    .text._ZN31Class_Up_Stair_Behind_Motor_FSM16Start_RetractingEj  up_stair_behind_motor_fsm.o
-    0x08019a98   0x08019a98   0x000000d8   Code   RO         5148    .text._ZN31Class_Up_Stair_Behind_Motor_FSM21Update_Recovery_ScaleEj  up_stair_behind_motor_fsm.o
-    0x08019b70   0x08019b70   0x000000ce   Code   RO         5122    .text._ZN31Class_Up_Stair_Behind_Motor_FSM6Config18WithAngleConstantsEv  up_stair_behind_motor_fsm.o
+    0x080199f0   0x080199f0   0x000000a8   Code   RO         5151    .text._ZN31Class_Up_Stair_Behind_Motor_FSM16Start_RetractingEj  up_stair_behind_motor_fsm.o
+    0x08019a98   0x08019a98   0x000000d8   Code   RO         5149    .text._ZN31Class_Up_Stair_Behind_Motor_FSM21Update_Recovery_ScaleEj  up_stair_behind_motor_fsm.o
+    0x08019b70   0x08019b70   0x000000ce   Code   RO         5123    .text._ZN31Class_Up_Stair_Behind_Motor_FSM6Config18WithAngleConstantsEv  up_stair_behind_motor_fsm.o
     0x08019c3e   0x08019c3e   0x00000002   PAD
-    0x08019c40   0x08019c40   0x00000038   Code   RO         5120    .text._ZN31Class_Up_Stair_Behind_Motor_FSM6ConfigC2Ev  up_stair_behind_motor_fsm.o
-    0x08019c78   0x08019c78   0x00000720   Code   RO         5154    .text._ZN31Class_Up_Stair_Behind_Motor_FSM6UpdateEbbbbffffjbfff  up_stair_behind_motor_fsm.o
-    0x0801a398   0x0801a398   0x000000a8   Code   RO         5142    .text._ZN31Class_Up_Stair_Behind_Motor_FSM7DisableEv  up_stair_behind_motor_fsm.o
-    0x0801a440   0x0801a440   0x00000150   Code   RO         5130    .text._ZN31Class_Up_Stair_Behind_Motor_FSMC2ERKNS_6ConfigE  up_stair_behind_motor_fsm.o
+    0x08019c40   0x08019c40   0x00000038   Code   RO         5121    .text._ZN31Class_Up_Stair_Behind_Motor_FSM6ConfigC2Ev  up_stair_behind_motor_fsm.o
+    0x08019c78   0x08019c78   0x00000720   Code   RO         5155    .text._ZN31Class_Up_Stair_Behind_Motor_FSM6UpdateEbbbbffffjbfff  up_stair_behind_motor_fsm.o
+    0x0801a398   0x0801a398   0x000000a8   Code   RO         5143    .text._ZN31Class_Up_Stair_Behind_Motor_FSM7DisableEv  up_stair_behind_motor_fsm.o
+    0x0801a440   0x0801a440   0x00000150   Code   RO         5131    .text._ZN31Class_Up_Stair_Behind_Motor_FSMC2ERKNS_6ConfigE  up_stair_behind_motor_fsm.o
     0x0801a590   0x0801a590   0x00000100   Code   RO         4598    .text._ZN3ALG12PowerControl10EnergyRing10energyringEffffbb  can_send_task.o
     0x0801a690   0x0801a690   0x0000000e   Code   RO         4600    .text._ZN3ALG12PowerControl10EnergyRing11GetPowerMaxEv  can_send_task.o
     0x0801a69e   0x0801a69e   0x00000002   PAD
@@ -13747,7 +13748,7 @@ Memory Map of the image
     0x0801b7f0   0x0801b7f0   0x00000050   Code   RO         4540    .text._ZN3Alg23PowerControlTestVersion23PowerControlTestVersionC2Ev  can_send_task.o
     0x0801b840   0x0801b840   0x00000012   Code   RO         3354    .text._ZN3Alg7Utility13SlopePlanning10SetNowRealEf  slopplanning.o
     0x0801b852   0x0801b852   0x00000006   PAD
-    0x0801b858   0x0801b858   0x00000012   Code   RO         5214    .text._ZN3Alg7Utility13SlopePlanning16SetDecreaseValueEf  up_stair_behind_motor_fsm.o
+    0x0801b858   0x0801b858   0x00000012   Code   RO         5215    .text._ZN3Alg7Utility13SlopePlanning16SetDecreaseValueEf  up_stair_behind_motor_fsm.o
     0x0801b86a   0x0801b86a   0x00000006   PAD
     0x0801b870   0x0801b870   0x00000012   Code   RO         5112    .text._ZN3Alg7Utility13SlopePlanning16SetIncreaseValueEf  up_stair_fsm.o
     0x0801b882   0x0801b882   0x00000006   PAD
@@ -14015,58 +14016,58 @@ Memory Map of the image
     0x0801eb54   0x0801eb54   0x00000004   PAD
     0x0801eb58   0x0801eb58   0x000000b6   Code   RO         5074    .text._ZNK18Class_Up_Stair_FSM22Validate_ConfigurationEv  up_stair_fsm.o
     0x0801ec0e   0x0801ec0e   0x00000002   PAD
-    0x0801ec10   0x0801ec10   0x000001ec   Code   RO         5196    .text._ZNK31Class_Up_Stair_Behind_Motor_FSM12Limit_TorqueEhf  up_stair_behind_motor_fsm.o
+    0x0801ec10   0x0801ec10   0x000001ec   Code   RO         5197    .text._ZNK31Class_Up_Stair_Behind_Motor_FSM12Limit_TorqueEhf  up_stair_behind_motor_fsm.o
     0x0801edfc   0x0801edfc   0x00000004   PAD
-    0x0801ee00   0x0801ee00   0x00000184   Code   RO         5140    .text._ZNK31Class_Up_Stair_Behind_Motor_FSM14Is_Angle_ValidEhf  up_stair_behind_motor_fsm.o
+    0x0801ee00   0x0801ee00   0x00000184   Code   RO         5141    .text._ZNK31Class_Up_Stair_Behind_Motor_FSM14Is_Angle_ValidEhf  up_stair_behind_motor_fsm.o
     0x0801ef84   0x0801ef84   0x00000004   PAD
-    0x0801ef88   0x0801ef88   0x0000042c   Code   RO         5200    .text._ZNK31Class_Up_Stair_Behind_Motor_FSM14Limit_VelocityEhfff  up_stair_behind_motor_fsm.o
+    0x0801ef88   0x0801ef88   0x0000042c   Code   RO         5201    .text._ZNK31Class_Up_Stair_Behind_Motor_FSM14Limit_VelocityEhfff  up_stair_behind_motor_fsm.o
     0x0801f3b4   0x0801f3b4   0x00000004   PAD
-    0x0801f3b8   0x0801f3b8   0x0000006c   Code   RO         5178    .text._ZNK31Class_Up_Stair_Behind_Motor_FSM15Uses_Limit_HoldEh  up_stair_behind_motor_fsm.o
+    0x0801f3b8   0x0801f3b8   0x0000006c   Code   RO         5179    .text._ZNK31Class_Up_Stair_Behind_Motor_FSM15Uses_Limit_HoldEh  up_stair_behind_motor_fsm.o
     0x0801f424   0x0801f424   0x00000004   PAD
-    0x0801f428   0x0801f428   0x0000020c   Code   RO         5126    .text._ZNK31Class_Up_Stair_Behind_Motor_FSM15Validate_ConfigEv  up_stair_behind_motor_fsm.o
+    0x0801f428   0x0801f428   0x0000020c   Code   RO         5127    .text._ZNK31Class_Up_Stair_Behind_Motor_FSM15Validate_ConfigEv  up_stair_behind_motor_fsm.o
     0x0801f634   0x0801f634   0x00000004   PAD
-    0x0801f638   0x0801f638   0x0000000e   Code   RO         5172    .text._ZNK31Class_Up_Stair_Behind_Motor_FSM18Get_Pitch_Rate_DpsEv  up_stair_behind_motor_fsm.o
+    0x0801f638   0x0801f638   0x0000000e   Code   RO         5173    .text._ZNK31Class_Up_Stair_Behind_Motor_FSM18Get_Pitch_Rate_DpsEv  up_stair_behind_motor_fsm.o
     0x0801f646   0x0801f646   0x00000002   PAD
-    0x0801f648   0x0801f648   0x0000007c   Code   RO         5138    .text._ZNK31Class_Up_Stair_Behind_Motor_FSM18To_Unwrapped_AngleEhf  up_stair_behind_motor_fsm.o
+    0x0801f648   0x0801f648   0x0000007c   Code   RO         5139    .text._ZNK31Class_Up_Stair_Behind_Motor_FSM18To_Unwrapped_AngleEhf  up_stair_behind_motor_fsm.o
     0x0801f6c4   0x0801f6c4   0x00000004   PAD
-    0x0801f6c8   0x0801f6c8   0x00000042   Code   RO         5194    .text._ZNK31Class_Up_Stair_Behind_Motor_FSM19Get_Motor_DirectionEh  up_stair_behind_motor_fsm.o
+    0x0801f6c8   0x0801f6c8   0x00000042   Code   RO         5195    .text._ZNK31Class_Up_Stair_Behind_Motor_FSM19Get_Motor_DirectionEh  up_stair_behind_motor_fsm.o
     0x0801f70a   0x0801f70a   0x00000006   PAD
-    0x0801f710   0x0801f710   0x000000c2   Code   RO         5182    .text._ZNK31Class_Up_Stair_Behind_Motor_FSM19Get_Raw_Roll_TorqueEh  up_stair_behind_motor_fsm.o
+    0x0801f710   0x0801f710   0x000000c2   Code   RO         5183    .text._ZNK31Class_Up_Stair_Behind_Motor_FSM19Get_Raw_Roll_TorqueEh  up_stair_behind_motor_fsm.o
     0x0801f7d2   0x0801f7d2   0x00000006   PAD
-    0x0801f7d8   0x0801f7d8   0x0000000e   Code   RO         5164    .text._ZNK31Class_Up_Stair_Behind_Motor_FSM20Get_Target_Pitch_DegEv  up_stair_behind_motor_fsm.o
+    0x0801f7d8   0x0801f7d8   0x0000000e   Code   RO         5165    .text._ZNK31Class_Up_Stair_Behind_Motor_FSM20Get_Target_Pitch_DegEv  up_stair_behind_motor_fsm.o
     0x0801f7e6   0x0801f7e6   0x00000002   PAD
-    0x0801f7e8   0x0801f7e8   0x0000001c   Code   RO         5168    .text._ZNK31Class_Up_Stair_Behind_Motor_FSM20Get_Target_Pitch_RadEv  up_stair_behind_motor_fsm.o
+    0x0801f7e8   0x0801f7e8   0x0000001c   Code   RO         5169    .text._ZNK31Class_Up_Stair_Behind_Motor_FSM20Get_Target_Pitch_RadEv  up_stair_behind_motor_fsm.o
     0x0801f804   0x0801f804   0x00000004   PAD
-    0x0801f808   0x0801f808   0x00000064   Code   RO         5156    .text._ZNK31Class_Up_Stair_Behind_Motor_FSM20Has_Mechanical_LimitEh  up_stair_behind_motor_fsm.o
+    0x0801f808   0x0801f808   0x00000064   Code   RO         5157    .text._ZNK31Class_Up_Stair_Behind_Motor_FSM20Has_Mechanical_LimitEh  up_stair_behind_motor_fsm.o
     0x0801f86c   0x0801f86c   0x00000004   PAD
-    0x0801f870   0x0801f870   0x00000050   Code   RO         5192    .text._ZNK31Class_Up_Stair_Behind_Motor_FSM21Get_Position_FeedbackEh  up_stair_behind_motor_fsm.o
-    0x0801f8c0   0x0801f8c0   0x00000052   Code   RO         5180    .text._ZNK31Class_Up_Stair_Behind_Motor_FSM21Is_Motor_ControllableEh  up_stair_behind_motor_fsm.o
+    0x0801f870   0x0801f870   0x00000050   Code   RO         5193    .text._ZNK31Class_Up_Stair_Behind_Motor_FSM21Get_Position_FeedbackEh  up_stair_behind_motor_fsm.o
+    0x0801f8c0   0x0801f8c0   0x00000052   Code   RO         5181    .text._ZNK31Class_Up_Stair_Behind_Motor_FSM21Is_Motor_ControllableEh  up_stair_behind_motor_fsm.o
     0x0801f912   0x0801f912   0x00000006   PAD
-    0x0801f918   0x0801f918   0x00000036   Code   RO         5174    .text._ZNK31Class_Up_Stair_Behind_Motor_FSM21Uses_Attitude_ControlEv  up_stair_behind_motor_fsm.o
+    0x0801f918   0x0801f918   0x00000036   Code   RO         5175    .text._ZNK31Class_Up_Stair_Behind_Motor_FSM21Uses_Attitude_ControlEv  up_stair_behind_motor_fsm.o
     0x0801f94e   0x0801f94e   0x00000002   PAD
-    0x0801f950   0x0801f950   0x00000010   Code   RO         5186    .text._ZNK31Class_Up_Stair_Behind_Motor_FSM21Uses_Position_ControlEv  up_stair_behind_motor_fsm.o
-    0x0801f960   0x0801f960   0x0000000e   Code   RO         5166    .text._ZNK31Class_Up_Stair_Behind_Motor_FSM22Get_Feedback_Pitch_DegEv  up_stair_behind_motor_fsm.o
+    0x0801f950   0x0801f950   0x00000010   Code   RO         5187    .text._ZNK31Class_Up_Stair_Behind_Motor_FSM21Uses_Position_ControlEv  up_stair_behind_motor_fsm.o
+    0x0801f960   0x0801f960   0x0000000e   Code   RO         5167    .text._ZNK31Class_Up_Stair_Behind_Motor_FSM22Get_Feedback_Pitch_DegEv  up_stair_behind_motor_fsm.o
     0x0801f96e   0x0801f96e   0x00000002   PAD
-    0x0801f970   0x0801f970   0x0000001c   Code   RO         5170    .text._ZNK31Class_Up_Stair_Behind_Motor_FSM22Get_Feedback_Pitch_RadEv  up_stair_behind_motor_fsm.o
+    0x0801f970   0x0801f970   0x0000001c   Code   RO         5171    .text._ZNK31Class_Up_Stair_Behind_Motor_FSM22Get_Feedback_Pitch_RadEv  up_stair_behind_motor_fsm.o
     0x0801f98c   0x0801f98c   0x00000004   PAD
-    0x0801f990   0x0801f990   0x0000019c   Code   RO         5128    .text._ZNK31Class_Up_Stair_Behind_Motor_FSM23Validate_Retract_ConfigEv  up_stair_behind_motor_fsm.o
+    0x0801f990   0x0801f990   0x0000019c   Code   RO         5129    .text._ZNK31Class_Up_Stair_Behind_Motor_FSM23Validate_Retract_ConfigEv  up_stair_behind_motor_fsm.o
     0x0801fb2c   0x0801fb2c   0x00000004   PAD
-    0x0801fb30   0x0801fb30   0x00000042   Code   RO         5190    .text._ZNK31Class_Up_Stair_Behind_Motor_FSM25Get_Position_Target_AngleEh  up_stair_behind_motor_fsm.o
+    0x0801fb30   0x0801fb30   0x00000042   Code   RO         5191    .text._ZNK31Class_Up_Stair_Behind_Motor_FSM25Get_Position_Target_AngleEh  up_stair_behind_motor_fsm.o
     0x0801fb72   0x0801fb72   0x00000006   PAD
-    0x0801fb78   0x0801fb78   0x000000a8   Code   RO         5158    .text._ZNK31Class_Up_Stair_Behind_Motor_FSM26Get_Extension_Target_AngleEh  up_stair_behind_motor_fsm.o
-    0x0801fc20   0x0801fc20   0x0000008c   Code   RO         5160    .text._ZNK31Class_Up_Stair_Behind_Motor_FSM27Get_Shortening_Target_AngleEh  up_stair_behind_motor_fsm.o
+    0x0801fb78   0x0801fb78   0x000000a8   Code   RO         5159    .text._ZNK31Class_Up_Stair_Behind_Motor_FSM26Get_Extension_Target_AngleEh  up_stair_behind_motor_fsm.o
+    0x0801fc20   0x0801fc20   0x0000008c   Code   RO         5161    .text._ZNK31Class_Up_Stair_Behind_Motor_FSM27Get_Shortening_Target_AngleEh  up_stair_behind_motor_fsm.o
     0x0801fcac   0x0801fcac   0x00000004   PAD
-    0x0801fcb0   0x0801fcb0   0x00000074   Code   RO         5136    .text._ZNK31Class_Up_Stair_Behind_Motor_FSM27To_Unwrapped_Retract_TargetEh  up_stair_behind_motor_fsm.o
+    0x0801fcb0   0x0801fcb0   0x00000074   Code   RO         5137    .text._ZNK31Class_Up_Stair_Behind_Motor_FSM27To_Unwrapped_Retract_TargetEh  up_stair_behind_motor_fsm.o
     0x0801fd24   0x0801fd24   0x00000004   PAD
-    0x0801fd28   0x0801fd28   0x00000094   Code   RO         5152    .text._ZNK31Class_Up_Stair_Behind_Motor_FSM28Both_Retract_Targets_ReachedEv  up_stair_behind_motor_fsm.o
+    0x0801fd28   0x0801fd28   0x00000094   Code   RO         5153    .text._ZNK31Class_Up_Stair_Behind_Motor_FSM28Both_Retract_Targets_ReachedEv  up_stair_behind_motor_fsm.o
     0x0801fdbc   0x0801fdbc   0x00000004   PAD
-    0x0801fdc0   0x0801fdc0   0x00000036   Code   RO         5184    .text._ZNK31Class_Up_Stair_Behind_Motor_FSM29Uses_Retract_Position_ControlEv  up_stair_behind_motor_fsm.o
+    0x0801fdc0   0x0801fdc0   0x00000036   Code   RO         5185    .text._ZNK31Class_Up_Stair_Behind_Motor_FSM29Uses_Retract_Position_ControlEv  up_stair_behind_motor_fsm.o
     0x0801fdf6   0x0801fdf6   0x00000002   PAD
-    0x0801fdf8   0x0801fdf8   0x00000064   Code   RO         5198    .text._ZNK31Class_Up_Stair_Behind_Motor_FSM30Get_Retract_Feedforward_TorqueEh  up_stair_behind_motor_fsm.o
+    0x0801fdf8   0x0801fdf8   0x00000064   Code   RO         5199    .text._ZNK31Class_Up_Stair_Behind_Motor_FSM30Get_Retract_Feedforward_TorqueEh  up_stair_behind_motor_fsm.o
     0x0801fe5c   0x0801fe5c   0x00000004   PAD
-    0x0801fe60   0x0801fe60   0x00000034   Code   RO         5134    .text._ZNK31Class_Up_Stair_Behind_Motor_FSM8To_IndexEh  up_stair_behind_motor_fsm.o
+    0x0801fe60   0x0801fe60   0x00000034   Code   RO         5135    .text._ZNK31Class_Up_Stair_Behind_Motor_FSM8To_IndexEh  up_stair_behind_motor_fsm.o
     0x0801fe94   0x0801fe94   0x00000004   PAD
-    0x0801fe98   0x0801fe98   0x0000000e   Code   RO         5144    .text._ZNK31Class_Up_Stair_Behind_Motor_FSM9Get_StateEv  up_stair_behind_motor_fsm.o
+    0x0801fe98   0x0801fe98   0x0000000e   Code   RO         5145    .text._ZNK31Class_Up_Stair_Behind_Motor_FSM9Get_StateEv  up_stair_behind_motor_fsm.o
     0x0801fea6   0x0801fea6   0x00000002   PAD
     0x0801fea8   0x0801fea8   0x0000000e   Code   RO         4596    .text._ZNK3ALG12PowerControl20PowerControlStrategy13GetInputLimitEv  can_send_task.o
     0x0801feb6   0x0801feb6   0x00000002   PAD
@@ -14475,7 +14476,7 @@ Memory Map of the image
     0x080218d0   0x080218d0   0x0000000c   Code   RO         3922    .text._ZNSt3__222__compressed_pair_elemIRNS_9allocatorINS_8functionIFvRKN3HAL5FDCAN5FrameEEEEEELi1ELb0EE5__getB7v180000Ev  fdcan_device_impl.o
     0x080218dc   0x080218dc   0x00000004   PAD
     0x080218e0   0x080218e0   0x00000010   Code   RO         3908    .text._ZNSt3__222__compressed_pair_elemIRNS_9allocatorINS_8functionIFvRKN3HAL5FDCAN5FrameEEEEEELi1ELb0EEC2B7v180000ISB_vEEOT_  fdcan_device_impl.o
-    0x080218f0   0x080218f0   0x0000001e   Code   RO         5337    .text._ZNSt3__222__libcpp_verbose_abortEPKcz  libcpp_w.l(verbose_abort.cpp.o)
+    0x080218f0   0x080218f0   0x0000001e   Code   RO         5338    .text._ZNSt3__222__libcpp_verbose_abortEPKcz  libcpp_w.l(verbose_abort.cpp.o)
     0x0802190e   0x0802190e   0x00000002   PAD
     0x08021910   0x08021910   0x00000026   Code   RO         4247    .text._ZNSt3__222__make_exception_guardB7v180000INS_29_AllocatorDestroyRangeReverseINS_9allocatorINS_8functionIFvRKN3HAL4UART4DataEEEEEENS_16reverse_iteratorIPSA_EEEEEENS_30__exception_guard_noexceptionsIT_EESH_  uart_device_impl.o
     0x08021936   0x08021936   0x00000002   PAD
@@ -14675,10 +14676,10 @@ Memory Map of the image
     0x080228fc   0x080228fc   0x00000004   PAD
     0x08022900   0x08022900   0x00000018   Code   RO         3812    .text._ZNSt3__2neB7v180000IPNS_8functionIFvRKN3HAL5FDCAN5FrameEEEEEEbRKNS_11__wrap_iterIT_EESE_  fdcan_device_impl.o
     0x08022918   0x08022918   0x00000024   Code   RO         3940    .text._ZNSt3__2neB7v180000IPNS_8functionIFvRKN3HAL5FDCAN5FrameEEEES9_EEbRKNS_16reverse_iteratorIT_EERKNSA_IT0_EE  fdcan_device_impl.o
-    0x0802293c   0x0802293c   0x0000000c   Code   RO         5432    .text._ZSt15get_new_handlerv  libcppabi_w.l(cxa_handlers.cpp.o)
+    0x0802293c   0x0802293c   0x0000000c   Code   RO         5433    .text._ZSt15get_new_handlerv  libcppabi_w.l(cxa_handlers.cpp.o)
     0x08022948   0x08022948   0x0000000c   Code   RO         3912    .text._ZSt28__throw_bad_array_new_lengthB7v180000v  fdcan_device_impl.o
     0x08022954   0x08022954   0x00000004   PAD
-    0x08022958   0x08022958   0x0000001e   Code   RO         5212    .text._ZSt8isfinited  up_stair_behind_motor_fsm.o
+    0x08022958   0x08022958   0x0000001e   Code   RO         5213    .text._ZSt8isfinited  up_stair_behind_motor_fsm.o
     0x08022976   0x08022976   0x00000002   PAD
     0x08022978   0x08022978   0x00000016   Code   RO         4770    .text._ZZ11remote_taskENK3$_0clERKN3HAL4UART4DataE  remote_task.o
     0x0802298e   0x0802298e   0x00000002   PAD
@@ -14691,16 +14692,16 @@ Memory Map of the image
     0x08022c7c   0x08022c7c   0x00000004   PAD
     0x08022c80   0x08022c80   0x00000030   Code   RO         4411    .text._ZZ13can_send_taskENK3$_1clERKN3HAL5FDCAN5FrameE  can_send_task.o
     0x08022cb0   0x08022cb0   0x00000030   Code   RO         4433    .text._ZZ13can_send_taskENK3$_2clERKN3HAL5FDCAN5FrameE  can_send_task.o
-    0x08022ce0   0x08022ce0   0x00000004   Code   RO         5303    .text._ZdlPv        libcpp_w.l(new.cpp.o)
-    0x08022ce4   0x08022ce4   0x00000004   Code   RO         5323    .text._ZdlPvSt11align_val_t  libcpp_w.l(new.cpp.o)
-    0x08022ce8   0x08022ce8   0x00000004   Code   RO         5307    .text._ZdlPvj       libcpp_w.l(new.cpp.o)
-    0x08022cec   0x08022cec   0x00000006   Code   RO         5327    .text._ZdlPvjSt11align_val_t  libcpp_w.l(new.cpp.o)
+    0x08022ce0   0x08022ce0   0x00000004   Code   RO         5304    .text._ZdlPv        libcpp_w.l(new.cpp.o)
+    0x08022ce4   0x08022ce4   0x00000004   Code   RO         5324    .text._ZdlPvSt11align_val_t  libcpp_w.l(new.cpp.o)
+    0x08022ce8   0x08022ce8   0x00000004   Code   RO         5308    .text._ZdlPvj       libcpp_w.l(new.cpp.o)
+    0x08022cec   0x08022cec   0x00000006   Code   RO         5328    .text._ZdlPvjSt11align_val_t  libcpp_w.l(new.cpp.o)
     0x08022cf2   0x08022cf2   0x00000002   PAD
-    0x08022cf4   0x08022cf4   0x00000026   Code   RO         5295    .text._Znwj         libcpp_w.l(new.cpp.o)
+    0x08022cf4   0x08022cf4   0x00000026   Code   RO         5296    .text._Znwj         libcpp_w.l(new.cpp.o)
     0x08022d1a   0x08022d1a   0x00000002   PAD
-    0x08022d1c   0x08022d1c   0x0000004a   Code   RO         5315    .text._ZnwjSt11align_val_t  libcpp_w.l(new.cpp.o)
+    0x08022d1c   0x08022d1c   0x0000004a   Code   RO         5316    .text._ZnwjSt11align_val_t  libcpp_w.l(new.cpp.o)
     0x08022d66   0x08022d66   0x00000002   PAD
-    0x08022d68   0x08022d68   0x0000001e   Code   RO         5216    .text.__ARM_isfinite  up_stair_behind_motor_fsm.o
+    0x08022d68   0x08022d68   0x0000001e   Code   RO         5217    .text.__ARM_isfinite  up_stair_behind_motor_fsm.o
     0x08022d86   0x08022d86   0x00000002   PAD
     0x08022d88   0x08022d88   0x00000030   Code   RO         1337    .text.__NVIC_EnableIRQ  stm32h7xx_hal_cortex.o
     0x08022db8   0x08022db8   0x00000010   Code   RO         1329    .text.__NVIC_GetPriorityGrouping  stm32h7xx_hal_cortex.o
@@ -14709,7 +14710,7 @@ Memory Map of the image
     0x08022e10   0x08022e10   0x00000042   Code   RO         2993    .text.__NVIC_SetPriority  cmsis_os2.o
     0x08022e52   0x08022e52   0x00000006   PAD
     0x08022e58   0x08022e58   0x0000003c   Code   RO         1325    .text.__NVIC_SetPriorityGrouping  stm32h7xx_hal_cortex.o
-    0x08022e94   0x08022e94   0x00000028   Code   RO         5350    .text.__cxa_pure_virtual  libcppabi_w.l(cxa_virtual.cpp.o)
+    0x08022e94   0x08022e94   0x00000028   Code   RO         5351    .text.__cxa_pure_virtual  libcppabi_w.l(cxa_virtual.cpp.o)
     0x08022ebc   0x08022ebc   0x00000004   PAD
     0x08022ec0   0x08022ec0   0x00000038   Code   RO         3359    .text.__cxx_global_var_init  hi14.o
     0x08022ef8   0x08022ef8   0x00000014   Code   RO         3507    .text.__cxx_global_var_init  rm_refereesystem.o
@@ -14767,7 +14768,7 @@ Memory Map of the image
     0x080234fc   0x080234fc   0x00000004   PAD
     0x08023500   0x08023500   0x00000018   Code   RO         4331    .text.__cxx_global_var_init.9  can_send_task.o
     0x08023518   0x08023518   0x00000018   Code   RO         4951    .text.__cxx_global_var_init.9  up_stair.o
-    0x08023530   0x08023530   0x00000004   Code   RO         5416    .text.abort_message  libcppabi_w.l(abort_message.cpp.o)
+    0x08023530   0x08023530   0x00000004   Code   RO         5417    .text.abort_message  libcppabi_w.l(abort_message.cpp.o)
     0x08023534   0x08023534   0x00000004   PAD
     0x08023538   0x08023538   0x00000cfc   Code   RO         4357    .text.can_send_task  can_send_task.o
     0x08024234   0x08024234   0x00000004   PAD
@@ -14838,8 +14839,8 @@ Memory Map of the image
     0x08025666   0x08025666   0x00000002   PAD
     0x08025668   0x08025668   0x00000830   Code   RO         4742    .text.remote_task   remote_task.o
     0x08025e98   0x08025e98   0x00000062   Code   RO         4925    .text.ui_task       ui_task.o
-    0x08025efa   0x08025efa   0x0000002c   Code   RO         5341    .text.unlikely.__cxa_guard_acquire  libcppabi_w.l(cxa_guard.cpp.o)
-    0x08025f26   0x08025f26   0x00000008   Code   RO         5343    .text.unlikely.__cxa_guard_release  libcppabi_w.l(cxa_guard.cpp.o)
+    0x08025efa   0x08025efa   0x0000002c   Code   RO         5342    .text.unlikely.__cxa_guard_acquire  libcppabi_w.l(cxa_guard.cpp.o)
+    0x08025f26   0x08025f26   0x00000008   Code   RO         5344    .text.unlikely.__cxa_guard_release  libcppabi_w.l(cxa_guard.cpp.o)
     0x08025f2e   0x08025f2e   0x00000002   PAD
     0x08025f30   0x08025f30   0x00000dbc   Code   RO         4957    .text.up_stair_task  up_stair.o
     0x08026cec   0x08026cec   0x00000004   PAD
@@ -14923,36 +14924,36 @@ Memory Map of the image
     0x080286b0   0x080286b0   0x00000094   Code   RO         2758    .text.xTimerCreateTimerTask  timers.o
     0x08028744   0x08028744   0x00000004   PAD
     0x08028748   0x08028748   0x000000b0   Code   RO         2770    .text.xTimerGenericCommand  timers.o
-    0x080287f8   0x080287f8   0x00000018   Code   RO         5479    i.__0vfprintf       mc_w.l(printfa.o)
-    0x08028810   0x08028810   0x00000026   Code   RO         5435    i.__ARM_fpclassifyf  m_wv.l(fpclassifyf.o)
+    0x080287f8   0x080287f8   0x00000018   Code   RO         5480    i.__0vfprintf       mc_w.l(printfa.o)
+    0x08028810   0x08028810   0x00000026   Code   RO         5436    i.__ARM_fpclassifyf  m_wv.l(fpclassifyf.o)
     0x08028836   0x08028836   0x00000002   PAD
-    0x08028838   0x08028838   0x000000a0   Code   RO         5515    i.__aligned_malloc  mc_w.l(malloca.o)
-    0x080288d8   0x080288d8   0x00000050   Code   RO         5516    i.__free$memalign   mc_w.l(malloca.o)
-    0x08028928   0x08028928   0x00000150   Code   RO         5367    i.__hardfp_cosf     m_wv.l(cosf.o)
-    0x08028a78   0x08028a78   0x00000190   Code   RO         5373    i.__hardfp_sinf     m_wv.l(sinf.o)
-    0x08028c08   0x08028c08   0x0000003a   Code   RO         5379    i.__hardfp_sqrtf    m_wv.l(sqrtf.o)
+    0x08028838   0x08028838   0x000000a0   Code   RO         5516    i.__aligned_malloc  mc_w.l(malloca.o)
+    0x080288d8   0x080288d8   0x00000050   Code   RO         5517    i.__free$memalign   mc_w.l(malloca.o)
+    0x08028928   0x08028928   0x00000150   Code   RO         5368    i.__hardfp_cosf     m_wv.l(cosf.o)
+    0x08028a78   0x08028a78   0x00000190   Code   RO         5374    i.__hardfp_sinf     m_wv.l(sinf.o)
+    0x08028c08   0x08028c08   0x0000003a   Code   RO         5380    i.__hardfp_sqrtf    m_wv.l(sqrtf.o)
     0x08028c42   0x08028c42   0x00000002   PAD
-    0x08028c44   0x08028c44   0x0000017c   Code   RO         5385    i.__hardfp_tanf     m_wv.l(tanf.o)
-    0x08028dc0   0x08028dc0   0x00000006   Code   RO         5517    i.__malloc$memalign  mc_w.l(malloca.o)
-    0x08028dc6   0x08028dc6   0x00000006   Code   RO         5438    i.__mathlib_flt_infnan  m_wv.l(funder.o)
-    0x08028dcc   0x08028dcc   0x00000010   Code   RO         5440    i.__mathlib_flt_invalid  m_wv.l(funder.o)
-    0x08028ddc   0x08028ddc   0x00000010   Code   RO         5443    i.__mathlib_flt_underflow  m_wv.l(funder.o)
-    0x08028dec   0x08028dec   0x00000154   Code   RO         5451    i.__mathlib_rredf2  m_wv.l(rredf.o)
-    0x08028f40   0x08028f40   0x0000000e   Code   RO         5602    i.__scatterload_copy  mc_w.l(handlers.o)
-    0x08028f4e   0x08028f4e   0x00000002   Code   RO         5603    i.__scatterload_null  mc_w.l(handlers.o)
-    0x08028f50   0x08028f50   0x0000000e   Code   RO         5604    i.__scatterload_zeroinit  mc_w.l(handlers.o)
+    0x08028c44   0x08028c44   0x0000017c   Code   RO         5386    i.__hardfp_tanf     m_wv.l(tanf.o)
+    0x08028dc0   0x08028dc0   0x00000006   Code   RO         5518    i.__malloc$memalign  mc_w.l(malloca.o)
+    0x08028dc6   0x08028dc6   0x00000006   Code   RO         5439    i.__mathlib_flt_infnan  m_wv.l(funder.o)
+    0x08028dcc   0x08028dcc   0x00000010   Code   RO         5441    i.__mathlib_flt_invalid  m_wv.l(funder.o)
+    0x08028ddc   0x08028ddc   0x00000010   Code   RO         5444    i.__mathlib_flt_underflow  m_wv.l(funder.o)
+    0x08028dec   0x08028dec   0x00000154   Code   RO         5452    i.__mathlib_rredf2  m_wv.l(rredf.o)
+    0x08028f40   0x08028f40   0x0000000e   Code   RO         5603    i.__scatterload_copy  mc_w.l(handlers.o)
+    0x08028f4e   0x08028f4e   0x00000002   Code   RO         5604    i.__scatterload_null  mc_w.l(handlers.o)
+    0x08028f50   0x08028f50   0x0000000e   Code   RO         5605    i.__scatterload_zeroinit  mc_w.l(handlers.o)
     0x08028f5e   0x08028f5e   0x00000002   PAD
-    0x08028f60   0x08028f60   0x0000000c   Code   RO         5535    i.__set_errno       mc_w.l(errno.o)
-    0x08028f6c   0x08028f6c   0x00000184   Code   RO         5483    i._fp_digits        mc_w.l(printfa.o)
-    0x080290f0   0x080290f0   0x000006dc   Code   RO         5484    i._printf_core      mc_w.l(printfa.o)
-    0x080297cc   0x080297cc   0x00000024   Code   RO         5485    i._printf_post_padding  mc_w.l(printfa.o)
-    0x080297f0   0x080297f0   0x0000002e   Code   RO         5486    i._printf_pre_padding  mc_w.l(printfa.o)
-    0x0802981e   0x0802981e   0x00000012   Code   RO         5560    i.fputc             mc_w.l(fputc.o)
-    0x08029830   0x08029830   0x00000020   Data   RO         5452    .constdata          m_wv.l(rredf.o)
+    0x08028f60   0x08028f60   0x0000000c   Code   RO         5536    i.__set_errno       mc_w.l(errno.o)
+    0x08028f6c   0x08028f6c   0x00000184   Code   RO         5484    i._fp_digits        mc_w.l(printfa.o)
+    0x080290f0   0x080290f0   0x000006dc   Code   RO         5485    i._printf_core      mc_w.l(printfa.o)
+    0x080297cc   0x080297cc   0x00000024   Code   RO         5486    i._printf_post_padding  mc_w.l(printfa.o)
+    0x080297f0   0x080297f0   0x0000002e   Code   RO         5487    i._printf_pre_padding  mc_w.l(printfa.o)
+    0x0802981e   0x0802981e   0x00000012   Code   RO         5561    i.fputc             mc_w.l(fputc.o)
+    0x08029830   0x08029830   0x00000020   Data   RO         5453    .constdata          m_wv.l(rredf.o)
     0x08029850   0x08029850   0x0000004c   Data   RO         1931    .rodata..L__const.HAL_FDCAN_Init.CvtEltSize  stm32h7xx_hal_fdcan.o
     0x0802989c   0x0802989c   0x00000008   Data   RO         4862    .rodata..L__const.HAL_UARTEx_RxEventCallback.rx_data  remote_task.o
     0x080298a4   0x080298a4   0x00000008   Data   RO         4864    .rodata..L__const.HAL_UARTEx_RxEventCallback.rx_data.2  remote_task.o
-    0x080298ac   0x080298ac   0x00000008   Data   RO         5262    .rodata..L__const._Z20Referee485_SendReplyv.tx  gimbal_refree_uart_485.o
+    0x080298ac   0x080298ac   0x00000008   Data   RO         5263    .rodata..L__const._Z20Referee485_SendReplyv.tx  gimbal_refree_uart_485.o
     0x080298b4   0x080298b4   0x00000008   Data   RO         4505    .rodata..L__const.vofa_send.vofa_tx_data  can_send_task.o
     0x080298bc   0x080298bc   0x00000010   Data   RO         2261    .rodata.D1CorePrescTable  system_stm32h7xx.o
     0x080298cc   0x080298cc   0x00000010   Data   RO         1932    .rodata.DLCtoBytes  stm32h7xx_hal_fdcan.o
@@ -14964,19 +14965,19 @@ Memory Map of the image
     0x0802992c   0x0802992c   0x00000010   Data   RO         4467    .rodata._ZL13wheel_azimuth  can_send_task.o
     0x0802993c   0x0802993c   0x00000004   Data   RO         4474    .rodata._ZL18chassis_motor_idxs  can_send_task.o
     0x08029940   0x08029940   0x00000024   Data   RO           50    .rodata._ZL22defaultTask_attributes  freertos.o
-    0x08029964   0x08029964   0x00000008   Data   RO         5115    .rodata._ZN18Class_Up_Stair_FSM13LIMIT_END_RADE  up_stair_fsm.o
-    0x0802996c   0x0802996c   0x00000008   Data   RO         5116    .rodata._ZN18Class_Up_Stair_FSM14HOME_ANGLE_RADE  up_stair_fsm.o
-    0x08029974   0x08029974   0x00000008   Data   RO         5114    .rodata._ZN18Class_Up_Stair_FSM15LIMIT_START_RADE  up_stair_fsm.o
-    0x0802997c   0x0802997c   0x00000008   Data   RO         5117    .rodata._ZN18Class_Up_Stair_FSM16TARGET_ANGLE_RADE  up_stair_fsm.o
+    0x08029964   0x08029964   0x00000008   Data   RO         5116    .rodata._ZN18Class_Up_Stair_FSM13LIMIT_END_RADE  up_stair_fsm.o
+    0x0802996c   0x0802996c   0x00000008   Data   RO         5117    .rodata._ZN18Class_Up_Stair_FSM14HOME_ANGLE_RADE  up_stair_fsm.o
+    0x08029974   0x08029974   0x00000008   Data   RO         5115    .rodata._ZN18Class_Up_Stair_FSM15LIMIT_START_RADE  up_stair_fsm.o
+    0x0802997c   0x0802997c   0x00000008   Data   RO         5118    .rodata._ZN18Class_Up_Stair_FSM16TARGET_ANGLE_RADE  up_stair_fsm.o
     0x08029984   0x08029984   0x00000200   Data   RO         3618    .rodata._ZN19RM_RefereeSystemCRCL10wCRC_TableE  rm_refereesystemcrc.o
     0x08029b84   0x08029b84   0x00000100   Data   RO         3616    .rodata._ZN19RM_RefereeSystemCRCL8CRC8_TABE  rm_refereesystemcrc.o
-    0x08029c84   0x08029c84   0x00000008   Data   RO         5231    .rodata._ZN31Class_Up_Stair_Behind_Motor_FSM13ANGLE_END_RADE  up_stair_behind_motor_fsm.o
-    0x08029c8c   0x08029c8c   0x00000008   Data   RO         5230    .rodata._ZN31Class_Up_Stair_Behind_Motor_FSM15ANGLE_START_RADE  up_stair_behind_motor_fsm.o
-    0x08029c94   0x08029c94   0x00000002   Data   RO         5233    .rodata._ZN31Class_Up_Stair_Behind_Motor_FSM15MOTOR_DIRECTIONE  up_stair_behind_motor_fsm.o
+    0x08029c84   0x08029c84   0x00000008   Data   RO         5232    .rodata._ZN31Class_Up_Stair_Behind_Motor_FSM13ANGLE_END_RADE  up_stair_behind_motor_fsm.o
+    0x08029c8c   0x08029c8c   0x00000008   Data   RO         5231    .rodata._ZN31Class_Up_Stair_Behind_Motor_FSM15ANGLE_START_RADE  up_stair_behind_motor_fsm.o
+    0x08029c94   0x08029c94   0x00000002   Data   RO         5234    .rodata._ZN31Class_Up_Stair_Behind_Motor_FSM15MOTOR_DIRECTIONE  up_stair_behind_motor_fsm.o
     0x08029c96   0x08029c96   0x00000002   PAD
-    0x08029c98   0x08029c98   0x00000008   Data   RO         5234    .rodata._ZN31Class_Up_Stair_Behind_Motor_FSM17MOTOR_TORQUE_GAINE  up_stair_behind_motor_fsm.o
-    0x08029ca0   0x08029ca0   0x00000008   Data   RO         5236    .rodata._ZN31Class_Up_Stair_Behind_Motor_FSM18RETRACT_TARGET_RADE  up_stair_behind_motor_fsm.o
-    0x08029ca8   0x08029ca8   0x00000008   Data   RO         5239    .rodata._ZN31Class_Up_Stair_Behind_Motor_FSM29RETRACT_FEEDFORWARD_TORQUE_NME  up_stair_behind_motor_fsm.o
+    0x08029c98   0x08029c98   0x00000008   Data   RO         5235    .rodata._ZN31Class_Up_Stair_Behind_Motor_FSM17MOTOR_TORQUE_GAINE  up_stair_behind_motor_fsm.o
+    0x08029ca0   0x08029ca0   0x00000008   Data   RO         5237    .rodata._ZN31Class_Up_Stair_Behind_Motor_FSM18RETRACT_TARGET_RADE  up_stair_behind_motor_fsm.o
+    0x08029ca8   0x08029ca8   0x00000008   Data   RO         5240    .rodata._ZN31Class_Up_Stair_Behind_Motor_FSM29RETRACT_FEEDFORWARD_TORQUE_NME  up_stair_behind_motor_fsm.o
     0x08029cb0   0x08029cb0   0x00000020   Data   RO         4723    .rodata._ZTVN3Alg15CalculationBase19InverseDynamicsBaseE  can_send_task.o
     0x08029cd0   0x08029cd0   0x00000010   Data   RO         4721    .rodata._ZTVN3Alg15CalculationBase21ForwardKinematicsBaseE  can_send_task.o
     0x08029ce0   0x08029ce0   0x00000038   Data   RO         4719    .rodata._ZTVN3Alg15CalculationBase21InverseKinematicsBaseE  can_send_task.o
@@ -15014,15 +15015,15 @@ Memory Map of the image
     0x0802a03f   0x0802a03f   0x0000000d   Data   RO         2813    .rodata.str1.1      timers.o
     0x0802a04c   0x0802a04c   0x00000018   Data   RO         3664    .rodata.str1.1      rmrefereesystemui.o
     0x0802a064   0x0802a064   0x000000b6   Data   RO         3793    .rodata.str1.1      fdcan_device_impl.o
-    0x0802a11a   0x0802a11a   0x00000093   Data   RO         5347    .rodata.str1.1      libcppabi_w.l(cxa_guard.cpp.o)
+    0x0802a11a   0x0802a11a   0x00000093   Data   RO         5348    .rodata.str1.1      libcppabi_w.l(cxa_guard.cpp.o)
     0x0802a1ad   0x0802a1ad   0x00000003   PAD
-    0x0802a1b0   0x0802a1b0   0x00000030   Data   RO         5601    Region$$Table       anon$$obj.o
+    0x0802a1b0   0x0802a1b0   0x00000030   Data   RO         5602    Region$$Table       anon$$obj.o
     0x0802a1e0   0x0802a1e0   0x00000004   Data   RO         3380    .init_array         hi14.o
     0x0802a1e4   0x0802a1e0   0x00000004   Data   RO         3589    .init_array         rm_refereesystem.o
     0x0802a1e8   0x0802a1e0   0x00000004   Data   RO         4510    .init_array         can_send_task.o
     0x0802a1ec   0x0802a1e0   0x00000004   Data   RO         4871    .init_array         remote_task.o
     0x0802a1f0   0x0802a1e0   0x00000004   Data   RO         4990    .init_array         up_stair.o
-    0x0802a1f4   0x0802a1e0   0x00000000   Data   RO         5409    .init_array         mc_w.l(cpp_init.o)
+    0x0802a1f4   0x0802a1e0   0x00000000   Data   RO         5410    .init_array         mc_w.l(cpp_init.o)
 
 
     Execution Region RW_IRAM1 (Exec base: 0x20000000, Load base: 0x0802a1f4, Size: 0x00008000, Max: 0x00020000, ABSOLUTE)
@@ -15036,11 +15037,11 @@ Memory Map of the image
 
     Exec Addr    Load Addr    Size         Type   Attr      Idx    E Section Name        Object
 
-    0x24000000   COMPRESSED   0x00000004   Data   RW         5468    .data               mc_w.l(stderr.o)
-    0x24000004   COMPRESSED   0x00000004   Data   RW         5536    .data               mc_w.l(errno.o)
-    0x24000008   COMPRESSED   0x00000004   Data   RW         5576    .data               mc_w.l(mvars.o)
-    0x2400000c   COMPRESSED   0x00000004   Data   RW         5577    .data               mc_w.l(mvars.o)
-    0x24000010   COMPRESSED   0x00000004   Data   RW         5579    .data               mc_w.l(cpp_dtor.o)
+    0x24000000   COMPRESSED   0x00000004   Data   RW         5469    .data               mc_w.l(stderr.o)
+    0x24000004   COMPRESSED   0x00000004   Data   RW         5537    .data               mc_w.l(errno.o)
+    0x24000008   COMPRESSED   0x00000004   Data   RW         5577    .data               mc_w.l(mvars.o)
+    0x2400000c   COMPRESSED   0x00000004   Data   RW         5578    .data               mc_w.l(mvars.o)
+    0x24000010   COMPRESSED   0x00000004   Data   RW         5580    .data               mc_w.l(cpp_dtor.o)
     0x24000014   COMPRESSED   0x00000001   Data   RW         3223    .data.CDCCmdEpAdd   usbd_cdc.o
     0x24000015   COMPRESSED   0x00000001   Data   RW         3221    .data.CDCInEpAdd    usbd_cdc.o
     0x24000016   COMPRESSED   0x00000001   Data   RW         3222    .data.CDCOutEpAdd   usbd_cdc.o
@@ -15094,7 +15095,7 @@ Memory Map of the image
     0x24000ee8        -       0x00000800   Zero   RW         2326    .bss.UserTxBufferHS  usbd_cdc_if.o
     0x240016e8        -       0x00000004   Zero   RW         4029    .bss._ZGVZN3HAL4UART7UartBus8instanceEvE8instance  uart_bus_impl.o
     0x240016ec        -       0x00000004   Zero   RW         3686    .bss._ZGVZN3HAL5FDCAN8FdcanBus8instanceEvE8instance  fdcan_bus_impl.o
-    0x240016f0        -       0x00000008   Zero   RW         5260    .bss._ZL12referee_data  gimbal_refree_uart_485.o
+    0x240016f0        -       0x00000008   Zero   RW         5261    .bss._ZL12referee_data  gimbal_refree_uart_485.o
     0x240016f8        -       0x00000008   Zero   RW         4865    .bss._ZL13uart5_rx_data  remote_task.o
     0x24001700        -       0x00000008   Zero   RW         4863    .bss._ZL13uart7_rx_data  remote_task.o
     0x24001708        -       0x00000040   Zero   RW         4860    .bss._ZL15uart3_rx_buffer  remote_task.o
@@ -15105,14 +15106,14 @@ Memory Map of the image
     0x24001764        -       0x00000001   Zero   RW         4458    .bss._ZL21gimbal_speed_received  can_send_task.o
     0x24001765   COMPRESSED   0x00000003   PAD
     0x24001768        -       0x00000004   Zero   RW         4456    .bss._ZL22gimbal_speed_last_tick  can_send_task.o
-    0x2400176c        -       0x00000001   Zero   RW         5247    .bss._ZL7rx_size    boards_communication_uart_485.o
-    0x2400176d        -       0x0000001c   Zero   RW         5248    .bss._ZL8rx_frame   boards_communication_uart_485.o
+    0x2400176c        -       0x00000001   Zero   RW         5248    .bss._ZL7rx_size    boards_communication_uart_485.o
+    0x2400176d        -       0x0000001c   Zero   RW         5249    .bss._ZL8rx_frame   boards_communication_uart_485.o
     0x24001789        -       0x00000001   Zero   RW         3663    .bss._ZN12_GLOBAL__N_119g_power_initializedE  rmrefereesystemui.o
     0x2400178a   COMPRESSED   0x00000002   PAD
     0x2400178c        -       0x00000008   Zero   RW         4982    .bss._ZN12_GLOBAL__N_121rear_6248_roll_filterE  up_stair.o
     0x24001794        -       0x00000008   Zero   RW         4980    .bss._ZN12_GLOBAL__N_122rear_6248_pitch_filterE  up_stair.o
     0x2400179c        -       0x00000008   Zero   RW         4981    .bss._ZN12_GLOBAL__N_127rear_6248_pitch_rate_filterE  up_stair.o
-    0x240017a4        -       0x0000000c   Zero   RW         5261    .bss._ZZ20Referee485_SendReplyvE8tx_frame  gimbal_refree_uart_485.o
+    0x240017a4        -       0x0000000c   Zero   RW         5262    .bss._ZZ20Referee485_SendReplyvE8tx_frame  gimbal_refree_uart_485.o
     0x240017b0        -       0x0000001c   Zero   RW         4503    .bss._ZZ9vofa_sendE9send_str2  can_send_task.o
     0x240017cc        -       0x00000001   Zero   RW         3588    .bss._ZZN16RM_RefereeSystem23RM_RefereeSystemGetDataEhE5State  rm_refereesystem.o
     0x240017cd   COMPRESSED   0x00000001   PAD
@@ -15123,7 +15124,7 @@ Memory Map of the image
     0x240018d3        -       0x00000001   Zero   RW         3579    .bss._ZZN16RM_RefereeSystem25RM_RefereeSystemSendDataNEPKNS_21graphic_data_struct_tEiE3seq  rm_refereesystem.o
     0x240018d4        -       0x000000b0   Zero   RW         4028    .bss._ZZN3HAL4UART7UartBus8instanceEvE8instance  uart_bus_impl.o
     0x24001984        -       0x00000068   Zero   RW         3685    .bss._ZZN3HAL5FDCAN8FdcanBus8instanceEvE8instance  fdcan_bus_impl.o
-    0x240019ec        -       0x00000004   Zero   RW         5556    .bss.__cxa_new_handler  libcppabi_w.l(cxa_default_handlers.cpp.o)
+    0x240019ec        -       0x00000004   Zero   RW         5557    .bss.__cxa_new_handler  libcppabi_w.l(cxa_default_handlers.cpp.o)
     0x240019f0        -       0x00000040   Zero   RW         4500    .bss.abundance_energy_pid  can_send_task.o
     0x24001a30        -       0x00000008   Zero   RW         4477    .bss.acc_filter_x   can_send_task.o
     0x24001a38        -       0x00000008   Zero   RW         4478    .bss.acc_filter_y   can_send_task.o
@@ -15232,7 +15233,7 @@ Memory Map of the image
     0x24004108        -       0x00000040   Zero   RW         4976    .bss.rear_6248_left_retract_pid  up_stair.o
     0x24004148        -       0x00000040   Zero   RW         4975    .bss.rear_6248_pitch_pid  up_stair.o
     0x24004188        -       0x00000040   Zero   RW         4977    .bss.rear_6248_right_retract_pid  up_stair.o
-    0x240041c8        -       0x00000008   Zero   RW         5204    .bss.rear_estimated_torque_nm  up_stair_behind_motor_fsm.o
+    0x240041c8        -       0x00000008   Zero   RW         5205    .bss.rear_estimated_torque_nm  up_stair_behind_motor_fsm.o
     0x240041d0        -       0x00000010   Zero   RW         4987    .bss.rear_recovery_fsm  up_stair.o
     0x240041e0        -       0x00000012   Zero   RW         4847    .bss.receivedata    remote_task.o
     0x240041f2        -       0x00000002   Zero   RW         3573    .bss.referee_0202_data_length  rm_refereesystem.o
@@ -15370,9 +15371,9 @@ Image component sizes
       1492          0         48          0        180      41259   uart_bus_impl.o
       3356          0        136          0          0      94878   uart_device_impl.o
         98          0          0          0          0      25845   ui_task.o
-      6576        124         52         16       1389      51730   up_stair.o
+      6576        124         52         16       1389      51764   up_stair.o
       7808        144         42          0          8      35587   up_stair_behind_motor_fsm.o
-      2588         28         32          0          0      20373   up_stair_fsm.o
+      2588         28         32          0          0      20450   up_stair_fsm.o
       2952          0          0          0       2208      14131   usart.o
        122          0          0          0        732       3139   usb_device.o
       2370         12          0        136          0      11044   usbd_cdc.o
@@ -15384,7 +15385,7 @@ Image component sizes
        232          0          0          0          0       4201   usbd_ioreq.o
 
     ----------------------------------------------------------------------
-    163110       1598       3034        456     249264    1507691   Object Totals
+    163110       1598       3034        456     249264    1507802   Object Totals
          0          0         48          0          0          0   (incl. Generated)
       3404        168          2         11         58          0   (incl. Padding)
 
@@ -15474,8 +15475,8 @@ Image component sizes
 
       Code (inc. data)   RO Data    RW Data    ZI Data      Debug   
 
-    169316       1982       3216        476     249268    1509019   Grand Totals
-    169316       1982       3216        296     249268    1509019   ELF Image Totals (compressed)
+    169316       1982       3216        476     249268    1509130   Grand Totals
+    169316       1982       3216        296     249268    1509130   ELF Image Totals (compressed)
     169316       1982       3216        296          0          0   ROM Totals
 
 ==============================================================================

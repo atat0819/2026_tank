@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 class EncoderPidTest(unittest.TestCase):
     def test_encoder_pid_calls_and_resets(self):
         task = (ROOT / "RtosTask/can_send_task.cpp").read_text(encoding="utf-8")
-        stems = ["pitch_angle", "pitch_keymouse_angle"]
+        stems = ["pitch_remote_angle", "pitch_keymouse_angle"]
         self.assertTrue("_imu_pid" not in task, "IMU PID remains active")
         for stem in stems:
             self.assertIn(f"ALG::PID::PID {stem}_encoder_pid(", task)
@@ -32,7 +32,7 @@ class EncoderPidTest(unittest.TestCase):
         harness = r'''
 #include <cassert>
 #include "user/core/Alg/PID/pid.hpp"
-ALG::PID::PID pitch_angle_encoder_pid(7,0,0,100,10,10);
+ALG::PID::PID pitch_remote_angle_encoder_pid(7,0,0,100,10,10);
 ALG::PID::PID pitch_keymouse_angle_encoder_pid(13,0,0,100,10,10);
 float select(bool is_keymouse) {
     float pitch_error=1,pitch_target_speed=0;
@@ -43,7 +43,7 @@ int main() {
     assert(select(false)==7);
     assert(pitch_keymouse_angle_encoder_pid.getOutput()==0);
     assert(select(true)==13);
-    pitch_angle_encoder_pid.setK(9,0,0);
+    pitch_remote_angle_encoder_pid.setK(9,0,0);
     assert(select(false)==9);
     assert(select(true)==13);
 }

@@ -32,6 +32,8 @@ namespace BSP::Motor
         UnitData unit_data_[N];
         // 设备在线检测
         BSP::WATCH_STATE::StateWatch state_watch_[N];
+        // 首帧反馈前不能仅凭距 tick=0 未超时就判在线，防止使用默认角度记录原点。
+        bool feedback_received_[N]{};
         // 数据
         virtual void Parse(const HAL::FDCAN::Frame &frame) = 0;
         bool is_Enable = false;
@@ -57,6 +59,7 @@ namespace BSP::Motor
             if (id > 0 && id <= N)
             {
                 state_watch_[id - 1].UpdateLastTime();
+                feedback_received_[id - 1] = true;
             }
         }
 
@@ -72,6 +75,8 @@ namespace BSP::Motor
         {
             if (id_state > 0 && id_state <= N)
             {
+                if (!feedback_received_[id_state - 1])
+                    return false;
                 state_watch_[id_state - 1].UpdateTime();
                 state_watch_[id_state - 1].CheckStatus();
                 const bool online = state_watch_[id_state - 1].GetStatus() == BSP::WATCH_STATE::Status::ONLINE;

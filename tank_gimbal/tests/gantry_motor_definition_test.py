@@ -6,6 +6,7 @@ import tempfile
 
 root = Path(__file__).resolve().parents[1]
 task = (root / "RtosTask/gantry_task.cpp").read_text(encoding="utf-8")
+task_delay_ms = int(re.search(r"\bosDelay\((\d+)\)", task).group(1))
 task = task.replace('#include "remote_control_task.hpp"', "")
 # Only header include paths and fixture tuning values are substituted.
 task = task.replace('../feeder_fsm/gantry_fsm.hpp', 'gantry_fsm.hpp')
@@ -26,6 +27,9 @@ valid = {
     "LIFT_FIRST_TIMEOUT_MS": "1000", "EXTEND_TIMEOUT_MS": "1000",
     "LIFT_SECOND_TIMEOUT_MS": "1000", "RETRACT_TIMEOUT_MS": "1000", "LOWER_TIMEOUT_MS": "1000",
     "DM_MOVE_KD": "2", "DM_HOLD_KD": "4", "DM_TORQUE_LIMIT_NM": ".2f",
+    "LOWER_CURRENT_LIMIT_A": ".1f", "LOWER_STALL_CURRENT_A": ".05f",
+    "LOWER_STALL_SPEED_RAD_S": ".1f", "LOWER_STALL_CONFIRM_MS": "100",
+    "LIFT_HOME_TOLERANCE_DEG": "10",
 }
 # Supply distinct move/hold and ID5/ID6 PID values at the production constructors.
 pid_fixtures = {
@@ -61,14 +65,15 @@ code = r'''
 struct TaskStopped {};
 std::function<void()> after_cycle;
 void TestTaskDelay(uint32_t period) {
-    assert(period == 5);
+    assert(period == TEST_TASK_DELAY_MS);
     after_cycle();
 }
 uint32_t tick = 0;
-GPIO_TypeDef gpio_a;
+GPIO_TypeDef gpio_a, gpio_e;
 uint16_t pins = 0;
 extern "C" uint32_t HAL_GetTick() { return tick; }
 GPIO_PinState HAL_GPIO_ReadPin(GPIO_TypeDef*, uint16_t pin) {
+    assert((pin & ~(GPIO_PIN_13 | GPIO_PIN_9 | GPIO_PIN_2 | GPIO_PIN_3)) == 0);
     return (pins & pin) ? GPIO_PIN_SET : GPIO_PIN_RESET;
 }
 namespace BSP::REMOTE_CONTROL {
@@ -282,13 +287,14 @@ int main() {
     feedback.is_remote_frame=false;
     feedback.id=8; fdcan3_callback(feedback);
     run_once(); assert(!gantry_watch.online[2]);
-    feedback.id=0x205; fdcan3_callback(feedback);
-    feedback.id=0x206; fdcan3_callback(feedback);
+    feedback.id=0x205; feedback.data[4]=0x20; feedback.data[5]=0; fdcan3_callback(feedback);
+    feedback.id=0x206; feedback.data[4]=0xE0; fdcan3_callback(feedback);
     feedback.id=9; feedback.data[0]=0x18; fdcan3_callback(feedback);
     run_once(); assert(!gantry_watch.online[2]);
     feedback.data[0]=0x19; fdcan3_callback(feedback);
     run_once();
     for (bool online : gantry_watch.online) assert(online);
+    assert(gantry_watch.lift_current_a[0]==10 && gantry_watch.lift_current_a[1]==-10);
     assert(gantry_watch.dm_status == 1);
     tick+=99; run_once();
     for (bool online : gantry_watch.online) assert(online);
@@ -301,10 +307,10 @@ int main() {
     feedback.id=0x206; fdcan3_callback(feedback);
     feedback.id=9; fdcan3_callback(feedback);
     input_dispatcher.Update(3,3,0,false,false);
-    pins=GPIO_PIN_3 | GPIO_PIN_4;
+    pins=GPIO_PIN_3;
     run_once(); assert(!gantry_watch.limit[3]);
     tick+=20; run_once();
-    assert(gantry_watch.limit[3] && gantry_watch.limit[4] && !gantry_watch.limit[0]);
+    assert(gantry_watch.limit[3] && !gantry_watch.limit[0]);
 
     if (!TEST_VALID_CONFIG) {
         assert(gantry_watch.state == GantryState::Disabled);
@@ -323,14 +329,19 @@ int main() {
     run_once(); assert(gantry_watch.state == GantryState::Disabled);
     assert(count_enables()==enables_before_stop);
     input_dispatcher.Update(3,3,0,false,false);
-    auto refresh_feedback = [&](bool dm_feedback, uint8_t status=1) {
+    auto refresh_feedback = [&](bool dm_feedback, uint8_t status=1, int16_t lift_current=0) {
         Frame sample{};
         sample.dlc=8; sample.data[0]=0x10;
+        sample.data[4]=static_cast<uint16_t>(lift_current)>>8;
+        sample.data[5]=static_cast<uint16_t>(lift_current)&0xFF;
         sample.id=0x205; fdcan3_callback(sample);
+        sample.data[4]=static_cast<uint16_t>(-lift_current)>>8;
+        sample.data[5]=static_cast<uint16_t>(-lift_current)&0xFF;
         sample.id=0x206; fdcan3_callback(sample);
         if (dm_feedback) {
             sample.id=9; sample.data[0]=(status<<4)|9;
             sample.data[1]=0x80; sample.data[3]=0x80;
+            sample.data[4]=sample.data[5]=0;
             fdcan3_callback(sample);
         }
     };
@@ -374,11 +385,11 @@ int main() {
         case 10: tick+=1; refresh_feedback(false); break;
         case 11: tick+=1; refresh_feedback(true); break;
         case 12:
-            gantry_fsm.Update(true, true, true, true,
-                              false, false, false, true, true,
+            gantry_fsm.Update(true, true, true, true, true,
+                              false, false, false, true,
                               gantry_3508_motor.getAddAngleDeg(1),
                               gantry_3508_motor.getAddAngleDeg(2),
-                              gantry_dm4310_motor.getAddAngleDeg(1), tick);
+                              gantry_dm4310_motor.getAddAngleDeg(1), 0, 0, 0, 0, tick);
             assert(gantry_fsm.GetState()==GantryState::LiftFirst);
             tick+=100; refresh_feedback(false);
             break;
@@ -413,9 +424,9 @@ int main() {
         hold_angle_pid[2].reset();
         gantry_fsm=Class_Gantry_FSM{};
         for (bool right_pressed : {false, true})
-            gantry_fsm.Update(true, true, right_pressed, right_pressed,
-                              false, false, false, true, true,
-                              lift_id5_angle, lift_id6_angle, dm_angle+error_deg, tick);
+            gantry_fsm.Update(true, true, true, right_pressed, right_pressed,
+                              false, false, false, true,
+                              lift_id5_angle, lift_id6_angle, dm_angle+error_deg, 0, 0, 0, 0, tick);
         for (unsigned cycle=0; cycle<(std::abs(error_deg)<10 ? 2U : 1U); ++cycle) {
             run_once();
             assert(gantry_watch.state==GantryState::LiftFirst);
@@ -438,9 +449,9 @@ int main() {
     }
     gantry_fsm=Class_Gantry_FSM{};
     auto update_fsm = [&](bool right_pressed, bool lift_first_limit) {
-        gantry_fsm.Update(true, true, right_pressed, right_pressed,
-                          lift_first_limit, false, false, true, true,
-                          lift_id5_angle, lift_id6_angle, dm_angle, tick);
+        gantry_fsm.Update(true, true, true, right_pressed, right_pressed,
+                          lift_first_limit, false, false, true,
+                          lift_id5_angle, lift_id6_angle, dm_angle, 0, 0, 0, 0, tick);
     };
     update_fsm(false, false);
     update_fsm(true, false);
@@ -521,6 +532,71 @@ int main() {
     };
     try { gantry_task(nullptr); } catch (const TaskStopped&) {}
     assert(cycles==5);
+
+    // A rigidly coupled lift must stop both current commands together while DM holds.
+    remoteController.online=true;
+    input_dispatcher.Update(3,3,0,false,false);
+    refresh_feedback(true);
+    const double home5=gantry_3508_motor.getAddAngleDeg(1);
+    const double home6=gantry_3508_motor.getAddAngleDeg(2);
+    const double home_dm=gantry_dm4310_motor.getAddAngleDeg(1);
+    auto prime_lower = [&](double initial5, double initial6) {
+        gantry_fsm=Class_Gantry_FSM{};
+        auto step = [&](bool right, bool first, bool extend, bool second, bool retract,
+                        double a5, double a6, double dm) {
+            gantry_fsm.Update(true, true, true, right, right, first, extend, second, retract,
+                              a5, a6, dm, 0, 0, 0, 0, tick);
+        };
+        step(false,false,false,false,true,initial5,initial6,home_dm);
+        step(true,false,false,false,true,initial5,initial6,home_dm);
+        step(true,true,false,false,false,initial5+100,initial6-100,home_dm);
+        step(true,false,true,false,false,initial5+100,initial6-100,home_dm+100);
+        step(true,false,false,true,false,initial5+200,initial6-200,home_dm+100);
+        step(true,false,false,false,true,initial5+200,initial6-200,home_dm);
+        assert(gantry_fsm.GetState()==GantryState::Lower);
+    };
+    prime_lower(home5-200, home6+200);
+    run_once();
+    const auto &limited=last_control(0x1FF);
+    const int16_t current5=static_cast<int16_t>((limited.data[0]<<8)|limited.data[1]);
+    const int16_t current6=static_cast<int16_t>((limited.data[2]<<8)|limited.data[3]);
+    assert(current5==-81 && current6==81); // 0.1 A cap -> raw magnitude 81 after conversion.
+
+    prime_lower(home5, home6);
+    refresh_feedback(true, 1, 64);
+    unsigned bottom_cycles=0;
+    after_cycle = [&] {
+        const unsigned cycle=bottom_cycles++;
+        for (const auto &frame : sent) assert(!is_dm_service(frame, 0xFD));
+        assert(gantry_watch.lift_current_a[0]==64*20.0f/16384);
+        assert(gantry_watch.lift_current_a[1]==-64*20.0f/16384);
+        if (cycle<2) {
+            assert(gantry_watch.state==GantryState::Lower);
+            assert(gantry_watch.scale==1);
+            assert(lift_move_pid[0].getError()==-GantryTuning::LIFT_ID5_SPEED_RAD_S);
+            assert(lift_move_pid[1].getError()==GantryTuning::LIFT_ID6_SPEED_RAD_S);
+            tick+=(cycle==0 ? 99 : 1);
+            refresh_feedback(true, 1, 64);
+            return;
+        }
+        assert(gantry_watch.state==GantryState::Idle && gantry_fsm.IsKeeping(2));
+        assert(!gantry_fsm.IsMoving(0) && !gantry_fsm.IsMoving(1));
+        assert(!gantry_fsm.IsKeeping(0) && !gantry_fsm.IsKeeping(1));
+        for (uint8_t byte : last_control(0x1FF).data) assert(byte==0);
+        for (unsigned i=0; i<2; ++i) {
+            assert(lift_move_pid[i].getOutput()==0 && lift_move_pid[i].getError()==0);
+            assert(lift_hold_pid[i].getOutput()==0 && lift_hold_pid[i].getError()==0);
+            assert(hold_angle_pid[i].getOutput()==0 && hold_angle_pid[i].getError()==0);
+        }
+        const auto &dm=last_control(9);
+        const float kd=(dm.data[5]<<4|dm.data[6]>>4)*5.0f/4095;
+        assert(std::abs(kd-GantryTuning::DM_HOLD_KD)<5.0f/4095);
+        if (cycle==2) { tick+=5; refresh_feedback(true, 1, 64); return; }
+        assert(cycle==3);
+        throw TaskStopped{};
+    };
+    try { gantry_task(nullptr); } catch (const TaskStopped&) {}
+    assert(bottom_cycles==4);
 }
 '''.replace("DISPATCHER_SOURCE", dispatcher).replace("TASK_SOURCE", task).replace("CALLBACK_SOURCE", callback).replace("FRICTION_DEFINITION", friction_definition)
 
@@ -548,8 +624,8 @@ with tempfile.TemporaryDirectory(prefix="gantry_motors_") as directory:
     )
     (work / "stm32h7xx_hal.h").write_text(
         '#pragma once\n#include <cstdint>\nstruct GPIO_TypeDef {};\n'
-        'extern GPIO_TypeDef gpio_a;\n#define GPIOA (&gpio_a)\n'
-        + ''.join(f'#define GPIO_PIN_{i} (1U<<{i})\n' for i in range(5))
+        'extern GPIO_TypeDef gpio_a, gpio_e;\n#define GPIOA (&gpio_a)\n#define GPIOE (&gpio_e)\n'
+        + ''.join(f'#define GPIO_PIN_{i} (1U<<{i})\n' for i in (2, 3, 9, 13))
         + 'enum GPIO_PinState { GPIO_PIN_RESET, GPIO_PIN_SET };\n'
         'extern "C" uint32_t HAL_GetTick();\n'
         'GPIO_PinState HAL_GPIO_ReadPin(GPIO_TypeDef*, uint16_t);\n', encoding="utf-8")
@@ -577,6 +653,7 @@ with tempfile.TemporaryDirectory(prefix="gantry_motors_") as directory:
         (work / "gantry_fsm.hpp").write_text(fixture, encoding="utf-8")
         subprocess.run(
             ["g++", "-std=c++17", "-DTEST_VALID_CONFIG=" + str(int(configured)),
+             "-DTEST_TASK_DELAY_MS=" + str(task_delay_ms),
              "-I", str(work), "-I", str(root),
              "-I", str(root / "RtosTask"),
              "-I", str(root / "communication_between_boards"),

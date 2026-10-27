@@ -67,7 +67,8 @@ int main() {
     using Front = Class_Up_Stair_FSM;
     const float hl = Front::HOME_ANGLE_RAD[0], hr = Front::HOME_ANGLE_RAD[1];
     const float tl = Front::TARGET_ANGLE_RAD[0], tr = Front::TARGET_ANGLE_RAD[1];
-    const float ml = (hl + tl) / 2, mr = (hr + tr) / 2;
+    const float ml = (hl + tl) / 2, mr = (hr + tr - rad(360)) / 2;
+    const float control_hr = hr + rad(360);
     const uint32_t ramp_time = Front::SPEED_RAMP_TIME_MS;
     assert(ramp_time == 1000U);
     const float error = rad(0.05f);
@@ -97,6 +98,10 @@ int main() {
     run(ml, mr, true);
     assert(near(front_4340.speed[0], left_speed_limit * 0.5f));
     assert(near(front_4340.speed[1], -right_speed_limit * 0.5f));
+    run(ml, rad(-179.9f), true);
+    assert(near(front_4340.speed[1], -right_speed_limit * 0.5f));
+    run(ml, rad(179.9f), true);
+    assert(near(front_4340.speed[1], -right_speed_limit * 0.5f));
     run(tl, tr, true, 0.3f, -0.3f); // Reaching HOLD does not restart the ramp.
     assert(up_stair_fsm.Get_State() == UP_STAIR_TARGET_HOLD);
     assert(near(front_4340.speed[0], 0) && near(front_4340.speed[1], 0));
@@ -125,7 +130,7 @@ int main() {
     run(tl, tr, false); // Returning HOME also starts at zero.
     assert(near(front_4340.speed[0], 0) && near(front_4340.speed[1], 0));
     assert(near(up_stair_fsm.Get_Target_Angle(1), hl));
-    assert(near(up_stair_fsm.Get_Target_Angle(2), hr));
+    assert(near(up_stair_fsm.Get_Target_Angle(2), control_hr));
     now_tick += ramp_time / 4U;
     run(tl, tr, false);
     assert(near(front_4340.speed[0], -left_speed_limit * 0.25f));

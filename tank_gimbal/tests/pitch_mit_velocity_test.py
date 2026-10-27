@@ -12,7 +12,8 @@ class PitchMitVelocityTest(unittest.TestCase):
     def test_actual_control_and_protection(self):
         task = (ROOT / "RtosTask/can_send_task.cpp").read_text(encoding="utf-8-sig")
         self.assertIn("PITCH_MAX_SPEED_RAD_S = 95.0f * DEG_TO_RAD", task)
-        self.assertIn("PITCH_REMOTE_MIT_KD = 1.3f", task)
+        self.assertIn("PITCH_REMOTE_ANGLE_MIT_KD = 1.3f", task)
+        self.assertIn("PITCH_REMOTE_SPEED_MIT_KD = 1.3f", task)
         self.assertIn("PITCH_KEYMOUSE_MIT_KD = 1.3f", task)
         for name in ("pitch_angle_to_speed_encoder_pid", "pitch_keymouse_angle_to_speed_encoder_pid",
                      "pitch_remote_speed_encoder_pid"):
@@ -62,7 +63,7 @@ void init(unsigned status,bool mouse=false,float angle=0.8f) {
     pitch_gimbal_fsm.Init(config,status);
     pitch_current_angle=angle;
     pitch_gimbal_fsm.Update_Angle_Limit(angle,angle);
-    pitch_angle_encoder_pid.reset(); pitch_keymouse_angle_encoder_pid.reset();
+    pitch_remote_angle_encoder_pid.reset(); pitch_keymouse_angle_encoder_pid.reset();
     input_dispatcher.source=mouse?InputSource::KeyMouse:InputSource::Remote;
     pitch_current_speed=0; pitch_error=0;
 }
@@ -72,19 +73,19 @@ int main() {
     init(GIMBAL_STATUS_ANGLE);
     pitch_error=0.01f; step();
     assert(near(gimbal_motor.velocity,0.32015f));
-    assert(gimbal_motor.kd==PITCH_REMOTE_MIT_KD && gimbal_motor.ff==0);
+    assert(gimbal_motor.kd==PITCH_REMOTE_ANGLE_MIT_KD && gimbal_motor.ff==0);
     assert(pitch_keymouse_angle_encoder_pid.getOutput()==0);
     init(GIMBAL_STATUS_ANGLE,true);
     pitch_error=0.01f; step();
     assert(near(gimbal_motor.velocity,0.265f));
     assert(gimbal_motor.kd==PITCH_KEYMOUSE_MIT_KD);
-    assert(pitch_angle_encoder_pid.getOutput()==0);
+    assert(pitch_remote_angle_encoder_pid.getOutput()==0);
     for (bool mouse : {false,true}) {
         for (float sign : {-1.0f,1.0f}) {
             init(GIMBAL_STATUS_ANGLE,mouse);
             pitch_error=sign; step();
             assert(near(gimbal_motor.velocity,sign*PITCH_MAX_SPEED_RAD_S));
-            assert(gimbal_motor.kd==(mouse?PITCH_KEYMOUSE_MIT_KD:PITCH_REMOTE_MIT_KD));
+            assert(gimbal_motor.kd==(mouse?PITCH_KEYMOUSE_MIT_KD:PITCH_REMOTE_ANGLE_MIT_KD));
         }
     }
     // Remote velocity mode bypasses the angle PID and uses MIT velocity feedback.
@@ -92,8 +93,8 @@ int main() {
     Struct_Gimbal_Input input={};
     input.s1=Remote::MIDDLE; input.s2=Remote::DOWN; input.joystick_speed=-0.5f;
     pitch_gimbal_fsm.Update(input,0.8f); step();
-    assert(near(gimbal_motor.velocity,-0.5f*PITCH_MAX_SPEED_RAD_S) && gimbal_motor.kd==1.3f);
-    assert(pitch_angle_encoder_pid.getOutput()==0);
+    assert(near(gimbal_motor.velocity,-0.5f*PITCH_MAX_SPEED_RAD_S) && gimbal_motor.kd==PITCH_REMOTE_SPEED_MIT_KD);
+    assert(pitch_remote_angle_encoder_pid.getOutput()==0);
     // STOP/offline must remove Kd as well as feedforward, even while moving.
     init(GIMBAL_STATUS_STOP);
     pitch_current_speed=1; step(true,2);
@@ -114,14 +115,14 @@ int main() {
     // Existing upper policy allows positive support/braking torque.
     init(GIMBAL_STATUS_ANGLE,false,67.9f*DEG_TO_RAD);
     pitch_current_speed=-1; step();
-    assert(gimbal_motor.kd==1.3f && pitch_control_output>0);
+    assert(gimbal_motor.kd==PITCH_REMOTE_ANGLE_MIT_KD && pitch_control_output>0);
     // Protect combined Kd*(v_des-v_fb)+feedforward, rather than t_ff alone.
     init(GIMBAL_STATUS_ANGLE);
-    pitch_current_speed=-10; step(true,2);
-    assert(near(pitch_control_output,15) && gimbal_motor.kd==1.3f && gimbal_motor.ff==2);
+    pitch_current_speed=-13.0f/PITCH_REMOTE_ANGLE_MIT_KD; step(true,2);
+    assert(near(pitch_control_output,15) && gimbal_motor.kd==PITCH_REMOTE_ANGLE_MIT_KD && gimbal_motor.ff==2);
     init(GIMBAL_STATUS_ANGLE);
-    pitch_current_speed=10; step(true,-2);
-    assert(near(pitch_control_output,-15) && gimbal_motor.kd==1.3f && gimbal_motor.ff==-2);
+    pitch_current_speed=13.0f/PITCH_REMOTE_ANGLE_MIT_KD; step(true,-2);
+    assert(near(pitch_control_output,-15) && gimbal_motor.kd==PITCH_REMOTE_ANGLE_MIT_KD && gimbal_motor.ff==-2);
     init(GIMBAL_STATUS_ANGLE);
     pitch_current_speed=-10; step(true,20);
     assert(pitch_control_output==27 && gimbal_motor.kd==0 && gimbal_motor.ff==27);
@@ -133,16 +134,20 @@ int main() {
     assert(gimbal_motor.kd==0 && gimbal_motor.ff==0);
     init(GIMBAL_STATUS_ANGLE);
     step(true,2);
-    assert(gimbal_motor.kd==1.3f && gimbal_motor.ff==2);
+    assert(gimbal_motor.kd==PITCH_REMOTE_ANGLE_MIT_KD && gimbal_motor.ff==2);
 }
 '''.replace("CONSTANTS", constants).replace("PIDS", pids).replace("BLOCK", block)
         harness = '#include <initializer_list>\n' + harness
         with tempfile.TemporaryDirectory(prefix="pitch_mit_velocity_") as directory:
             cpp = Path(directory) / "test.cpp"
             exe = Path(directory) / "test.exe"
-            # Also tune only the keyboard Kd to prove both paths select independently.
+            # Tune each Kd separately to verify that the three paths are independent.
             for source in (harness, harness.replace("PITCH_KEYMOUSE_MIT_KD = 1.3f",
-                                                     "PITCH_KEYMOUSE_MIT_KD = 0.9f")):
+                                                     "PITCH_KEYMOUSE_MIT_KD = 0.9f"),
+                           harness.replace("PITCH_REMOTE_ANGLE_MIT_KD = 1.3f",
+                                           "PITCH_REMOTE_ANGLE_MIT_KD = 0.9f"),
+                           harness.replace("PITCH_REMOTE_SPEED_MIT_KD = 1.3f",
+                                           "PITCH_REMOTE_SPEED_MIT_KD = 0.7f")):
                 cpp.write_text(source, encoding="utf-8")
                 subprocess.run(["g++", "-std=c++17", "-Wall", "-Wextra",
                                 "-I", ROOT.as_posix(), "-I", (ROOT / "user/core/Alg/PID").as_posix(),

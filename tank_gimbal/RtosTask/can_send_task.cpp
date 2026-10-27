@@ -39,7 +39,8 @@ constexpr float kTwoPi = 2.0f * kPi;
 constexpr float DEG_TO_RAD = kPi / 180.0f;
 constexpr float J4340_TORQUE_LIMIT_NM = 27.0f; // 与 J4340 Parameters 的 T_MIN/T_MAX 对齐，N*m
 constexpr float PITCH_MAX_SPEED_RAD_S = 95.0f * DEG_TO_RAD;
-constexpr float PITCH_REMOTE_MIT_KD = 1.3f; // 遥控器 MIT 速度反馈增益，独立调节
+constexpr float PITCH_REMOTE_ANGLE_MIT_KD = 1.3f; // 遥控器角度双环的 MIT 速度反馈增益
+constexpr float PITCH_REMOTE_SPEED_MIT_KD = 1.3f; // 遥控器单速度环的 MIT 速度反馈增益
 constexpr float PITCH_KEYMOUSE_MIT_KD = 1.3f; // 键鼠 MIT 速度反馈增益，独立调节
 constexpr float PITCH_ENCODER_HORIZONTAL_RAD = 46.7f * DEG_TO_RAD; // 实测水平时 ID8 原始编码器角
 
@@ -62,7 +63,7 @@ float DegreesToRadians(float value)
 // ============ 主控角度 PID → 目标速度，电机 MIT 速度反馈 → 力矩 ============
 // PID 构造参数依次为 Kp、Ki、Kd、输出幅值上限、积分状态上限、积分分离误差阈值。
 // 输入角度误差(rad)，输出目标速度(rad/s)；max 直接限制为 95 度/s 对应的弧度值。
-ALG::PID::PID pitch_angle_encoder_pid(32.0f,0.015f, 0.0f, PITCH_MAX_SPEED_RAD_S, 1000.0f, 100.0f);
+ALG::PID::PID pitch_remote_angle_encoder_pid(32.0f,0.015f, 0.0f, PITCH_MAX_SPEED_RAD_S, 1000.0f, 100.0f);
 
 
 // 键鼠角度 PID 与遥控器独立，均使用编码器反馈。
@@ -145,7 +146,7 @@ static void ResetPitchControlState()
 {
     pitch_control_output = 0.0f;
     pitch_target_speed = 0.0f;
-    pitch_angle_encoder_pid.reset();
+    pitch_remote_angle_encoder_pid.reset();
     pitch_keymouse_angle_encoder_pid.reset();
 }
 
@@ -202,6 +203,11 @@ static uint16_t startup_protect = 0; // 遥控有效且 Pitch 在线时累计的
     {
         friction_motor.Parse(frame);
     }
+        else if (frame.id == 0x205 || frame.id == 0x206)
+            {
+                gantry_3508_motor.Parse(frame);
+            }
+
     });
 
     // 裁判转发已改为 USART3，接收 lambda 在 remote_control_task 中注册。
@@ -214,11 +220,7 @@ static uint16_t startup_protect = 0; // 遥控有效且 Pitch 在线时累计的
         }
         else if (frame.dlc == 8 && !frame.is_extended_id && !frame.is_remote_frame)
         {
-            if (frame.id == 0x205 || frame.id == 0x206)
-            {
-                gantry_3508_motor.Parse(frame);
-            }
-            else if (frame.id == 9 && (frame.data[0] & 0x0F) == 9)
+             if (frame.id == 9 && (frame.data[0] & 0x0F) == 9)
             {
                 gantry_dm4310_motor.Parse(frame);
                 gantry_watch.dm_status = frame.data[0] >> 4;
@@ -435,7 +437,7 @@ const uint8_t pitch_limit_reset = pitch_gimbal_fsm.Take_Limit_Reset_Flag();
 // 本周期末 Limit_Torque 产生的新标志则留待下一周期处理，避免旧积分和观测状态继续向外推。
 if (pitch_mode_changed != 0U || pitch_limit_reset != 0U)
 {
-    pitch_angle_encoder_pid.reset();
+    pitch_remote_angle_encoder_pid.reset();
     pitch_keymouse_angle_encoder_pid.reset();
 }
 
@@ -460,7 +462,7 @@ while (pitch_error < -kPi) pitch_error += kTwoPi;
 {
     pitch_target_speed = 0.0f;
     pitch_control_output = 0.0f;
-    pitch_angle_encoder_pid.reset();
+    pitch_remote_angle_encoder_pid.reset();
     pitch_keymouse_angle_encoder_pid.reset();
 }
  // 角度模式：主控角度 PID 给目标速度，电机 MIT 内部计算速度纠偏力矩。
@@ -469,15 +471,15 @@ while (pitch_error < -kPi) pitch_error += kTwoPi;
     const bool is_keymouse = (input_dispatcher.GetSource() == InputSource::KeyMouse);
     pitch_target_speed = is_keymouse
         ? pitch_keymouse_angle_encoder_pid.UpDate(pitch_error, 0.0f)
-        : pitch_angle_encoder_pid.UpDate(pitch_error, 0.0f);
-    pitch_mit_kd = is_keymouse ? PITCH_KEYMOUSE_MIT_KD : PITCH_REMOTE_MIT_KD;
+        : pitch_remote_angle_encoder_pid.UpDate(pitch_error, 0.0f);
+    pitch_mit_kd = is_keymouse ? PITCH_KEYMOUSE_MIT_KD : PITCH_REMOTE_ANGLE_MIT_KD;
     pitch_feedforward = pitch_gravity_output;
 }
  // 遥控速度档直接给 MIT 目标速度，保留重力补偿。
  else if (pitch_gimbal_fsm.Get_Control_Type() == GIMBAL_CONTROL_SPEED)
 {
     pitch_target_speed = pitch_gimbal_fsm.Get_Control_Output();
-    pitch_mit_kd = PITCH_REMOTE_MIT_KD;
+    pitch_mit_kd = PITCH_REMOTE_SPEED_MIT_KD;
     pitch_feedforward = pitch_gravity_output;
 }
 

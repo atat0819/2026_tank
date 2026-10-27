@@ -20,20 +20,20 @@ class Class_Up_Stair_FSM : public Class_FSM
 public:
     // 编码器和机械限位配置：下标 0 对应电机 1，下标 1 对应电机 2。
     // 起始角大于终止角时，表示有效区间跨过 ±π 接缝。
-    // 左前：13.32° -> 90.94°；两端各放宽 15°，安全区间为 -1.68° -> 105.94°。
-    // 右前：-19.04° -> -98.65°；两端各放宽 15°，安全区间为 -113.65° -> -4.04°。
-    static constexpr float LIMIT_START_RAD[2] = {   // 两侧电机的机械限位起始角
-        -1.68f * 3.14159265359f / 180.0f,
-        -113.65f * 3.14159265359f / 180.0f};
-    static constexpr float LIMIT_END_RAD[2] = {    // 两侧电机的机械限位终止角
-        105.94f * 3.14159265359f / 180.0f,
-        -4.04f * 3.14159265359f / 180.0f};
+    // 左前：-67° -> 53.6°；右前：-110° -> -180°/+180° -> 128.35°。
+    static constexpr float LIMIT_MARGIN_DEG = 15.0f; // 两侧电机在初始位、目标位两端各放宽的角度，单位：度
     static constexpr float HOME_ANGLE_RAD[2] = {    // 两侧电机的机械初始角
-        13.32f * 3.14159265359f / 180.0f,
-        -19.04f * 3.14159265359f / 180.0f};
+        -67.0f * 3.14159265359f / 180.0f,
+        -110.0f * 3.14159265359f / 180.0f};
     static constexpr float TARGET_ANGLE_RAD[2] = {    // 两侧电机的上台阶目标角
-        90.94f * 3.14159265359f / 180.0f,
-        -98.65f * 3.14159265359f / 180.0f};
+        24.6f * 3.14159265359f / 180.0f,
+        156.35f * 3.14159265359f / 180.0f};
+    static constexpr float LIMIT_START_RAD[2] = {   // 左前从初始位向外放宽，右前从目标位向外放宽
+        HOME_ANGLE_RAD[0] - LIMIT_MARGIN_DEG * 3.14159265359f / 180.0f,
+        TARGET_ANGLE_RAD[1] - LIMIT_MARGIN_DEG * 3.14159265359f / 180.0f};
+    static constexpr float LIMIT_END_RAD[2] = {    // 左前从目标位向外放宽，右前从初始位向外放宽
+        TARGET_ANGLE_RAD[0] + LIMIT_MARGIN_DEG * 3.14159265359f / 180.0f,
+        HOME_ANGLE_RAD[1] + LIMIT_MARGIN_DEG * 3.14159265359f / 180.0f};
     static constexpr uint32_t SPEED_RAMP_TIME_MS = 1000U; // 动作开始后，速度比例从 0 到 1 的时间
 
     // 初始化状态机和角度配置；启动后默认保持初始位置。
