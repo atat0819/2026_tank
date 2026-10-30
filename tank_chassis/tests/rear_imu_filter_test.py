@@ -34,13 +34,13 @@ uint32_t rear_imu_filter_tick = 0U;
 float vofa_channels[6] = {};
 unsigned vofa_frames = 0;
 void vofa_send(float raw_pitch, float filtered_pitch, float raw_rate,
-               float filtered_rate, float sample_time, float reserved) {
+               float filtered_rate, float raw_roll, float filtered_roll) {
     vofa_channels[0] = raw_pitch;
     vofa_channels[1] = filtered_pitch;
     vofa_channels[2] = raw_rate;
     vofa_channels[3] = filtered_rate;
-    vofa_channels[4] = sample_time;
-    vofa_channels[5] = reserved;
+    vofa_channels[4] = raw_roll;
+    vofa_channels[5] = filtered_roll;
     ++vofa_frames;
 }
 '''
@@ -69,19 +69,18 @@ int main() {
     assert(vofa_frames == 1);
     assert(near(vofa_channels[0], 5) && near(vofa_channels[1], 5));
     assert(near(vofa_channels[2], 2) && near(vofa_channels[3], 2));
-    assert(near(vofa_channels[4], 0.100f) && vofa_channels[5] == 0);
+    assert(near(vofa_channels[4], 1.5f) && near(vofa_channels[5], 1.5f));
     // Each new frame applies the fixed angle/rate weights independently.
     update(110, {true, 110, 15, 12});
     assert(near(pitch(), 7.0f));
     assert(near(rate(), 4.5f));
     assert(vofa_frames == 2);
-    assert(near(vofa_channels[0], 15) && near(vofa_channels[1], 7.0f));
-    assert(near(vofa_channels[2], 12) && near(vofa_channels[3], 4.5f));
-    assert(near(vofa_channels[4], 0.110f));
+    assert(near(vofa_channels[0], 15) && near(vofa_channels[1], pitch()));
+    assert(near(vofa_channels[2], 12) && near(vofa_channels[3], rate()));
     const float p = pitch(), r = rate();
     update(111, {true, 110, 15, 12});
     assert(near(pitch(), p) && near(rate(), r));
-    assert(vofa_frames == 2);
+    assert(vofa_frames == 2); // Re-reading the same IMU frame must not send again.
     update(120, {true, 120, 15, 12});
     assert(near(pitch(), p + (15-p)*0.20f));
     assert(near(rate(), r + (12-r)*0.25f));
@@ -158,6 +157,7 @@ int main() {
     assert(near(observed_roll, 1.5f));
     update(9006, {true, 9006, 0, 0, 11.5f});
     assert(near(observed_roll, 2.4f));
+    assert(near(vofa_channels[4], 11.5f) && near(vofa_channels[5], observed_roll));
     update(9007, {true, 9006, 0, 0, 11.5f});
     assert(near(observed_roll, 2.4f));
     update(9011, {true, 9011, 0, 0, NAN});
@@ -169,6 +169,7 @@ int main() {
     assert(!rear_imu_filter_initialized);
     update(9117, {true, 9117, 0, 0, 6.5f});
     assert(near(observed_roll, 6.5f));
+    assert(near(vofa_channels[4], 6.5f) && near(vofa_channels[5], 6.5f));
 }
 '''
 with tempfile.TemporaryDirectory(prefix="rear-imu-filter-") as directory:
@@ -185,4 +186,4 @@ with tempfile.TemporaryDirectory(prefix="rear-imu-filter-") as directory:
         "-o", executable.as_posix(),
     ], check=True)
     subprocess.run([str(executable)], check=True)
-print("PASS: raw/filtered IMU VOFA channels, new-frame sends, fixed weights, initialization, expiry, NaN recovery and tick rollover")
+print("PASS: six-channel IMU telemetry, no duplicate/invalid sends, fixed weights and recovery")

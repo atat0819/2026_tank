@@ -1,0 +1,301 @@
+{
+  "assumed_hz": 200,
+  "limits": "No timestamps, command/FSM/limit flags or motor channels. No controlled causal claim or confirmed settling time.",
+  "captures": [
+    {
+      "number": 5,
+      "file": "E:\\IMU平衡5.csv",
+      "damping_user_stated": 4,
+      "sha256": "bfc09ea1e674a9064eea2beb80ef938d42da903d4e2df9e869575982286d8fff",
+      "rows": 4896,
+      "approx_duration_s": 24.475,
+      "gyro_outlier_samples_zero_based": [],
+      "gyro_outlier_csv_lines": [],
+      "valid_raw_gyro_range": [
+        -72.994827,
+        25.611214
+      ],
+      "raw_pitch_range": [
+        0.735,
+        8.88
+      ],
+      "filters": [
+        {
+          "raw_column": 0,
+          "alpha": 0.40000000520403484,
+          "recurrence_discontinuity_samples_zero_based": [
+            1757
+          ]
+        },
+        {
+          "raw_column": 2,
+          "alpha": 0.5000000043271067,
+          "recurrence_discontinuity_samples_zero_based": [
+            1757
+          ]
+        },
+        {
+          "raw_column": 4,
+          "alpha": 0.3000000036309521,
+          "recurrence_discontinuity_samples_zero_based": [
+            1757
+          ]
+        }
+      ],
+      "events": [
+        {
+          "peak_sample_zero_based": 1164,
+          "peak_deg": 8.856,
+          "trough_sample_zero_based": 1217,
+          "trough_deg": 0.854,
+          "abs_trough_error_deg": 0.14600000000000002,
+          "min_fall_rate_dps": -71.677025,
+          "peak_to_trough_s_nominal": 0.265,
+          "post_peak_0_5_to_0_9s_pitch_mean": 2.2902,
+          "post_peak_0_5_to_0_9s_pitch_std": 0.032052457004105014,
+          "post_trough_up_rate_max_until_0_75s": 17.303326
+        },
+        {
+          "peak_sample_zero_based": 2047,
+          "peak_deg": 8.831,
+          "trough_sample_zero_based": 2097,
+          "trough_deg": 0.735,
+          "abs_trough_error_deg": 0.265,
+          "min_fall_rate_dps": -72.994827,
+          "peak_to_trough_s_nominal": 0.25,
+          "post_peak_0_5_to_0_9s_pitch_mean": 2.198125,
+          "post_peak_0_5_to_0_9s_pitch_std": 0.02824419188080975,
+          "post_trough_up_rate_max_until_0_75s": 17.532509
+        },
+        {
+          "peak_sample_zero_based": 2963,
+          "peak_deg": 8.88,
+          "trough_sample_zero_based": 3012,
+          "trough_deg": 0.939,
+          "abs_trough_error_deg": 0.061000000000000054,
+          "min_fall_rate_dps": -72.078094,
+          "peak_to_trough_s_nominal": 0.245,
+          "post_peak_0_5_to_0_9s_pitch_mean": 3.745375,
+          "post_peak_0_5_to_0_9s_pitch_std": 0.03314527681284317,
+          "post_trough_up_rate_max_until_0_75s": 23.032904
+        },
+        {
+          "peak_sample_zero_based": 3886,
+          "peak_deg": 8.826,
+          "trough_sample_zero_based": 3936,
+          "trough_deg": 0.903,
+          "abs_trough_error_deg": 0.09699999999999998,
+          "min_fall_rate_dps": -72.76564,
+          "peak_to_trough_s_nominal": 0.25,
+          "post_peak_0_5_to_0_9s_pitch_mean": 3.7756875,
+          "post_peak_0_5_to_0_9s_pitch_std": 0.0332383790782583,
+          "post_trough_up_rate_max_until_0_75s": 25.210144
+        }
+      ],
+      "count": 4,
+      "median_peak_deg": 8.843499999999999,
+      "median_trough_deg": 0.8785000000000001,
+      "median_abs_trough_error_deg": 0.1215,
+      "median_min_fall_rate_dps": -72.42186699999999,
+      "median_peak_to_trough_s_nominal": 0.25,
+      "median_post_trough_up_rate_max_until_0_75s": 20.2827065,
+      "troughs_within_0_15deg_of_target": 3,
+      "min_trough_deg": 0.735
+    },
+    {
+      "number": 6,
+      "file": "E:\\IMU数据6.csv",
+      "damping_user_stated": 5,
+      "sha256": "bc4b9a62f14655d1f4071129d53c21102be7ab8887766a3add2cd45147d87335",
+      "rows": 10134,
+      "approx_duration_s": 50.665,
+      "gyro_outlier_samples_zero_based": [
+        2480
+      ],
+      "gyro_outlier_csv_lines": [
+        2482
+      ],
+      "valid_raw_gyro_range": [
+        -73.109413,
+        27.330088
+      ],
+      "raw_pitch_range": [
+        0.729,
+        9.052
+      ],
+      "filters": [
+        {
+          "raw_column": 0,
+          "alpha": 0.3999999935711152,
+          "recurrence_discontinuity_samples_zero_based": [
+            432,
+            659,
+            7519
+          ]
+        },
+        {
+          "raw_column": 2,
+          "alpha": 0.5000000008869194,
+          "recurrence_discontinuity_samples_zero_based": [
+            432,
+            659,
+            2480,
+            7519
+          ]
+        },
+        {
+          "raw_column": 4,
+          "alpha": 0.3000000250268803,
+          "recurrence_discontinuity_samples_zero_based": [
+            432,
+            659,
+            7519
+          ]
+        }
+      ],
+      "events": [
+        {
+          "peak_sample_zero_based": 1198,
+          "peak_deg": 8.829,
+          "trough_sample_zero_based": 1247,
+          "trough_deg": 0.961,
+          "abs_trough_error_deg": 0.039000000000000035,
+          "min_fall_rate_dps": -72.19268,
+          "peak_to_trough_s_nominal": 0.245,
+          "post_peak_0_5_to_0_9s_pitch_mean": 3.6929625,
+          "post_peak_0_5_to_0_9s_pitch_std": 0.03945486147168687,
+          "post_trough_up_rate_max_until_0_75s": 25.038256
+        },
+        {
+          "peak_sample_zero_based": 1993,
+          "peak_deg": 8.721001,
+          "trough_sample_zero_based": 2040,
+          "trough_deg": 1.083,
+          "abs_trough_error_deg": 0.08299999999999996,
+          "min_fall_rate_dps": -70.588402,
+          "peak_to_trough_s_nominal": 0.235,
+          "post_peak_0_5_to_0_9s_pitch_mean": 3.636775,
+          "post_peak_0_5_to_0_9s_pitch_std": 0.030600234884719402,
+          "post_trough_up_rate_max_until_0_75s": 23.949636
+        },
+        {
+          "peak_sample_zero_based": 2759,
+          "peak_deg": 8.77,
+          "trough_sample_zero_based": 2808,
+          "trough_deg": 1.03,
+          "abs_trough_error_deg": 0.030000000000000027,
+          "min_fall_rate_dps": -71.275948,
+          "peak_to_trough_s_nominal": 0.245,
+          "post_peak_0_5_to_0_9s_pitch_mean": 3.7147625,
+          "post_peak_0_5_to_0_9s_pitch_std": 0.033676491707866484,
+          "post_trough_up_rate_max_until_0_75s": 26.642538
+        },
+        {
+          "peak_sample_zero_based": 3549,
+          "peak_deg": 8.882,
+          "trough_sample_zero_based": 3596,
+          "trough_deg": 0.869,
+          "abs_trough_error_deg": 0.131,
+          "min_fall_rate_dps": -71.562431,
+          "peak_to_trough_s_nominal": 0.235,
+          "post_peak_0_5_to_0_9s_pitch_mean": 3.6915750000000003,
+          "post_peak_0_5_to_0_9s_pitch_std": 0.029204783426692298,
+          "post_trough_up_rate_max_until_0_75s": 23.032904
+        },
+        {
+          "peak_sample_zero_based": 4359,
+          "peak_deg": 8.830001,
+          "trough_sample_zero_based": 4408,
+          "trough_deg": 1.039,
+          "abs_trough_error_deg": 0.038999999999999924,
+          "min_fall_rate_dps": -71.734314,
+          "peak_to_trough_s_nominal": 0.245,
+          "post_peak_0_5_to_0_9s_pitch_mean": 3.6752375,
+          "post_peak_0_5_to_0_9s_pitch_std": 0.02588592462613612,
+          "post_trough_up_rate_max_until_0_75s": 25.38203
+        },
+        {
+          "peak_sample_zero_based": 5207,
+          "peak_deg": 8.971001,
+          "trough_sample_zero_based": 5255,
+          "trough_deg": 0.729,
+          "abs_trough_error_deg": 0.271,
+          "min_fall_rate_dps": -72.421867,
+          "peak_to_trough_s_nominal": 0.24,
+          "post_peak_0_5_to_0_9s_pitch_mean": 3.7264250000000003,
+          "post_peak_0_5_to_0_9s_pitch_std": 0.02501838074296575,
+          "post_trough_up_rate_max_until_0_75s": 26.527946
+        },
+        {
+          "peak_sample_zero_based": 6131,
+          "peak_deg": 8.761001,
+          "trough_sample_zero_based": 6181,
+          "trough_deg": 1.002,
+          "abs_trough_error_deg": 0.0020000000000000018,
+          "min_fall_rate_dps": -70.760292,
+          "peak_to_trough_s_nominal": 0.25,
+          "post_peak_0_5_to_0_9s_pitch_mean": 3.6950874999999996,
+          "post_peak_0_5_to_0_9s_pitch_std": 0.02882672100239634,
+          "post_trough_up_rate_max_until_0_75s": 27.272791
+        },
+        {
+          "peak_sample_zero_based": 7083,
+          "peak_deg": 8.751,
+          "trough_sample_zero_based": 7133,
+          "trough_deg": 1.063,
+          "abs_trough_error_deg": 0.06299999999999994,
+          "min_fall_rate_dps": -70.531105,
+          "peak_to_trough_s_nominal": 0.25,
+          "post_peak_0_5_to_0_9s_pitch_mean": 3.6840375,
+          "post_peak_0_5_to_0_9s_pitch_std": 0.027031668349363873,
+          "post_trough_up_rate_max_until_0_75s": 27.043608
+        },
+        {
+          "peak_sample_zero_based": 7780,
+          "peak_deg": 8.816,
+          "trough_sample_zero_based": 7828,
+          "trough_deg": 1.005,
+          "abs_trough_error_deg": 0.004999999999999893,
+          "min_fall_rate_dps": -70.874878,
+          "peak_to_trough_s_nominal": 0.24,
+          "post_peak_0_5_to_0_9s_pitch_mean": 3.6858125,
+          "post_peak_0_5_to_0_9s_pitch_std": 0.03216057125969627,
+          "post_trough_up_rate_max_until_0_75s": 24.064228
+        },
+        {
+          "peak_sample_zero_based": 8608,
+          "peak_deg": 8.724,
+          "trough_sample_zero_based": 8656,
+          "trough_deg": 1.069,
+          "abs_trough_error_deg": 0.06899999999999995,
+          "min_fall_rate_dps": -71.619728,
+          "peak_to_trough_s_nominal": 0.24,
+          "post_peak_0_5_to_0_9s_pitch_mean": 3.6956625,
+          "post_peak_0_5_to_0_9s_pitch_std": 0.023482410305375415,
+          "post_trough_up_rate_max_until_0_75s": 25.553919
+        },
+        {
+          "peak_sample_zero_based": 9330,
+          "peak_deg": 9.052,
+          "trough_sample_zero_based": 9380,
+          "trough_deg": 0.997,
+          "abs_trough_error_deg": 0.0030000000000000027,
+          "min_fall_rate_dps": -73.109413,
+          "peak_to_trough_s_nominal": 0.25,
+          "post_peak_0_5_to_0_9s_pitch_mean": 3.7423375000000005,
+          "post_peak_0_5_to_0_9s_pitch_std": 0.12840608861635028,
+          "post_trough_up_rate_max_until_0_75s": 27.330088
+        }
+      ],
+      "count": 11,
+      "median_peak_deg": 8.816,
+      "median_trough_deg": 1.005,
+      "median_abs_trough_error_deg": 0.039000000000000035,
+      "median_min_fall_rate_dps": -71.562431,
+      "median_peak_to_trough_s_nominal": 0.245,
+      "median_post_trough_up_rate_max_until_0_75s": 25.553919,
+      "troughs_within_0_15deg_of_target": 10,
+      "min_trough_deg": 0.729
+    }
+  ]
+}

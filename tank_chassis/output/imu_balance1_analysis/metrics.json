@@ -1,0 +1,80 @@
+{
+  "input": "E:\\IMU平衡1.csv",
+  "sha256": "404b3f450388ce2c39876b838ea0fddf981befa0c0eacc225fdb819b00e81742",
+  "rows": 6622,
+  "nominal_sample_rate_hz_user_supplied": 200.0,
+  "approximate_duration_s": 33.105,
+  "timing_limit": "No timestamp column; nominal time assumes no missing frames or gaps.",
+  "capture_context": "Repeated stair trials with B presses; command times and FSM states were not captured.",
+  "channel_min": [
+    0.171,
+    0.322578,
+    -91.558655,
+    -78.564911,
+    -0.303,
+    0.033073
+  ],
+  "channel_max": [
+    8.628,
+    8.612037,
+    47.67009,
+    43.635963,
+    2.192,
+    2.125433
+  ],
+  "filters": {
+    "pitch": {
+      "fitted_alpha": 0.20000000238797738,
+      "fit_points": 3274,
+      "recurrence_rmse": 3.893763816451221e-07,
+      "recurrence_max_abs_error": 1.2013676335548285e-06,
+      "alpha_0_8_recurrence_rmse": 0.19305927438229983,
+      "low_frequency_delay_samples": 3.9999999403005666,
+      "low_frequency_delay_ms_at_200hz": 19.999999701502833
+    },
+    "pitch_rate": {
+      "fitted_alpha": 0.24999999912235732,
+      "fit_points": 5340,
+      "recurrence_rmse": 5.549447012331291e-07,
+      "recurrence_max_abs_error": 6.007356263104668e-06,
+      "alpha_0_8_recurrence_rmse": 3.08445025402388,
+      "low_frequency_delay_samples": 3.000000014042283,
+      "low_frequency_delay_ms_at_200hz": 15.000000070211414
+    },
+    "roll": {
+      "fitted_alpha": 0.09000001128292792,
+      "fit_points": 3582,
+      "recurrence_rmse": 3.8915680257785103e-07,
+      "recurrence_max_abs_error": 1.0022520724427275e-06,
+      "alpha_0_8_recurrence_rmse": 0.11869544449937672,
+      "low_frequency_delay_samples": 10.111109718157222,
+      "low_frequency_delay_ms_at_200hz": 50.55554859078611
+    }
+  },
+  "example_event": {
+    "peak_sample": 437,
+    "peak_time_s": 2.185,
+    "peak_pitch_deg": 8.361,
+    "trough_sample": 472,
+    "trough_time_s": 2.36,
+    "trough_pitch_deg": 0.256,
+    "peak_to_trough_s": 0.17499999999999982,
+    "rebound_sample": 544,
+    "rebound_time_s": 2.72,
+    "rebound_pitch_deg": 5.012,
+    "max_raw_minus_filtered_pitch_deg": 1.5656220000000003
+  },
+  "current_source_nominal_attitude_path": {
+    "pitch_target_deg": 1.0,
+    "pitch_kp_per_s": 55.0,
+    "speed_limit_rad_s": 7.4,
+    "mit_kd": 3.5,
+    "pitch_body_damping_nm_per_rad_s": 1.0,
+    "max_abs_unprotected_pitch_speed_request_rad_s": 7.30703096384974,
+    "max_abs_unprotected_body_damping_nm": 1.3712163734863108,
+    "one_deg_pitch_error_speed_request_rad_s": 0.9599310885968813,
+    "one_deg_pitch_error_velocity_torque_term_nm_at_zero_motor_speed": 3.3597588100890845,
+    "30_dps_body_damping_nm": 0.5235987755982988,
+    "limit": "Calculated from current source, not measured motor commands/torque; inactive in retract and overridden in endpoint hold."
+  }
+}

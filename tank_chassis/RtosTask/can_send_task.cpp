@@ -6,6 +6,8 @@
 #include "cmsis_os.h"
 #include "Alg/PID/pid.hpp"
 #include "usart.h"
+#include "usb_device.h"
+#include "usbd_cdc_if.h"
 #include "Alg/Filter/Filter.hpp"
 #include <math.h>
 #include <string.h>
@@ -257,19 +259,18 @@ float chassis_power_pred = 0.0f;
 // ========== 功率校准扫频测试 ==========
 Alg::PowerControlTestVersion::PowerControlTestVersion sweep_tester; // 扫频信号生成器
 // Power model: P = K0 + K1*I + K2*abs(w) + K3*I*w + K4*I*I + K5*w*w
-// 整车模式拟合 (下地x4 + 悬空x1 加权合并, 剔除静止段):
-//   下地: xiadiceshi1 + dipanceshi3 + dipantest10 (带负载, 0-600rad/s)
-//   悬空: depanceshi10 (全转速 0-900rad/s, 补高速段形状)
-//   P_total = 4*K0 + K1*ΣI + K2*Σw + K3*Σ(I*w) + K4*Σ(I²) + K5*Σ(w²)
-//   下地 0-200rad/s RMSE=1.8W; 高速段(悬空验证)600-800rad/s 无偏
+// 电机空载新.csv 与功率采集1新.csv 正确接线数据联合拟合，共 89785 条记录。
+//   目标函数按组归一化：落地总权重 99.9%，空载总权重 0.1%。
+//   P_total = 4*K0 + K1*ΣI + K2*Σabs(w) + K3*Σ(I*w) + K4*Σ(I²) + K5*Σ(w²)
+//   落地/空载拟合 RMSE=2.4699/10.6442W，分段验证 RMSE=2.5356/10.7209W。
 //   注: K0 已是每电机常数, 无需 -3*K0 修正 (已置 0)
 float poly_coeffs[6] = {
-     0.614597983f,  // K0
-    -0.005554523f,  // K1
-     0.004789858f,  // K2, fabsf(w)
-     0.017675351f,  // K3
-     0.114952711f,  // K4
-     0.000008669f   // K5
+     1.075387955765f,  // K0
+    -0.231331346558f,  // K1
+     0.004604969878f,  // K2, fabsf(w)
+     0.018325841773f,  // K3
+     0.123775233102f,  // K4
+     0.000007258752f   // K5
 };
 
 // CorrectionConstant = 0.0f
@@ -382,6 +383,8 @@ ChassisMotorSendCANChecked();
 // 在循环前声明
 Enum_Chassis_Mode last_mode = CHASSIS_STOP; //为了不疯车
 ControlInputSource last_input_source = ControlInputSource::NONE;
+uint32_t last_power_meter_sequence = 0U;
+ALG::PowerControl::PowerControlBase<4> power_identification_model;
 
     //IMU的变量
     IMUData_t IMUData;           // IMU 数据结构体
@@ -428,6 +431,9 @@ osDelay(500);
                  stair_command.front_target_requested = false;
              }
          }
+         const bool rear_wheel_drive_only =
+             stair_command.mode == StairMode::IMU &&
+             stair_command.front_target_requested;
          taskEXIT_CRITICAL();
 
          //获取底盘旋转速度
@@ -611,6 +617,17 @@ if (chassis_fsm.Get_Mode() == CHASSIS_STOP)
      motor_output[1] = motor_pid[1].UpDate(motor_target_speed[1], current_speed_rads[1]);
      motor_output[2] = motor_pid[2].UpDate(motor_target_speed[2], current_speed_rads[2]);
      motor_output[3] = motor_pid[3].UpDate(motor_target_speed[3], current_speed_rads[3]);
+
+     // IMU 中第一次 B 抬前机构后前轮 ID 1/2 零电流；第二次 B 收腿时恢复四驱。
+     // 在功率计算前清零，让后轮使用可用驱动预算，并避免前轮积分累积。
+     if (rear_wheel_drive_only)
+     {
+         for (int i = 0; i < 2; ++i)
+         {
+             motor_pid[i].reset();
+             motor_output[i] = 0.0f;
+         }
+     }
 	// 保存功率控制前的电流，用于VOFA对比衰减前后
 		memcpy(motor_output_pre, motor_output, sizeof(motor_output_pre));
 
@@ -659,7 +676,7 @@ if (chassis_fsm.Get_Mode() == CHASSIS_STOP)
 	        I_other[i] = 0.0f;                                       // 无前馈
 	    }
 
-	    // CorrectionConstant: 新系数(整车拟合)已无偏, 4*K0≈2.6W 已等于空载功率, 修正项置 0
+	    // CorrectionConstant: 四轮求和已包含每电机常数项 4*K0，修正项为 0
 	    chassis_power_ctrl.DecayingCurrent(
 	        I, V, poly_coeffs, I_other,
 	        0.0f,   // CorrectionConstant = 0
@@ -706,10 +723,42 @@ if (chassis_fsm.Get_Mode() == CHASSIS_STOP)
        
     }
 
-        // VOFA 暂由 up_stair.cpp 发送 IMU 原始/滤波数据，避免混入轮速帧。
-        // vofa_send(motor_target_speed[0], current_speed_rads[0],
-        //           motor_target_speed[1], current_speed_rads[1],
-        //           motor_target_speed[3], current_speed_rads[3]);
+        // 功率辨识：每个功率计新帧最多采集一次，STOP 时也保留真实反馈。
+        float power_channels[15] = {};
+        taskENTER_CRITICAL();
+        const uint32_t power_sequence = power_meter_sequence;
+        const bool new_power_sample = power_meter_valid &&
+            power_sequence != last_power_meter_sequence;
+        if (new_power_sample)
+        {
+            power_channels[0] = PowerData.power;
+            for (uint8_t i = 0; i < 4; ++i)
+            {
+                power_channels[1 + 2 * i] = chassis_motor.getCurrent(i + 1);
+                // 此对象减速比为 1，直接取转子 rad/s，不能用除过 15.8 的轮速。
+                power_channels[2 + 2 * i] = chassis_motor.getVelocityRads(i + 1);
+                if (chassis_motor.isConnected(i + 1, i + 1))
+                {
+                    power_channels[13] += static_cast<float>(1U << i);
+                }
+            }
+            power_channels[10] = static_cast<float>(power_meter_tick) * 0.001f;
+            power_channels[11] = PowerData.voltage;
+            power_channels[12] = PowerData.current;
+            power_channels[14] = static_cast<float>(power_sequence);
+        }
+        taskEXIT_CRITICAL();
+        if (new_power_sample)
+        {
+            last_power_meter_sequence = power_sequence;
+            for (uint8_t i = 0; i < 4; ++i)
+            {
+                power_identification_model.SetMotorParameters(
+                    i, power_channels[1 + 2 * i], power_channels[2 + 2 * i], poly_coeffs);
+                power_channels[9] += power_identification_model.GetPowerCalculate(i);
+            }
+            vofa_sendN(power_channels, 15);
+        }
 
         // 更新裁判回复快照；只有收到有效 RS485 请求后才由 RX ISR 发送。
         Referee485_Update(
@@ -755,6 +804,30 @@ void vofa_send(float x1, float x2, float x3, float x4, float x5, float x6)
 }
 
 
+void vofa_sendN(const float *data, uint8_t count)
+{
+    if (data == nullptr || count == 0 || count > 15)
+    {
+        return;
+    }
+
+    // USB 异步发送：缓冲区必须持久有效，且忙时不能改写。
+    static uint8_t send_str2[sizeof(float) * 15 + 4];
+    const uint8_t frame_tail[4] = {0x00, 0x00, 0x80, 0x7F};
+    // USB IRQ 优先级为 5；短临界区防止检查后被断连中断释放 pClassData。
+    taskENTER_CRITICAL();
+    USBD_CDC_HandleTypeDef *hcdc = static_cast<USBD_CDC_HandleTypeDef*>(hUsbDeviceHS.pClassData);
+    if (hUsbDeviceHS.dev_state != USBD_STATE_CONFIGURED || hcdc == nullptr || hcdc->TxState != 0)
+    {
+        taskEXIT_CRITICAL();
+        return;
+    }
+
+    memcpy(send_str2, data, sizeof(float) * count);
+    memcpy(send_str2 + sizeof(float) * count, frame_tail, sizeof(frame_tail));
+    CDC_Transmit_HS(send_str2, static_cast<uint16_t>(sizeof(float) * (count + 1)));
+    taskEXIT_CRITICAL();
+}
 
 
  void ControlTask() {

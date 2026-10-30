@@ -19,6 +19,10 @@ uint8_t power_rx_buffer[12];   // 功率计接收缓冲区
 QueueHandle_t IMUDataQueue;  // 用于传递 IMU 数据的队列
 IMUData_t imuData;           // IMU 数据结构体
 PowerData_t PowerData;
+volatile uint32_t power_meter_tick = 0U;
+volatile uint32_t power_meter_sequence = 0U;
+volatile bool power_meter_valid = false;
+static_assert(sizeof(PowerData_t) == 12, "Power meter frame must be three floats");
 
 // 2. 遥控器相关
 uint8_t receivedata[18];     // 遥控器接收缓冲区
@@ -45,6 +49,7 @@ uint8_t referee_buffer[512];    // 裁判系统 DMA 接收缓冲区
 // 对标 CAN 的 Frame 静态分配模式
 static HAL::UART::Data uart5_rx_data;   // 遥控器 DMA+空闲接收
 static HAL::UART::Data uart7_rx_data;   // HI14 DMA+空闲接收
+static HAL::UART::Data uart10_rx_data{power_rx_buffer, sizeof(power_rx_buffer)};
 HAL::UART::Data uart1_rx_data;          // 裁判系统 DMA+空闲接收（非static，RM_RefereeSystemInit 需引用）
 
 // ================= HI14 快照 =================
@@ -98,6 +103,22 @@ void PublishHi14ImuFromISR(const IMU_Float_t &data, uint32_t sample_tick, bool v
  */
 extern "C" void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 {
+    if (huart == &huart10)
+    {
+        if (HAL_UARTEx_GetRxEventType(huart) == HAL_UART_RXEVENT_HT)
+        {
+            return;
+        }
+        auto &uart10 = HAL::UART::get_uart_bus_instance().get_uart10();
+        HAL::UART::Data rx_data{power_rx_buffer, Size};
+        uart10.trigger_rx_callbacks(rx_data);
+        // 先复制本帧，再重启 DMA，避免接收覆盖正在解析的数据。
+        if (uart10.receive_dma_idle(uart10_rx_data))
+        {
+            __HAL_DMA_DISABLE_IT(huart->hdmarx, DMA_IT_HT);
+        }
+        return;
+    }
     // 与云台一致：忽略半传输，先处理数据，再用原缓冲区重启普通 DMA+Idle。
     if (huart == &huart3)
     {
@@ -164,6 +185,24 @@ extern "C" void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t S
  */
 extern "C" void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
 {
+    if (huart == &huart10)
+    {
+        power_meter_valid = false;
+        __HAL_UART_CLEAR_OREFLAG(huart);
+        __HAL_UART_CLEAR_NEFLAG(huart);
+        __HAL_UART_CLEAR_FEFLAG(huart);
+        __HAL_UART_CLEAR_PEFLAG(huart);
+        if (HAL_UART_AbortReceive(huart) != HAL_OK)
+        {
+            return;
+        }
+        auto &uart10 = HAL::UART::get_uart_bus_instance().get_uart10();
+        if (uart10.receive_dma_idle(uart10_rx_data))
+        {
+            __HAL_DMA_DISABLE_IT(huart->hdmarx, DMA_IT_HT);
+        }
+        return;
+    }
     if (huart == &huart3)
     {
         __HAL_UART_CLEAR_OREFLAG(huart);
@@ -346,7 +385,32 @@ extern "C" void remote_task(void *argument)
     uart1.receive_dma_idle(uart1_rx_data);
     __HAL_DMA_DISABLE_IT(&hdma_usart1_rx, DMA_IT_HT);
 
-    // ---- 7. 主循环 ----
+    // ---- 7. USART10 功率计：历史协议为电压/电流/功率三个 float，无帧头或 CRC ----
+    auto &uart10 = HAL::UART::get_uart_bus_instance().get_uart10();
+    uart10.register_rx_callback([](const HAL::UART::Data &data) {
+        power_meter_valid = false;
+        if (data.buffer == nullptr || data.size != sizeof(PowerData_t))
+        {
+            return;
+        }
+        PowerData_t sample;
+        memcpy(&sample, data.buffer, sizeof(sample));
+        if (!std::isfinite(sample.voltage) || !std::isfinite(sample.current) ||
+            !std::isfinite(sample.power))
+        {
+            return;
+        }
+        PowerData = sample;
+        power_meter_tick = HAL_GetTick();
+        ++power_meter_sequence;
+        power_meter_valid = true;
+    });
+    if (uart10.receive_dma_idle(uart10_rx_data))
+    {
+        __HAL_DMA_DISABLE_IT(uart10.get_handle()->hdmarx, DMA_IT_HT);
+    }
+
+    // ---- 8. 主循环 ----
     for (;;)
     {
         // 裁判系统掉线检测（超时1000ms无数据判定掉线，内部会更新RM_RefereeSystemDirFlag并重连DMA）

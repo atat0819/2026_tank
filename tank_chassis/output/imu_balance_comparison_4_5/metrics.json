@@ -1,0 +1,204 @@
+[
+  {
+    "number": 4,
+    "rows": 5380,
+    "duration_approx_s": 26.895,
+    "sha256": "a51f61e120fddeec07ae157c31fb078fd378894e9ca2705c17a3fcdae20e493a",
+    "raw_pitch_range": [
+      0.083,
+      8.925
+    ],
+    "raw_pitch_rate_range": [
+      -84.568573,
+      33.861805
+    ],
+    "raw_roll_range": [
+      -0.256,
+      2.005
+    ],
+    "events": [
+      {
+        "peak_sample": 335,
+        "peak_deg": 8.291,
+        "trough_sample": 390,
+        "trough_deg": 0.675,
+        "undershoot_below_1deg": 0.32499999999999996,
+        "fall_rate_min_dps": -77.693077,
+        "peak_to_trough_s": 0.275,
+        "roll_pp_deg": 1.421
+      },
+      {
+        "peak_sample": 1028,
+        "peak_deg": 8.209001,
+        "trough_sample": 1063,
+        "trough_deg": 0.083,
+        "undershoot_below_1deg": 0.917,
+        "fall_rate_min_dps": -79.469246,
+        "peak_to_trough_s": 0.175,
+        "roll_pp_deg": 1.219
+      },
+      {
+        "peak_sample": 1699,
+        "peak_deg": 8.925,
+        "trough_sample": 1737,
+        "trough_deg": 0.355,
+        "undershoot_below_1deg": 0.645,
+        "fall_rate_min_dps": -84.568573,
+        "peak_to_trough_s": 0.19,
+        "roll_pp_deg": 1.532
+      },
+      {
+        "peak_sample": 2611,
+        "peak_deg": 8.239,
+        "trough_sample": 2667,
+        "trough_deg": 0.677,
+        "undershoot_below_1deg": 0.32299999999999995,
+        "fall_rate_min_dps": -77.234711,
+        "peak_to_trough_s": 0.28,
+        "roll_pp_deg": 1.762
+      },
+      {
+        "peak_sample": 3288,
+        "peak_deg": 8.317,
+        "trough_sample": 3323,
+        "trough_deg": 0.43,
+        "undershoot_below_1deg": 0.5700000000000001,
+        "fall_rate_min_dps": -79.698433,
+        "peak_to_trough_s": 0.175,
+        "roll_pp_deg": 1.421
+      },
+      {
+        "peak_sample": 3945,
+        "peak_deg": 8.273001,
+        "trough_sample": 3981,
+        "trough_deg": 0.135,
+        "undershoot_below_1deg": 0.865,
+        "fall_rate_min_dps": -79.583839,
+        "peak_to_trough_s": 0.18,
+        "roll_pp_deg": 1.1039999999999999
+      },
+      {
+        "peak_sample": 4645,
+        "peak_deg": 8.665,
+        "trough_sample": 4680,
+        "trough_deg": 0.092,
+        "undershoot_below_1deg": 0.908,
+        "fall_rate_min_dps": -83.709137,
+        "peak_to_trough_s": 0.175,
+        "roll_pp_deg": 1.492
+      }
+    ],
+    "filters": [
+      {
+        "alpha_expected": 0.4,
+        "alpha_fit_excluding_discontinuity": 0.40000003263556666,
+        "discontinuity_samples_zero_based": []
+      },
+      {
+        "alpha_expected": 0.5,
+        "alpha_fit_excluding_discontinuity": 0.4999999946778928,
+        "discontinuity_samples_zero_based": []
+      },
+      {
+        "alpha_expected": 0.3,
+        "alpha_fit_excluding_discontinuity": 0.30000002169077256,
+        "discontinuity_samples_zero_based": []
+      }
+    ],
+    "median_peak_deg": 8.291,
+    "median_trough_deg": 0.355,
+    "median_undershoot_below_1deg": 0.645,
+    "median_fall_rate_min_dps": -79.583839,
+    "median_peak_to_trough_s": 0.18,
+    "median_roll_pp_deg": 1.421
+  },
+  {
+    "number": 5,
+    "rows": 4896,
+    "duration_approx_s": 24.475,
+    "sha256": "bfc09ea1e674a9064eea2beb80ef938d42da903d4e2df9e869575982286d8fff",
+    "raw_pitch_range": [
+      0.735,
+      8.88
+    ],
+    "raw_pitch_rate_range": [
+      -72.994827,
+      25.611214
+    ],
+    "raw_roll_range": [
+      0.023,
+      2.644
+    ],
+    "events": [
+      {
+        "peak_sample": 1164,
+        "peak_deg": 8.856,
+        "trough_sample": 1217,
+        "trough_deg": 0.854,
+        "undershoot_below_1deg": 0.14600000000000002,
+        "fall_rate_min_dps": -71.677025,
+        "peak_to_trough_s": 0.265,
+        "roll_pp_deg": 1.9150000000000003
+      },
+      {
+        "peak_sample": 2047,
+        "peak_deg": 8.831,
+        "trough_sample": 2097,
+        "trough_deg": 0.735,
+        "undershoot_below_1deg": 0.265,
+        "fall_rate_min_dps": -72.994827,
+        "peak_to_trough_s": 0.25,
+        "roll_pp_deg": 1.899
+      },
+      {
+        "peak_sample": 2963,
+        "peak_deg": 8.88,
+        "trough_sample": 3012,
+        "trough_deg": 0.939,
+        "undershoot_below_1deg": 0.061000000000000054,
+        "fall_rate_min_dps": -72.078094,
+        "peak_to_trough_s": 0.245,
+        "roll_pp_deg": 0.872
+      },
+      {
+        "peak_sample": 3886,
+        "peak_deg": 8.826,
+        "trough_sample": 3936,
+        "trough_deg": 0.903,
+        "undershoot_below_1deg": 0.09699999999999998,
+        "fall_rate_min_dps": -72.76564,
+        "peak_to_trough_s": 0.25,
+        "roll_pp_deg": 0.5050000000000001
+      }
+    ],
+    "filters": [
+      {
+        "alpha_expected": 0.4,
+        "alpha_fit_excluding_discontinuity": 0.40000000520403484,
+        "discontinuity_samples_zero_based": [
+          1757
+        ]
+      },
+      {
+        "alpha_expected": 0.5,
+        "alpha_fit_excluding_discontinuity": 0.5000000043271067,
+        "discontinuity_samples_zero_based": [
+          1757
+        ]
+      },
+      {
+        "alpha_expected": 0.3,
+        "alpha_fit_excluding_discontinuity": 0.3000000036309521,
+        "discontinuity_samples_zero_based": [
+          1757
+        ]
+      }
+    ],
+    "median_peak_deg": 8.843499999999999,
+    "median_trough_deg": 0.8785000000000001,
+    "median_undershoot_below_1deg": 0.1215,
+    "median_fall_rate_min_dps": -72.42186699999999,
+    "median_peak_to_trough_s": 0.25,
+    "median_roll_pp_deg": 1.3855
+  }
+]

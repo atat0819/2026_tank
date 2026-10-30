@@ -1,0 +1,225 @@
+{
+  "coefficients": {
+    "original": [
+      0.614597983,
+      -0.005554523,
+      0.004789858,
+      0.017675351,
+      0.114952711,
+      8.669e-06
+    ],
+    "current_ground_fit": [
+      0.33171656578110625,
+      -0.013552418237132168,
+      0.000527984433090895,
+      0.005487901512956415,
+      0.04098111281751433,
+      5.259050947384465e-06
+    ],
+    "noload_only_refit": [
+      0.13154958937996428,
+      -0.21798168152751793,
+      0.0060143716160170856,
+      0.005466516498454008,
+      0.04340299919163515,
+      -3.138490380835613e-06
+    ]
+  },
+  "noload_refit_diagnostics": {
+    "rank": 6,
+    "scaled_condition_number": 16.802694036521842
+  },
+  "chi_square": null,
+  "chi_square_note": "Measurement noise variance is unknown; SSE is not a chi-square statistic.",
+  "policy": "No smoothing, residual filtering, delay correction or firmware edits; negative power retained.",
+  "captures": [
+    {
+      "path": "E:\\功率限制1.csv",
+      "sha256": "10e94d47aeac705ec1cc5651b924273ac13ae6c0b898b707106ced3f4e7e4af3",
+      "rows_total": 7842,
+      "rows_used": 7842,
+      "nonfinite_rows": 0,
+      "offline_rows": 0,
+      "negative_power_rows": 458,
+      "sequence_gap_count": 3,
+      "missing_sequence_count": 63592,
+      "time_start_s": 118.074005,
+      "time_end_s": 284.554016,
+      "power_range_w": [
+        -17.660898,
+        55.551319
+      ],
+      "current_range_a": [
+        -11.05957,
+        10.949707
+      ],
+      "rotor_speed_range_rad_s": [
+        -398.668121,
+        464.955719
+      ],
+      "models": {
+        "original": {
+          "rmse_w": 23.592349552442798,
+          "mae_w": 9.75144945493171,
+          "bias_prediction_minus_actual_w": 8.162163433269859,
+          "r2": -4.507900705656725,
+          "absolute_error_p95_w": 59.155293179685394,
+          "absolute_error_max_w": 124.45415497791836,
+          "sse_w2": 4364849.023967248,
+          "moving_rows": 2312,
+          "moving_rmse_w": 43.41019986000745
+        },
+        "current_ground_fit": {
+          "rmse_w": 0.9597703474150563,
+          "mae_w": 0.44948878755447924,
+          "bias_prediction_minus_actual_w": -0.07154477026201456,
+          "r2": 0.9908845446108975,
+          "absolute_error_p95_w": 2.06428553734372,
+          "absolute_error_max_w": 9.717748515223288,
+          "sse_w2": 7223.729817292942,
+          "moving_rows": 2312,
+          "moving_rmse_w": 1.7389824001288794
+        },
+        "noload_only_refit": {
+          "rmse_w": 1.6238324746063335,
+          "mae_w": 1.1722633677730576,
+          "bias_prediction_minus_actual_w": -0.15634713410830825,
+          "r2": 0.9739068711497469,
+          "absolute_error_p95_w": 3.6071037206692003,
+          "absolute_error_max_w": 9.697258237528253,
+          "sse_w2": 20678.035803606424,
+          "moving_rows": 2312,
+          "moving_rmse_w": 2.694296687372596
+        }
+      }
+    },
+    {
+      "path": "E:\\功率限制2.csv",
+      "sha256": "0f11396ac3ea47c934585262897183049ea5e810fb31b1d0b203720fd5c471a6",
+      "rows_total": 18888,
+      "rows_used": 18888,
+      "nonfinite_rows": 0,
+      "offline_rows": 0,
+      "negative_power_rows": 2110,
+      "sequence_gap_count": 0,
+      "missing_sequence_count": 0,
+      "time_start_s": 320.879028,
+      "time_end_s": 364.879028,
+      "power_range_w": [
+        -19.382889,
+        68.830894
+      ],
+      "current_range_a": [
+        -14.647217,
+        13.905029
+      ],
+      "rotor_speed_range_rad_s": [
+        -403.694641,
+        411.758087
+      ],
+      "models": {
+        "original": {
+          "rmse_w": 27.463482083292853,
+          "mae_w": 16.93157925983517,
+          "bias_prediction_minus_actual_w": 14.35614641039216,
+          "r2": -5.3887559083276,
+          "absolute_error_p95_w": 60.87012409028197,
+          "absolute_error_max_w": 138.97360358079584,
+          "sse_w2": 14246138.915655997,
+          "moving_rows": 13798,
+          "moving_rmse_w": 32.12241551836784
+        },
+        "current_ground_fit": {
+          "rmse_w": 1.2715184946470597,
+          "mae_w": 0.7973614516609784,
+          "bias_prediction_minus_actual_w": 0.029704261350851212,
+          "r2": 0.9863053651192473,
+          "absolute_error_p95_w": 2.7196286521172572,
+          "absolute_error_max_w": 10.397590917544996,
+          "sse_w2": 30537.34932275126,
+          "moving_rows": 13798,
+          "moving_rmse_w": 1.4828484138518967
+        },
+        "noload_only_refit": {
+          "rmse_w": 2.178783370219325,
+          "mae_w": 1.6677749661412067,
+          "bias_prediction_minus_actual_w": 0.8572418362248733,
+          "r2": 0.9597900809837803,
+          "absolute_error_p95_w": 4.404677249803372,
+          "absolute_error_max_w": 13.1705394552136,
+          "sse_w2": 89663.16765141475,
+          "moving_rows": 13798,
+          "moving_rmse_w": 2.4743878431243953
+        }
+      }
+    },
+    {
+      "path": "E:\\功率采集空转1.csv",
+      "sha256": "e4b54d7622e05d73361fff2abe3d38fc221d222d0abd3e3749bcc82348f2016f",
+      "rows_total": 22179,
+      "rows_used": 22179,
+      "nonfinite_rows": 0,
+      "offline_rows": 0,
+      "negative_power_rows": 4103,
+      "sequence_gap_count": 0,
+      "missing_sequence_count": 0,
+      "time_start_s": 85.210007,
+      "time_end_s": 136.895004,
+      "power_range_w": [
+        -155.191193,
+        176.742416
+      ],
+      "current_range_a": [
+        -22.020264,
+        20.698242
+      ],
+      "rotor_speed_range_rad_s": [
+        -968.657715,
+        951.483704
+      ],
+      "models": {
+        "original": {
+          "rmse_w": 88.26982527689955,
+          "mae_w": 66.52069645282751,
+          "bias_prediction_minus_actual_w": 40.84002336830575,
+          "r2": -5.072250379482418,
+          "absolute_error_p95_w": 184.67400050213223,
+          "absolute_error_max_w": 413.1661262149554,
+          "sse_w2": 172809054.80485642,
+          "moving_rows": 20240,
+          "moving_rmse_w": 92.40056529039629
+        },
+        "current_ground_fit": {
+          "rmse_w": 6.849192325744203,
+          "mae_w": 4.018170316398018,
+          "bias_prediction_minus_actual_w": -0.01866948533917146,
+          "r2": 0.9634401959300527,
+          "absolute_error_p95_w": 11.900585379684703,
+          "absolute_error_max_w": 128.26913557359643,
+          "sse_w2": 1040448.7282879231,
+          "moving_rows": 20240,
+          "moving_rmse_w": 7.169486567144487
+        },
+        "noload_only_refit": {
+          "rmse_w": 6.216131891937301,
+          "mae_w": 3.6085486472440054,
+          "bias_prediction_minus_actual_w": -4.516923278790209e-14,
+          "r2": 0.9698861988678744,
+          "absolute_error_p95_w": 10.126667908231731,
+          "absolute_error_max_w": 126.83083007914975,
+          "sse_w2": 857003.118285055,
+          "moving_rows": 20240,
+          "moving_rmse_w": 6.501925678646783
+        }
+      }
+    }
+  ],
+  "noload_current_telemetry_max_difference_w": 1.687156324692296e-05,
+  "worst_sample": {
+    "row_index_zero_based": 18181,
+    "time_s": 127.607002,
+    "actual_w": 37.785229,
+    "predicted_w": -90.48390657359644,
+    "error_w": -128.26913557359643
+  }
+}

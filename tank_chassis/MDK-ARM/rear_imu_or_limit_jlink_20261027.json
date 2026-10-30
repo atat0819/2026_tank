@@ -1,0 +1,887 @@
+{
+  "flash_checks": [
+    {
+      "addr": "0x8000000",
+      "bytes": 175652,
+      "match": true
+    }
+  ],
+  "samples": [
+    {
+      "tick": 264004,
+      "state": 2,
+      "hold": [
+        0,
+        0
+      ],
+      "release_pending": [
+        0,
+        0
+      ],
+      "controllable": [
+        1,
+        1
+      ],
+      "motor_deg": [
+        43.63008728588255,
+        54.19358955433257
+      ],
+      "pitch": 4.139029502868652,
+      "pitch_rate": -9.514429422097237e-08,
+      "roll": 0.799886167049408,
+      "scale": 1.0,
+      "pitch_target": 1.0,
+      "roll_target": 0.625,
+      "command": [
+        1,
+        1,
+        0
+      ],
+      "estimated_torque": [
+        -9.17672061920166,
+        9.998451232910156
+      ]
+    },
+    {
+      "tick": 264166,
+      "state": 2,
+      "hold": [
+        0,
+        0
+      ],
+      "release_pending": [
+        0,
+        0
+      ],
+      "controllable": [
+        1,
+        1
+      ],
+      "motor_deg": [
+        43.63008728588255,
+        54.19358955433257
+      ],
+      "pitch": 4.13779354095459,
+      "pitch_rate": -0.0031578424386680126,
+      "roll": 0.80300372838974,
+      "scale": 1.0,
+      "pitch_target": 1.0,
+      "roll_target": 0.625,
+      "command": [
+        1,
+        1,
+        0
+      ],
+      "estimated_torque": [
+        -9.16608715057373,
+        10.001996040344238
+      ]
+    },
+    {
+      "tick": 264326,
+      "state": 2,
+      "hold": [
+        0,
+        0
+      ],
+      "release_pending": [
+        0,
+        0
+      ],
+      "controllable": [
+        1,
+        1
+      ],
+      "motor_deg": [
+        43.63008728588255,
+        54.19908102642526
+      ],
+      "pitch": 4.139082431793213,
+      "pitch_rate": -0.0053714727982878685,
+      "roll": 0.8010615110397339,
+      "scale": 1.0,
+      "pitch_target": 1.0,
+      "roll_target": 0.625,
+      "command": [
+        1,
+        1,
+        0
+      ],
+      "estimated_torque": [
+        -9.174830436706543,
+        10.000343322753906
+      ]
+    },
+    {
+      "tick": 264485,
+      "state": 2,
+      "hold": [
+        0,
+        0
+      ],
+      "release_pending": [
+        0,
+        0
+      ],
+      "controllable": [
+        1,
+        1
+      ],
+      "motor_deg": [
+        43.63008728588255,
+        54.19908102642526
+      ],
+      "pitch": 4.140214443206787,
+      "pitch_rate": 0.001566681545227766,
+      "roll": 0.8012580871582031,
+      "scale": 1.0,
+      "pitch_target": 1.0,
+      "roll_target": 0.625,
+      "command": [
+        1,
+        1,
+        0
+      ],
+      "estimated_torque": [
+        -9.177242279052734,
+        10.004770278930664
+      ]
+    },
+    {
+      "tick": 264643,
+      "state": 2,
+      "hold": [
+        0,
+        0
+      ],
+      "release_pending": [
+        0,
+        0
+      ],
+      "controllable": [
+        1,
+        1
+      ],
+      "motor_deg": [
+        43.63008728588255,
+        54.19908102642526
+      ],
+      "pitch": 4.140206336975098,
+      "pitch_rate": -3.4147298322295683e-09,
+      "roll": 0.8044074177742004,
+      "scale": 1.0,
+      "pitch_target": 1.0,
+      "roll_target": 0.625,
+      "command": [
+        1,
+        1,
+        0
+      ],
+      "estimated_torque": [
+        0.0,
+        10.01240062713623
+      ]
+    },
+    {
+      "tick": 264802,
+      "state": 2,
+      "hold": [
+        0,
+        0
+      ],
+      "release_pending": [
+        0,
+        0
+      ],
+      "controllable": [
+        1,
+        1
+      ],
+      "motor_deg": [
+        43.63008728588255,
+        54.19908102642526
+      ],
+      "pitch": 4.138993740081787,
+      "pitch_rate": -2.732075721212368e-08,
+      "roll": 0.8087542653083801,
+      "scale": 1.0,
+      "pitch_target": 1.0,
+      "roll_target": 0.625,
+      "command": [
+        1,
+        1,
+        0
+      ],
+      "estimated_torque": [
+        -9.15605354309082,
+        10.018996238708496
+      ]
+    },
+    {
+      "tick": 264970,
+      "state": 2,
+      "hold": [
+        0,
+        0
+      ],
+      "release_pending": [
+        0,
+        0
+      ],
+      "controllable": [
+        1,
+        1
+      ],
+      "motor_deg": [
+        43.63008728588255,
+        54.19908102642526
+      ],
+      "pitch": 4.139999866485596,
+      "pitch_rate": -3.1805547434049287e-18,
+      "roll": 0.8046082854270935,
+      "scale": 1.0,
+      "pitch_target": 1.0,
+      "roll_target": 0.625,
+      "command": [
+        1,
+        1,
+        0
+      ],
+      "estimated_torque": [
+        -9.16744613647461,
+        10.01128101348877
+      ]
+    },
+    {
+      "tick": 265128,
+      "state": 2,
+      "hold": [
+        0,
+        0
+      ],
+      "release_pending": [
+        0,
+        0
+      ],
+      "controllable": [
+        1,
+        1
+      ],
+      "motor_deg": [
+        43.63008728588255,
+        54.19908102642526
+      ],
+      "pitch": 4.138288497924805,
+      "pitch_rate": -7.405306080833377e-28,
+      "roll": 0.8059548735618591,
+      "scale": 1.0,
+      "pitch_target": 1.0,
+      "roll_target": 0.625,
+      "command": [
+        1,
+        1,
+        0
+      ],
+      "estimated_torque": [
+        -9.160228729248047,
+        10.009779930114746
+      ]
+    },
+    {
+      "tick": 265288,
+      "state": 2,
+      "hold": [
+        0,
+        0
+      ],
+      "release_pending": [
+        0,
+        0
+      ],
+      "controllable": [
+        1,
+        1
+      ],
+      "motor_deg": [
+        43.63008728588255,
+        54.19908102642526
+      ],
+      "pitch": 4.136595249176025,
+      "pitch_rate": -1.7241821812543499e-37,
+      "roll": 0.8098537921905518,
+      "scale": 1.0,
+      "pitch_target": 1.0,
+      "roll_target": 0.625,
+      "command": [
+        1,
+        1,
+        0
+      ],
+      "estimated_torque": [
+        0.0,
+        10.013273239135742
+      ]
+    },
+    {
+      "tick": 265448,
+      "state": 2,
+      "hold": [
+        0,
+        0
+      ],
+      "release_pending": [
+        0,
+        0
+      ],
+      "controllable": [
+        1,
+        1
+      ],
+      "motor_deg": [
+        43.63008728588255,
+        54.19908102642526
+      ],
+      "pitch": 4.133320331573486,
+      "pitch_rate": 0.0,
+      "roll": 0.8114912509918213,
+      "scale": 1.0,
+      "pitch_target": 1.0,
+      "roll_target": 0.625,
+      "command": [
+        1,
+        1,
+        0
+      ],
+      "estimated_torque": [
+        -9.131964683532715,
+        10.007621765136719
+      ]
+    },
+    {
+      "tick": 265608,
+      "state": 2,
+      "hold": [
+        0,
+        0
+      ],
+      "release_pending": [
+        0,
+        0
+      ],
+      "controllable": [
+        1,
+        1
+      ],
+      "motor_deg": [
+        43.63008728588255,
+        54.19908102642526
+      ],
+      "pitch": 4.133991241455078,
+      "pitch_rate": 0.0,
+      "roll": 0.809263288974762,
+      "scale": 1.0,
+      "pitch_target": 1.0,
+      "roll_target": 0.625,
+      "command": [
+        1,
+        1,
+        0
+      ],
+      "estimated_torque": [
+        -9.139878273010254,
+        10.004585266113281
+      ]
+    },
+    {
+      "tick": 265767,
+      "state": 2,
+      "hold": [
+        0,
+        0
+      ],
+      "release_pending": [
+        0,
+        0
+      ],
+      "controllable": [
+        1,
+        1
+      ],
+      "motor_deg": [
+        43.63008728588255,
+        54.19908102642526
+      ],
+      "pitch": 4.132126331329346,
+      "pitch_rate": 0.0,
+      "roll": 0.8072500824928284,
+      "scale": 1.0,
+      "pitch_target": 1.0,
+      "roll_target": 0.625,
+      "command": [
+        1,
+        1,
+        0
+      ],
+      "estimated_torque": [
+        -9.138811111450195,
+        9.994257926940918
+      ]
+    },
+    {
+      "tick": 265926,
+      "state": 2,
+      "hold": [
+        0,
+        0
+      ],
+      "release_pending": [
+        0,
+        0
+      ],
+      "controllable": [
+        1,
+        1
+      ],
+      "motor_deg": [
+        43.63008728588255,
+        54.19908102642526
+      ],
+      "pitch": 4.129000663757324,
+      "pitch_rate": 0.0,
+      "roll": 0.8095991611480713,
+      "scale": 1.0,
+      "pitch_target": 1.0,
+      "roll_target": 0.625,
+      "command": [
+        1,
+        1,
+        0
+      ],
+      "estimated_torque": [
+        -9.123392105102539,
+        9.990586280822754
+      ]
+    },
+    {
+      "tick": 266091,
+      "state": 2,
+      "hold": [
+        0,
+        0
+      ],
+      "release_pending": [
+        0,
+        0
+      ],
+      "controllable": [
+        1,
+        1
+      ],
+      "motor_deg": [
+        43.63008728588255,
+        54.19908102642526
+      ],
+      "pitch": 4.1290283203125,
+      "pitch_rate": 0.0,
+      "roll": 0.8099391460418701,
+      "scale": 1.0,
+      "pitch_target": 1.0,
+      "roll_target": 0.625,
+      "command": [
+        1,
+        1,
+        0
+      ],
+      "estimated_torque": [
+        -9.123777389526367,
+        9.9902982711792
+      ]
+    },
+    {
+      "tick": 266250,
+      "state": 2,
+      "hold": [
+        0,
+        0
+      ],
+      "release_pending": [
+        0,
+        0
+      ],
+      "controllable": [
+        1,
+        1
+      ],
+      "motor_deg": [
+        43.63008728588255,
+        54.19908102642526
+      ],
+      "pitch": 4.1294965744018555,
+      "pitch_rate": 0.0,
+      "roll": 0.8119163513183594,
+      "scale": 1.0,
+      "pitch_target": 1.0,
+      "roll_target": 0.625,
+      "command": [
+        1,
+        1,
+        0
+      ],
+      "estimated_torque": [
+        -9.121296882629395,
+        9.996944427490234
+      ]
+    },
+    {
+      "tick": 266409,
+      "state": 2,
+      "hold": [
+        0,
+        0
+      ],
+      "release_pending": [
+        0,
+        0
+      ],
+      "controllable": [
+        1,
+        1
+      ],
+      "motor_deg": [
+        43.63008728588255,
+        54.19908102642526
+      ],
+      "pitch": 4.129002571105957,
+      "pitch_rate": 2.0982341084163636e-05,
+      "roll": 0.8103181719779968,
+      "scale": 1.0,
+      "pitch_target": 1.0,
+      "roll_target": 0.625,
+      "command": [
+        1,
+        1,
+        0
+      ],
+      "estimated_torque": [
+        -9.122432708740234,
+        9.99155330657959
+      ]
+    },
+    {
+      "tick": 266568,
+      "state": 2,
+      "hold": [
+        0,
+        0
+      ],
+      "release_pending": [
+        0,
+        0
+      ],
+      "controllable": [
+        1,
+        1
+      ],
+      "motor_deg": [
+        43.63008728588255,
+        54.19908102642526
+      ],
+      "pitch": 4.128871917724609,
+      "pitch_rate": 4.885331979990852e-15,
+      "roll": 0.8138703107833862,
+      "scale": 1.0,
+      "pitch_target": 1.0,
+      "roll_target": 0.625,
+      "command": [
+        1,
+        1,
+        0
+      ],
+      "estimated_torque": [
+        -9.113645553588867,
+        9.999545097351074
+      ]
+    },
+    {
+      "tick": 266727,
+      "state": 2,
+      "hold": [
+        0,
+        0
+      ],
+      "release_pending": [
+        0,
+        0
+      ],
+      "controllable": [
+        1,
+        1
+      ],
+      "motor_deg": [
+        43.63008728588255,
+        54.19908102642526
+      ],
+      "pitch": 4.128999710083008,
+      "pitch_rate": 1.1374549893641034e-24,
+      "roll": 0.8112069964408875,
+      "scale": 1.0,
+      "pitch_target": 1.0,
+      "roll_target": 0.625,
+      "command": [
+        1,
+        1,
+        0
+      ],
+      "estimated_torque": [
+        -9.120162010192871,
+        9.993810653686523
+      ]
+    },
+    {
+      "tick": 266886,
+      "state": 2,
+      "hold": [
+        0,
+        0
+      ],
+      "release_pending": [
+        0,
+        0
+      ],
+      "controllable": [
+        1,
+        1
+      ],
+      "motor_deg": [
+        43.63008728588255,
+        54.19908102642526
+      ],
+      "pitch": 4.130000591278076,
+      "pitch_rate": 5.296687546018993e-34,
+      "roll": 0.814701497554779,
+      "scale": 1.0,
+      "pitch_target": 1.0,
+      "roll_target": 0.625,
+      "command": [
+        1,
+        1,
+        0
+      ],
+      "estimated_torque": [
+        -9.114975929260254,
+        10.005111694335938
+      ]
+    },
+    {
+      "tick": 267045,
+      "state": 2,
+      "hold": [
+        0,
+        0
+      ],
+      "release_pending": [
+        0,
+        0
+      ],
+      "controllable": [
+        1,
+        1
+      ],
+      "motor_deg": [
+        43.63008728588255,
+        54.19908102642526
+      ],
+      "pitch": 4.130006313323975,
+      "pitch_rate": 1.233142648605839e-43,
+      "roll": 0.8133953213691711,
+      "scale": 1.0,
+      "pitch_target": 1.0,
+      "roll_target": 0.625,
+      "command": [
+        1,
+        1,
+        0
+      ],
+      "estimated_torque": [
+        -9.118470191955566,
+        10.018730163574219
+      ]
+    },
+    {
+      "tick": 267205,
+      "state": 2,
+      "hold": [
+        0,
+        0
+      ],
+      "release_pending": [
+        0,
+        0
+      ],
+      "controllable": [
+        1,
+        1
+      ],
+      "motor_deg": [
+        43.63008728588255,
+        54.19908102642526
+      ],
+      "pitch": 4.127360820770264,
+      "pitch_rate": 0.0,
+      "roll": 0.8145919442176819,
+      "scale": 1.0,
+      "pitch_target": 1.0,
+      "roll_target": 0.625,
+      "command": [
+        1,
+        1,
+        0
+      ],
+      "estimated_torque": [
+        -9.106650352478027,
+        9.996432304382324
+      ]
+    },
+    {
+      "tick": 267363,
+      "state": 2,
+      "hold": [
+        0,
+        0
+      ],
+      "release_pending": [
+        0,
+        0
+      ],
+      "controllable": [
+        1,
+        1
+      ],
+      "motor_deg": [
+        43.63008728588255,
+        54.19908102642526
+      ],
+      "pitch": 4.126987934112549,
+      "pitch_rate": 0.0,
+      "roll": 0.8088910579681396,
+      "scale": 1.0,
+      "pitch_target": 1.0,
+      "roll_target": 0.625,
+      "command": [
+        1,
+        1,
+        0
+      ],
+      "estimated_torque": [
+        -9.119344711303711,
+        9.982338905334473
+      ]
+    },
+    {
+      "tick": 267522,
+      "state": 2,
+      "hold": [
+        0,
+        0
+      ],
+      "release_pending": [
+        0,
+        0
+      ],
+      "controllable": [
+        1,
+        1
+      ],
+      "motor_deg": [
+        43.63008728588255,
+        54.19908102642526
+      ],
+      "pitch": 4.1278557777404785,
+      "pitch_rate": 1.0491170542081818e-05,
+      "roll": 0.8062217831611633,
+      "scale": 1.0,
+      "pitch_target": 1.0,
+      "roll_target": 0.625,
+      "command": [
+        1,
+        1,
+        0
+      ],
+      "estimated_torque": [
+        -9.128133773803711,
+        9.978851318359375
+      ]
+    },
+    {
+      "tick": 267681,
+      "state": 2,
+      "hold": [
+        0,
+        0
+      ],
+      "release_pending": [
+        0,
+        0
+      ],
+      "controllable": [
+        1,
+        1
+      ],
+      "motor_deg": [
+        43.63008728588255,
+        54.19908102642526
+      ],
+      "pitch": 4.125178813934326,
+      "pitch_rate": 4.885331979990852e-15,
+      "roll": 0.8101721405982971,
+      "scale": 1.0,
+      "pitch_target": 1.0,
+      "roll_target": 0.625,
+      "command": [
+        1,
+        1,
+        0
+      ],
+      "estimated_torque": [
+        -9.110772132873535,
+        9.979421615600586
+      ]
+    },
+    {
+      "tick": 267840,
+      "state": 2,
+      "hold": [
+        0,
+        0
+      ],
+      "release_pending": [
+        0,
+        0
+      ],
+      "controllable": [
+        1,
+        1
+      ],
+      "motor_deg": [
+        43.63008728588255,
+        54.19908102642526
+      ],
+      "pitch": 4.1240010261535645,
+      "pitch_rate": 1.1374549893641034e-24,
+      "roll": 0.8081073760986328,
+      "scale": 1.0,
+      "pitch_target": 1.0,
+      "roll_target": 0.625,
+      "command": [
+        1,
+        1,
+        0
+      ],
+      "estimated_torque": [
+        -9.11209774017334,
+        9.97134017944336
+      ]
+    }
+  ],
+  "halted_after": 0
+}

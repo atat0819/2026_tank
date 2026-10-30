@@ -53,14 +53,15 @@ extern IMUData_t imuData;        // 解析后的 IMU 数据结构
 
 typedef struct 
 {
- // 加速度，单位 g（1g = 9.8 m/s²）
-    float voltage;
-    float current;
-    float power;
-    // 静止时，Z 轴约等于 1g（重力）
-    // 可以用来判断机器人是否在斜坡上
+    float voltage; // 功率计电源电压，V
+    float current; // 功率计直流输入电流，A（不是电机转矩电流）
+    float power;   // 四个 3508 的总输入功率，W
 }PowerData_t;
 extern PowerData_t PowerData;
+// UART10 接收中断发布；任务读取数据和元信息时须使用同一临界区。
+extern volatile uint32_t power_meter_tick;
+extern volatile uint32_t power_meter_sequence;
+extern volatile bool power_meter_valid;
 
 void remote_task(void *argument);
 

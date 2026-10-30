@@ -47,7 +47,11 @@ for repo, file, end in (
 ):
     source = (repo / file).read_text(encoding="utf-8")
     start = source.index('extern "C" void HAL_UART_ErrorCallback')
-    callback = source[start:source.index(end, start)] + "\n}\n"
+    # Only exercise the RS485 branch; other UARTs have their own host tests.
+    start = source.index("    if (huart == &huart3)" if repo == chassis else
+                         "    if (huart == &huart2 || huart == &huart3)", start)
+    callback = ('extern "C" void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart) {\n'
+                + source[start:source.index(end, start)] + "\n}\n")
     checks = r'''
 int main() {
     HAL_UART_ErrorCallback(&huart3);

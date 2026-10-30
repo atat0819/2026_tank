@@ -1,0 +1,187 @@
+{
+  "model": "4*K0 + K1*sum(I) + K2*sum(abs(w)) + K3*sum(I*w) + K4*sum(I^2) + K5*sum(w^2)",
+  "method": "ordinary least squares, raw rows equally weighted; no smoothing, outlier removal, delay correction or sign constraints",
+  "coefficients_per_motor": [
+    0.33171656578110625,
+    -0.013552418237132168,
+    0.000527984433090895,
+    0.005487901512956415,
+    0.04098111281751433,
+    5.259050947384465e-06
+  ],
+  "old_coefficients": [
+    0.614597983,
+    -0.005554523,
+    0.004789858,
+    0.017675351,
+    0.114952711,
+    8.669e-06
+  ],
+  "rows_used": 26730,
+  "rank": 6,
+  "scaled_condition_number": 11.797015486519287,
+  "joint_fit": {
+    "rmse_w": 1.1885644029958973,
+    "mae_w": 0.6953031863439875,
+    "bias_prediction_minus_actual_w": 5.9544172394411685e-15,
+    "r2": 0.9876577694339944,
+    "absolute_error_p95_w": 2.574241909122322,
+    "absolute_error_max_w": 10.397590917544996
+  },
+  "old_model": {
+    "rmse_w": 26.386709418857592,
+    "mae_w": 14.825085510113771,
+    "bias_prediction_minus_actual_w": 12.538966668282432,
+    "r2": -5.08301217664061,
+    "absolute_error_p95_w": 60.570384195539624,
+    "absolute_error_max_w": 138.97360358079584
+  },
+  "float32_coefficient_metrics": {
+    "rmse_w": 1.188564402995917,
+    "mae_w": 0.6953031817229108,
+    "bias_prediction_minus_actual_w": 7.864094186856265e-08,
+    "r2": 0.9876577694339941,
+    "absolute_error_p95_w": 2.5742421506068625,
+    "absolute_error_max_w": 10.397590427326314
+  },
+  "captures": [
+    {
+      "path": "E:\\功率限制1.csv",
+      "sha256": "10e94d47aeac705ec1cc5651b924273ac13ae6c0b898b707106ced3f4e7e4af3",
+      "rows_total": 7842,
+      "rows_used": 7842,
+      "nonfinite_rows": 0,
+      "offline_rows": 0,
+      "negative_power_rows": 458,
+      "sequence_gap_count": 3,
+      "missing_sequence_count": 63592,
+      "time_start_s": 118.074005,
+      "time_end_s": 284.554016,
+      "power_range_w": [
+        -17.660898,
+        55.551319
+      ],
+      "current_range_a": [
+        -11.05957,
+        10.949707
+      ],
+      "rotor_speed_range_rad_s": [
+        -398.668121,
+        464.955719
+      ],
+      "joint_fit": {
+        "rmse_w": 0.9597703474150563,
+        "mae_w": 0.44948878755447924,
+        "bias_prediction_minus_actual_w": -0.07154477026201456,
+        "r2": 0.9908845446108975,
+        "absolute_error_p95_w": 2.06428553734372,
+        "absolute_error_max_w": 9.717748515223288
+      },
+      "old_model": {
+        "rmse_w": 23.592349552442798,
+        "mae_w": 9.75144945493171,
+        "bias_prediction_minus_actual_w": 8.162163433269859,
+        "r2": -4.507900705656725,
+        "absolute_error_p95_w": 59.155293179685394,
+        "absolute_error_max_w": 124.45415497791836
+      },
+      "individual_coefficients": [
+        0.34806041755276707,
+        0.1558834811269632,
+        -0.00030623824526877666,
+        0.005358736799683128,
+        0.04340533097151706,
+        8.18610408575668e-06
+      ],
+      "individual_fit": {
+        "rmse_w": 0.9041306441331347,
+        "mae_w": 0.4347600672936815,
+        "bias_prediction_minus_actual_w": -1.2096079472580129e-15,
+        "r2": 0.991910790330044,
+        "absolute_error_p95_w": 2.05658959732326,
+        "absolute_error_max_w": 8.126303826621179
+      },
+      "rank": 6,
+      "scaled_condition_number": 16.5229136241675,
+      "old_telemetry_max_difference_w": 2.3999819461550942e-05,
+      "meter_power_minus_voltage_current_max_w": 7.954999993842193e-06,
+      "held_out_file_validation": {
+        "rmse_w": 0.9912645615348783,
+        "mae_w": 0.4635434485783186,
+        "bias_prediction_minus_actual_w": -0.10683338713254106,
+        "r2": 0.990276494279158,
+        "absolute_error_p95_w": 2.1039139194168133,
+        "absolute_error_max_w": 10.19855347786725
+      }
+    },
+    {
+      "path": "E:\\功率限制2.csv",
+      "sha256": "0f11396ac3ea47c934585262897183049ea5e810fb31b1d0b203720fd5c471a6",
+      "rows_total": 18888,
+      "rows_used": 18888,
+      "nonfinite_rows": 0,
+      "offline_rows": 0,
+      "negative_power_rows": 2110,
+      "sequence_gap_count": 0,
+      "missing_sequence_count": 0,
+      "time_start_s": 320.879028,
+      "time_end_s": 364.879028,
+      "power_range_w": [
+        -19.382889,
+        68.830894
+      ],
+      "current_range_a": [
+        -14.647217,
+        13.905029
+      ],
+      "rotor_speed_range_rad_s": [
+        -403.694641,
+        411.758087
+      ],
+      "joint_fit": {
+        "rmse_w": 1.2715184946470597,
+        "mae_w": 0.7973614516609784,
+        "bias_prediction_minus_actual_w": 0.029704261350851212,
+        "r2": 0.9863053651192473,
+        "absolute_error_p95_w": 2.7196286521172572,
+        "absolute_error_max_w": 10.397590917544996
+      },
+      "old_model": {
+        "rmse_w": 27.463482083292853,
+        "mae_w": 16.93157925983517,
+        "bias_prediction_minus_actual_w": 14.35614641039216,
+        "r2": -5.3887559083276,
+        "absolute_error_p95_w": 60.87012409028197,
+        "absolute_error_max_w": 138.97360358079584
+      },
+      "individual_coefficients": [
+        0.32729357534288284,
+        -0.037157694322763425,
+        0.0007964080321339362,
+        0.005542541262057199,
+        0.04014370612768443,
+        3.976564206940445e-06
+      ],
+      "individual_fit": {
+        "rmse_w": 1.2672415315471384,
+        "mae_w": 0.796779277740529,
+        "bias_prediction_minus_actual_w": 2.0584973793304045e-15,
+        "r2": 0.9863973385209929,
+        "absolute_error_p95_w": 2.683796136264224,
+        "absolute_error_max_w": 10.456086877742557
+      },
+      "rank": 6,
+      "scaled_condition_number": 12.195688013797849,
+      "old_telemetry_max_difference_w": 2.2713853070399637e-05,
+      "meter_power_minus_voltage_current_max_w": 8.702499997070845e-06,
+      "held_out_file_validation": {
+        "rmse_w": 1.3965892365938475,
+        "mae_w": 0.9318915912993665,
+        "bias_prediction_minus_actual_w": 0.071720320847145,
+        "r2": 0.9834787662411317,
+        "absolute_error_p95_w": 3.0082417726472164,
+        "absolute_error_max_w": 10.85833974206922
+      }
+    }
+  ]
+}

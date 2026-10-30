@@ -66,6 +66,8 @@ extern volatile uint32_t gimbal_switch_last_tick;   // 最近一次合法档位�
 extern volatile bool gimbal_switch_received;  // 是否收到过合法档位帧
 
 extern void vofa_send(float x1, float x2, float x3, float x4, float x5, float x6);
+// USB CDC JustFloat，最多 15 通道；未连接或忙时跳过，不阻塞控制任务。
+void vofa_sendN(const float *data, uint8_t count);
 
 #ifdef __cplusplus
 }

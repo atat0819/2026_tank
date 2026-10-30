@@ -815,7 +815,14 @@ tank_chassis/can_send_task.o: ..\RtosTask\can_send_task.cpp \
   ..\communication\..\user\core\HAL\FDCAN\fdcan_hal.hpp \
   ..\RtosTask\..\user\core\Alg\PID\pid.hpp \
   ..\RtosTask\..\fsm\stair_mode_policy.hpp ..\user\core\Alg\PID\pid.hpp \
-  ..\Core\Inc\usart.h ..\user\core\Alg\Filter\Filter.hpp \
+  ..\Core\Inc\usart.h ..\USB_DEVICE\App\usb_device.h \
+  ..\Middlewares\ST\STM32_USB_Device_Library\Core\Inc\usbd_def.h \
+  ..\USB_DEVICE\Target\usbd_conf.h ..\USB_DEVICE\App\usbd_cdc_if.h \
+  ..\Middlewares\ST\STM32_USB_Device_Library\Class\CDC\Inc\usbd_cdc.h \
+  ..\Middlewares\ST\STM32_USB_Device_Library\Core\Inc\usbd_ioreq.h \
+  ..\Middlewares\ST\STM32_USB_Device_Library\Core\Inc\usbd_core.h \
+  ..\Middlewares\ST\STM32_USB_Device_Library\Core\Inc\usbd_ctlreq.h \
+  ..\user\core\Alg\Filter\Filter.hpp \
   ..\RtosTask\..\user\core\Alg\ChassisCalculation\OmniCalculation.hpp \
   ..\communication\..\user\core\Alg\ChassisCalculation\CalculationBase.hpp \
   ..\RtosTask\..\user\core\BSP\Motor\Dji\DjiMotor.hpp \

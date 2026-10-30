@@ -1,0 +1,493 @@
+{
+  "nominal_sample_rate_hz_user_supplied": 200.0,
+  "time_limit": "No timestamps or acquisition counters; time assumes 200 Hz without capture gaps.",
+  "comparison_limit": "Repeated trials include B operations. No command/FSM/endpoint/motor channels; no controlled causal ranking.",
+  "user_observed_issue_phase": "First B: front legs extend while rear legs remain in attitude control.",
+  "selection_rule": "Raw Pitch local maxima >=7.9 deg, prominence >=5 deg, separation >=150 samples; minimum within next 80 samples.",
+  "captures": [
+    {
+      "number": 1,
+      "file": "E:\\IMU平衡1.csv",
+      "sha256": "404b3f450388ce2c39876b838ea0fddf981befa0c0eacc225fdb819b00e81742",
+      "rows": 6622,
+      "approximate_duration_s_at_200hz": 33.105,
+      "raw_pitch_min_deg": 0.171,
+      "raw_pitch_max_deg": 8.628,
+      "raw_pitch_rate_min_dps": -91.558655,
+      "raw_pitch_rate_max_dps": 47.67009,
+      "raw_roll_min_deg": -0.303,
+      "raw_roll_max_deg": 2.192,
+      "filters": [
+        {
+          "alpha": 0.20000000238797738,
+          "recurrence_rmse": 3.893763816451221e-07,
+          "max_recurrence_error_at_expected_alpha": 1.2000000007006406e-06,
+          "low_frequency_delay_ms": 19.999999701502833,
+          "raw_filtered_rms_difference": 0.2573929292160713
+        },
+        {
+          "alpha": 0.24999999912235732,
+          "recurrence_rmse": 5.549447012331291e-07,
+          "max_recurrence_error_at_expected_alpha": 5.999999999062311e-06,
+          "low_frequency_delay_ms": 15.000000070211414,
+          "raw_filtered_rms_difference": 4.205750931488935
+        },
+        {
+          "alpha": 0.09000001128292792,
+          "recurrence_rmse": 3.8915680257785103e-07,
+          "max_recurrence_error_at_expected_alpha": 1.0000000000287557e-06,
+          "low_frequency_delay_ms": 50.55554859078611,
+          "raw_filtered_rms_difference": 0.15211929432716312
+        }
+      ],
+      "high_peak_event_count": 6,
+      "events": [
+        {
+          "peak_sample": 437,
+          "peak_time_s": 2.185,
+          "peak_pitch_deg": 8.361,
+          "trough_sample": 472,
+          "trough_pitch_deg": 0.256,
+          "peak_to_trough_s": 0.175,
+          "min_pitch_rate_dps_until_trough": -81.073532,
+          "post_trough_0_75s_pitch_max_deg": 5.012,
+          "post_trough_0_75s_max_at_window_edge": false,
+          "post_trough_window_limit": "May include another deliberate command; not a measured overshoot.",
+          "roll_peak_to_peak_deg_in_peak_window": 2.021
+        },
+        {
+          "peak_sample": 1972,
+          "peak_time_s": 9.86,
+          "peak_pitch_deg": 8.421,
+          "trough_sample": 2007,
+          "trough_pitch_deg": 0.38,
+          "peak_to_trough_s": 0.175,
+          "min_pitch_rate_dps_until_trough": -81.531898,
+          "post_trough_0_75s_pitch_max_deg": 1.52,
+          "post_trough_0_75s_max_at_window_edge": false,
+          "post_trough_window_limit": "May include another deliberate command; not a measured overshoot.",
+          "roll_peak_to_peak_deg_in_peak_window": 1.302
+        },
+        {
+          "peak_sample": 2664,
+          "peak_time_s": 13.32,
+          "peak_pitch_deg": 8.628,
+          "trough_sample": 2701,
+          "trough_pitch_deg": 0.171,
+          "peak_to_trough_s": 0.185,
+          "min_pitch_rate_dps_until_trough": -83.193474,
+          "post_trough_0_75s_pitch_max_deg": 5.295,
+          "post_trough_0_75s_max_at_window_edge": false,
+          "post_trough_window_limit": "May include another deliberate command; not a measured overshoot.",
+          "roll_peak_to_peak_deg_in_peak_window": 1.824
+        },
+        {
+          "peak_sample": 3523,
+          "peak_time_s": 17.615,
+          "peak_pitch_deg": 8.377001,
+          "trough_sample": 3558,
+          "trough_pitch_deg": 0.413,
+          "peak_to_trough_s": 0.175,
+          "min_pitch_rate_dps_until_trough": -81.875671,
+          "post_trough_0_75s_pitch_max_deg": 1.527,
+          "post_trough_0_75s_max_at_window_edge": false,
+          "post_trough_window_limit": "May include another deliberate command; not a measured overshoot.",
+          "roll_peak_to_peak_deg_in_peak_window": 1.4889999999999999
+        },
+        {
+          "peak_sample": 4466,
+          "peak_time_s": 22.33,
+          "peak_pitch_deg": 8.332001,
+          "trough_sample": 4502,
+          "trough_pitch_deg": 0.319,
+          "peak_to_trough_s": 0.18,
+          "min_pitch_rate_dps_until_trough": -78.953583,
+          "post_trough_0_75s_pitch_max_deg": 5.01,
+          "post_trough_0_75s_max_at_window_edge": false,
+          "post_trough_window_limit": "May include another deliberate command; not a measured overshoot.",
+          "roll_peak_to_peak_deg_in_peak_window": 1.797
+        },
+        {
+          "peak_sample": 5340,
+          "peak_time_s": 26.7,
+          "peak_pitch_deg": 8.306001,
+          "trough_sample": 5375,
+          "trough_pitch_deg": 0.319,
+          "peak_to_trough_s": 0.175,
+          "min_pitch_rate_dps_until_trough": -80.214096,
+          "post_trough_0_75s_pitch_max_deg": 1.49,
+          "post_trough_0_75s_max_at_window_edge": false,
+          "post_trough_window_limit": "May include another deliberate command; not a measured overshoot.",
+          "roll_peak_to_peak_deg_in_peak_window": 1.625
+        }
+      ],
+      "high_peak_trough_median_deg": 0.319,
+      "high_peak_fall_rate_median_dps": -81.302715,
+      "last_100_raw_pitch_peak_to_peak_deg": 0.008000000000000007,
+      "last_100_raw_roll_peak_to_peak_deg": 0.007000000000000006
+    },
+    {
+      "number": 2,
+      "file": "E:\\IMU平衡2.csv",
+      "sha256": "e9b29abe45c92b681fa28a1713329fab37c0037d3de360ba90d3559e15d42e22",
+      "rows": 3853,
+      "approximate_duration_s_at_200hz": 19.26,
+      "raw_pitch_min_deg": 0.348,
+      "raw_pitch_max_deg": 8.711,
+      "raw_pitch_rate_min_dps": -79.583839,
+      "raw_pitch_rate_max_dps": 38.158989,
+      "raw_roll_min_deg": -0.097,
+      "raw_roll_max_deg": 2.137,
+      "filters": [
+        {
+          "alpha": 0.40000003847023796,
+          "recurrence_rmse": 3.8039457229800503e-07,
+          "max_recurrence_error_at_expected_alpha": 1.3999999996620882e-06,
+          "low_frequency_delay_ms": 7.499998797805179,
+          "raw_filtered_rms_difference": 0.10487127835185175
+        },
+        {
+          "alpha": 0.25000000088429747,
+          "recurrence_rmse": 5.919993043504345e-07,
+          "max_recurrence_error_at_expected_alpha": 5.999999999062311e-06,
+          "low_frequency_delay_ms": 14.999999929256203,
+          "raw_filtered_rms_difference": 3.825096540626913
+        },
+        {
+          "alpha": 0.09000000355150614,
+          "recurrence_rmse": 3.8585154999998146e-07,
+          "max_recurrence_error_at_expected_alpha": 9.600000000151154e-07,
+          "low_frequency_delay_ms": 50.5555533632679,
+          "raw_filtered_rms_difference": 0.14714876419564657
+        }
+      ],
+      "high_peak_event_count": 4,
+      "events": [
+        {
+          "peak_sample": 361,
+          "peak_time_s": 1.805,
+          "peak_pitch_deg": 8.264,
+          "trough_sample": 396,
+          "trough_pitch_deg": 0.569,
+          "peak_to_trough_s": 0.175,
+          "min_pitch_rate_dps_until_trough": -78.38063,
+          "post_trough_0_75s_pitch_max_deg": 1.398,
+          "post_trough_0_75s_max_at_window_edge": false,
+          "post_trough_window_limit": "May include another deliberate command; not a measured overshoot.",
+          "roll_peak_to_peak_deg_in_peak_window": 1.498
+        },
+        {
+          "peak_sample": 1199,
+          "peak_time_s": 5.995,
+          "peak_pitch_deg": 8.284,
+          "trough_sample": 1255,
+          "trough_pitch_deg": 0.598,
+          "peak_to_trough_s": 0.28,
+          "min_pitch_rate_dps_until_trough": -78.60981,
+          "post_trough_0_75s_pitch_max_deg": 1.553,
+          "post_trough_0_75s_max_at_window_edge": false,
+          "post_trough_window_limit": "May include another deliberate command; not a measured overshoot.",
+          "roll_peak_to_peak_deg_in_peak_window": 1.168
+        },
+        {
+          "peak_sample": 1984,
+          "peak_time_s": 9.92,
+          "peak_pitch_deg": 8.289001,
+          "trough_sample": 2021,
+          "trough_pitch_deg": 0.348,
+          "peak_to_trough_s": 0.185,
+          "min_pitch_rate_dps_until_trough": -78.151443,
+          "post_trough_0_75s_pitch_max_deg": 4.597,
+          "post_trough_0_75s_max_at_window_edge": false,
+          "post_trough_window_limit": "May include another deliberate command; not a measured overshoot.",
+          "roll_peak_to_peak_deg_in_peak_window": 1.552
+        },
+        {
+          "peak_sample": 2689,
+          "peak_time_s": 13.445,
+          "peak_pitch_deg": 8.711,
+          "trough_sample": 2727,
+          "trough_pitch_deg": 0.424,
+          "peak_to_trough_s": 0.19,
+          "min_pitch_rate_dps_until_trough": -79.583839,
+          "post_trough_0_75s_pitch_max_deg": 4.799,
+          "post_trough_0_75s_max_at_window_edge": false,
+          "post_trough_window_limit": "May include another deliberate command; not a measured overshoot.",
+          "roll_peak_to_peak_deg_in_peak_window": 1.563
+        }
+      ],
+      "high_peak_trough_median_deg": 0.49649999999999994,
+      "high_peak_fall_rate_median_dps": -78.49521999999999,
+      "last_100_raw_pitch_peak_to_peak_deg": 0.0129999999999999,
+      "last_100_raw_roll_peak_to_peak_deg": 0.01100000000000001
+    },
+    {
+      "number": 3,
+      "file": "E:\\IMU平衡3.csv",
+      "sha256": "0b1d36805f41ae1418c20422046d480c72f8957e44e69deb5198a263e23a150c",
+      "rows": 7032,
+      "approximate_duration_s_at_200hz": 35.155,
+      "raw_pitch_min_deg": 0.253,
+      "raw_pitch_max_deg": 8.386001,
+      "raw_pitch_rate_min_dps": -80.443275,
+      "raw_pitch_rate_max_dps": 33.861805,
+      "raw_roll_min_deg": -0.177,
+      "raw_roll_max_deg": 2.227,
+      "filters": [
+        {
+          "alpha": 0.40000001764902937,
+          "recurrence_rmse": 3.771784353406104e-07,
+          "max_recurrence_error_at_expected_alpha": 1.4000000000194412e-06,
+          "low_frequency_delay_ms": 7.4999994484678565,
+          "raw_filtered_rms_difference": 0.10201751763063152
+        },
+        {
+          "alpha": 0.49999999770237796,
+          "recurrence_rmse": 5.694402191046471e-07,
+          "max_recurrence_error_at_expected_alpha": 4.500000002849447e-06,
+          "low_frequency_delay_ms": 5.000000045952442,
+          "raw_filtered_rms_difference": 1.5629362429502975
+        },
+        {
+          "alpha": 0.09000000863790253,
+          "recurrence_rmse": 3.8850084041996417e-07,
+          "max_recurrence_error_at_expected_alpha": 9.80000000075712e-07,
+          "low_frequency_delay_ms": 50.55555022351747,
+          "raw_filtered_rms_difference": 0.14326615856786906
+        }
+      ],
+      "high_peak_event_count": 7,
+      "events": [
+        {
+          "peak_sample": 359,
+          "peak_time_s": 1.795,
+          "peak_pitch_deg": 8.386001,
+          "trough_sample": 394,
+          "trough_pitch_deg": 0.455,
+          "peak_to_trough_s": 0.175,
+          "min_pitch_rate_dps_until_trough": -79.354652,
+          "post_trough_0_75s_pitch_max_deg": 1.304,
+          "post_trough_0_75s_max_at_window_edge": false,
+          "post_trough_window_limit": "May include another deliberate command; not a measured overshoot.",
+          "roll_peak_to_peak_deg_in_peak_window": 1.2730000000000001
+        },
+        {
+          "peak_sample": 1354,
+          "peak_time_s": 6.77,
+          "peak_pitch_deg": 8.299001,
+          "trough_sample": 1388,
+          "trough_pitch_deg": 0.626,
+          "peak_to_trough_s": 0.17,
+          "min_pitch_rate_dps_until_trough": -78.724403,
+          "post_trough_0_75s_pitch_max_deg": 1.608,
+          "post_trough_0_75s_max_at_window_edge": false,
+          "post_trough_window_limit": "May include another deliberate command; not a measured overshoot.",
+          "roll_peak_to_peak_deg_in_peak_window": 1.35
+        },
+        {
+          "peak_sample": 2143,
+          "peak_time_s": 10.715,
+          "peak_pitch_deg": 8.314,
+          "trough_sample": 2198,
+          "trough_pitch_deg": 0.495,
+          "peak_to_trough_s": 0.275,
+          "min_pitch_rate_dps_until_trough": -78.896294,
+          "post_trough_0_75s_pitch_max_deg": 1.314,
+          "post_trough_0_75s_max_at_window_edge": false,
+          "post_trough_window_limit": "May include another deliberate command; not a measured overshoot.",
+          "roll_peak_to_peak_deg_in_peak_window": 1.0130000000000001
+        },
+        {
+          "peak_sample": 2896,
+          "peak_time_s": 14.48,
+          "peak_pitch_deg": 8.228001,
+          "trough_sample": 2931,
+          "trough_pitch_deg": 0.557,
+          "peak_to_trough_s": 0.175,
+          "min_pitch_rate_dps_until_trough": -77.864967,
+          "post_trough_0_75s_pitch_max_deg": 1.577,
+          "post_trough_0_75s_max_at_window_edge": false,
+          "post_trough_window_limit": "May include another deliberate command; not a measured overshoot.",
+          "roll_peak_to_peak_deg_in_peak_window": 1.575
+        },
+        {
+          "peak_sample": 4156,
+          "peak_time_s": 20.78,
+          "peak_pitch_deg": 8.333,
+          "trough_sample": 4192,
+          "trough_pitch_deg": 0.395,
+          "peak_to_trough_s": 0.18,
+          "min_pitch_rate_dps_until_trough": -80.443275,
+          "post_trough_0_75s_pitch_max_deg": 4.726,
+          "post_trough_0_75s_max_at_window_edge": false,
+          "post_trough_window_limit": "May include another deliberate command; not a measured overshoot.",
+          "roll_peak_to_peak_deg_in_peak_window": 2.038
+        },
+        {
+          "peak_sample": 5229,
+          "peak_time_s": 26.145,
+          "peak_pitch_deg": 8.337001,
+          "trough_sample": 5264,
+          "trough_pitch_deg": 0.376,
+          "peak_to_trough_s": 0.175,
+          "min_pitch_rate_dps_until_trough": -79.354652,
+          "post_trough_0_75s_pitch_max_deg": 4.639,
+          "post_trough_0_75s_max_at_window_edge": false,
+          "post_trough_window_limit": "May include another deliberate command; not a measured overshoot.",
+          "roll_peak_to_peak_deg_in_peak_window": 1.264
+        },
+        {
+          "peak_sample": 6012,
+          "peak_time_s": 30.06,
+          "peak_pitch_deg": 8.264,
+          "trough_sample": 6048,
+          "trough_pitch_deg": 0.253,
+          "peak_to_trough_s": 0.18,
+          "min_pitch_rate_dps_until_trough": -78.094147,
+          "post_trough_0_75s_pitch_max_deg": 4.572,
+          "post_trough_0_75s_max_at_window_edge": false,
+          "post_trough_window_limit": "May include another deliberate command; not a measured overshoot.",
+          "roll_peak_to_peak_deg_in_peak_window": 1.381
+        }
+      ],
+      "high_peak_trough_median_deg": 0.455,
+      "high_peak_fall_rate_median_dps": -78.896294,
+      "last_100_raw_pitch_peak_to_peak_deg": 0.007000000000000117,
+      "last_100_raw_roll_peak_to_peak_deg": 0.007000000000000006
+    },
+    {
+      "number": 4,
+      "file": "E:\\IMU平衡4.csv",
+      "sha256": "a51f61e120fddeec07ae157c31fb078fd378894e9ca2705c17a3fcdae20e493a",
+      "rows": 5380,
+      "approximate_duration_s_at_200hz": 26.895,
+      "raw_pitch_min_deg": 0.083,
+      "raw_pitch_max_deg": 8.925,
+      "raw_pitch_rate_min_dps": -84.568573,
+      "raw_pitch_rate_max_dps": 33.861805,
+      "raw_roll_min_deg": -0.256,
+      "raw_roll_max_deg": 2.005,
+      "filters": [
+        {
+          "alpha": 0.40000003244969834,
+          "recurrence_rmse": 3.8166023522958616e-07,
+          "max_recurrence_error_at_expected_alpha": 1.4000000010828267e-06,
+          "low_frequency_delay_ms": 7.499998985947009,
+          "raw_filtered_rms_difference": 0.12033136582299679
+        },
+        {
+          "alpha": 0.4999999946782075,
+          "recurrence_rmse": 6.055487583720737e-07,
+          "max_recurrence_error_at_expected_alpha": 4.500000002849447e-06,
+          "low_frequency_delay_ms": 5.000000106435852,
+          "raw_filtered_rms_difference": 1.8464835541062998
+        },
+        {
+          "alpha": 0.3000000202494619,
+          "recurrence_rmse": 3.5541451573219486e-07,
+          "max_recurrence_error_at_expected_alpha": 9.000000001473107e-07,
+          "low_frequency_delay_ms": 11.666665541696636,
+          "raw_filtered_rms_difference": 0.05837910606920588
+        }
+      ],
+      "high_peak_event_count": 7,
+      "events": [
+        {
+          "peak_sample": 335,
+          "peak_time_s": 1.675,
+          "peak_pitch_deg": 8.291,
+          "trough_sample": 390,
+          "trough_pitch_deg": 0.675,
+          "peak_to_trough_s": 0.275,
+          "min_pitch_rate_dps_until_trough": -77.693077,
+          "post_trough_0_75s_pitch_max_deg": 3.015,
+          "post_trough_0_75s_max_at_window_edge": true,
+          "post_trough_window_limit": "May include another deliberate command; not a measured overshoot.",
+          "roll_peak_to_peak_deg_in_peak_window": 1.421
+        },
+        {
+          "peak_sample": 1028,
+          "peak_time_s": 5.14,
+          "peak_pitch_deg": 8.209001,
+          "trough_sample": 1063,
+          "trough_pitch_deg": 0.083,
+          "peak_to_trough_s": 0.175,
+          "min_pitch_rate_dps_until_trough": -79.469246,
+          "post_trough_0_75s_pitch_max_deg": 4.66,
+          "post_trough_0_75s_max_at_window_edge": false,
+          "post_trough_window_limit": "May include another deliberate command; not a measured overshoot.",
+          "roll_peak_to_peak_deg_in_peak_window": 1.219
+        },
+        {
+          "peak_sample": 1699,
+          "peak_time_s": 8.495,
+          "peak_pitch_deg": 8.925,
+          "trough_sample": 1737,
+          "trough_pitch_deg": 0.355,
+          "peak_to_trough_s": 0.19,
+          "min_pitch_rate_dps_until_trough": -84.568573,
+          "post_trough_0_75s_pitch_max_deg": 4.745,
+          "post_trough_0_75s_max_at_window_edge": false,
+          "post_trough_window_limit": "May include another deliberate command; not a measured overshoot.",
+          "roll_peak_to_peak_deg_in_peak_window": 1.532
+        },
+        {
+          "peak_sample": 2611,
+          "peak_time_s": 13.055,
+          "peak_pitch_deg": 8.239,
+          "trough_sample": 2667,
+          "trough_pitch_deg": 0.677,
+          "peak_to_trough_s": 0.28,
+          "min_pitch_rate_dps_until_trough": -77.234711,
+          "post_trough_0_75s_pitch_max_deg": 5.101,
+          "post_trough_0_75s_max_at_window_edge": true,
+          "post_trough_window_limit": "May include another deliberate command; not a measured overshoot.",
+          "roll_peak_to_peak_deg_in_peak_window": 1.762
+        },
+        {
+          "peak_sample": 3288,
+          "peak_time_s": 16.44,
+          "peak_pitch_deg": 8.317,
+          "trough_sample": 3323,
+          "trough_pitch_deg": 0.43,
+          "peak_to_trough_s": 0.175,
+          "min_pitch_rate_dps_until_trough": -79.698433,
+          "post_trough_0_75s_pitch_max_deg": 3.153,
+          "post_trough_0_75s_max_at_window_edge": true,
+          "post_trough_window_limit": "May include another deliberate command; not a measured overshoot.",
+          "roll_peak_to_peak_deg_in_peak_window": 1.421
+        },
+        {
+          "peak_sample": 3945,
+          "peak_time_s": 19.725,
+          "peak_pitch_deg": 8.273001,
+          "trough_sample": 3981,
+          "trough_pitch_deg": 0.135,
+          "peak_to_trough_s": 0.18,
+          "min_pitch_rate_dps_until_trough": -79.583839,
+          "post_trough_0_75s_pitch_max_deg": 4.553,
+          "post_trough_0_75s_max_at_window_edge": false,
+          "post_trough_window_limit": "May include another deliberate command; not a measured overshoot.",
+          "roll_peak_to_peak_deg_in_peak_window": 1.1039999999999999
+        },
+        {
+          "peak_sample": 4645,
+          "peak_time_s": 23.225,
+          "peak_pitch_deg": 8.665,
+          "trough_sample": 4680,
+          "trough_pitch_deg": 0.092,
+          "peak_to_trough_s": 0.175,
+          "min_pitch_rate_dps_until_trough": -83.709137,
+          "post_trough_0_75s_pitch_max_deg": 6.698,
+          "post_trough_0_75s_max_at_window_edge": true,
+          "post_trough_window_limit": "May include another deliberate command; not a measured overshoot.",
+          "roll_peak_to_peak_deg_in_peak_window": 1.492
+        }
+      ],
+      "high_peak_trough_median_deg": 0.355,
+      "high_peak_fall_rate_median_dps": -79.583839,
+      "last_100_raw_pitch_peak_to_peak_deg": 0.020000000000000018,
+      "last_100_raw_roll_peak_to_peak_deg": 0.016000000000000014
+    }
+  ]
+}

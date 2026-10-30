@@ -26,15 +26,15 @@ public:
         -67.0f * 3.14159265359f / 180.0f,
         -110.0f * 3.14159265359f / 180.0f};
     static constexpr float TARGET_ANGLE_RAD[2] = {    // 两侧电机的上台阶目标角
-        24.6f * 3.14159265359f / 180.0f,
-        156.35f * 3.14159265359f / 180.0f};
+        33.6f * 3.14159265359f / 180.0f,
+        142.35f * 3.14159265359f / 180.0f};
     static constexpr float LIMIT_START_RAD[2] = {   // 左前从初始位向外放宽，右前从目标位向外放宽
         HOME_ANGLE_RAD[0] - LIMIT_MARGIN_DEG * 3.14159265359f / 180.0f,
         TARGET_ANGLE_RAD[1] - LIMIT_MARGIN_DEG * 3.14159265359f / 180.0f};
     static constexpr float LIMIT_END_RAD[2] = {    // 左前从目标位向外放宽，右前从初始位向外放宽
         TARGET_ANGLE_RAD[0] + LIMIT_MARGIN_DEG * 3.14159265359f / 180.0f,
         HOME_ANGLE_RAD[1] + LIMIT_MARGIN_DEG * 3.14159265359f / 180.0f};
-    static constexpr uint32_t SPEED_RAMP_TIME_MS = 1000U; // 动作开始后，速度比例从 0 到 1 的时间
+    static constexpr uint32_t SPEED_RAMP_TIME_MS = 1650U; // 动作开始后，速度比例从 0 到 1 的时间
 
     // 初始化状态机和角度配置；启动后默认保持初始位置。
     void Init();

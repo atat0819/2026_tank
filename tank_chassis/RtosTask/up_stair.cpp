@@ -68,13 +68,13 @@ float FRONT_MIT_KD = 3.4f;
 float REAR_IMU_MIT_KD = 3.5f;     // IMU 调平、姿态保持。
 float REAR_RETRACT_MIT_KD = 3.6f; // 收腿移动、收腿位置保持及 IMU 两端位置保持。
 // IMU Pitch 角速度的力矩阻尼，N·m/(rad/s)；左右共用，0=关闭，正值越大阻尼越强。
-float REAR_IMU_PITCH_DAMPING = 1.0f; // 初始试调值，独立于 MIT Kd。
+float REAR_IMU_PITCH_DAMPING = 5.0f; // 初始试调值，独立于 MIT Kd。
 
 // 后 6248：主控只计算角度外环，电机 MIT Kd 完成轴速度内环。
 // Pitch 外环输入统一为 rad，输出为 rad/s；当前输出上限为 5.4 rad/s。
 // 它根据车身 Pitch 误差生成公共调平速度，再由左右方向系数映射到两台电机。
 ALG::PID::PID rear_6248_pitch_pid = {
-    55.0f, 0.0f, 0.0f, 7.4f, 0.0f, 0.0f,
+    50.0f, 0.0f, 0.0f, 7.4f, 0.0f, 0.0f,
 };
 // 编码器角度外环输入 rad，输出电机轴目标速度 rad/s。
 // 左右各有一个，仅用于收腿位置控制；两侧参数/历史状态彼此独立。
@@ -97,10 +97,9 @@ namespace
 // 后腿 IMU 一阶低通固定权重；角度用于外环，角速度用于前馈阻尼，MIT 内环使用电机轴速度。
 // 每收到新帧才执行 y = ratio*x + (1-ratio)*y；ratio 越小，平滑越强、响应越慢。
 // 滤波后的 Pitch 角速度用于 MIT 力矩前馈阻尼，不进入主控角度 PID。
-constexpr float REAR_PITCH_FILTER_RATIO = 0.20f; // Pitch 角度权重；越大滤波越轻、响应越快。
-LPFFilter rear_6248_pitch_filter(REAR_PITCH_FILTER_RATIO);
-LPFFilter rear_6248_pitch_rate_filter(0.25f);
-LPFFilter rear_6248_roll_filter(0.09f);
+LPFFilter rear_6248_pitch_filter(0.4);
+LPFFilter rear_6248_pitch_rate_filter(0.5f);
+LPFFilter rear_6248_roll_filter(0.3f);
 
 // 对电机反馈角度做有限值保护，避免 NaN 进入 MIT 位置字段。
 float SafeMotorAngle(float angle)
@@ -312,9 +311,9 @@ extern "C" void up_stair_task(void *argument)
                 rear_6248_pitch_filter.filter(imu_snapshot.pitch_deg);
                 rear_6248_pitch_rate_filter.filter(imu_snapshot.pitch_rate_dps);
                 rear_6248_roll_filter.filter(imu_snapshot.roll_deg);
-                rear_6248_pitch_filter.setRatio(REAR_PITCH_FILTER_RATIO);
-                rear_6248_pitch_rate_filter.setRatio(0.25f);
-                rear_6248_roll_filter.setRatio(0.09f);
+                rear_6248_pitch_filter.setRatio(0.4f);
+                rear_6248_pitch_rate_filter.setRatio(0.5f);
+                rear_6248_roll_filter.setRatio(0.3f);
                 rear_imu_filter_initialized = true;
             }
             else if (imu_snapshot.tick != rear_imu_filter_tick)
@@ -329,12 +328,12 @@ extern "C" void up_stair_task(void *argument)
             filtered_pitch_deg = rear_6248_pitch_filter.getOutput();
             filtered_pitch_rate_dps = rear_6248_pitch_rate_filter.getOutput();
             filtered_roll_deg = rear_6248_roll_filter.getOutput();
-            // VOFA: 原始/滤波 Pitch(deg)、原始/滤波角速度(deg/s)、采样时间(s)、预留。
+            // UART10 VOFA：原始/滤波 Pitch(deg)、Pitch 角速度(deg/s)、Roll(deg)。
             if (imu_new_frame)
             {
-                vofa_send(imu_snapshot.pitch_deg, filtered_pitch_deg,
-                          imu_snapshot.pitch_rate_dps, filtered_pitch_rate_dps,
-                          static_cast<float>(imu_snapshot.tick) * 0.001f, 0.0f);
+                // vofa_send(imu_snapshot.pitch_deg, filtered_pitch_deg,
+                //           imu_snapshot.pitch_rate_dps, filtered_pitch_rate_dps,
+                //           imu_snapshot.roll_deg, filtered_roll_deg);
             }
         }
         else
