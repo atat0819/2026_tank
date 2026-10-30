@@ -13,7 +13,7 @@ feedback = code.index("current_speed_rads[0] =")
 # Function + task loop only: STOP and input faults must not skip wheel feedback.
 assert code[:feedback].count("{") - code[:feedback].count("}") == 2, \
     "wheel feedback must remain outside control-only branches"
-assert feedback < code.index("if (input.source == ControlInputSource::NONE || source_changed)")
+assert feedback < code.index("if (input.source == ControlInputSource::NONE || source_changed || !wheel_feedback_valid)")
 match = re.search(r"void vofa_send\([^;{}]*\)\s*\{", source)
 depth, end = 1, match.end()
 while depth:

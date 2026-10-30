@@ -823,8 +823,7 @@ tank_chassis/can_send_task.o: ..\RtosTask\can_send_task.cpp \
   ..\Middlewares\ST\STM32_USB_Device_Library\Core\Inc\usbd_core.h \
   ..\Middlewares\ST\STM32_USB_Device_Library\Core\Inc\usbd_ctlreq.h \
   ..\user\core\Alg\Filter\Filter.hpp \
-  ..\RtosTask\..\user\core\Alg\ChassisCalculation\OmniCalculation.hpp \
-  ..\communication\..\user\core\Alg\ChassisCalculation\CalculationBase.hpp \
+  ..\RtosTask\..\user\core\Alg\ChassisCalculation\MecanumForceControl.hpp \
   ..\RtosTask\..\user\core\BSP\Motor\Dji\DjiMotor.hpp \
   ..\RtosTask\..\fsm\chassis_fsm.hpp ..\user\core\Alg\FSM\alg_fsm.hpp \
   ..\RtosTask\..\user\core\Alg\PowerControl-TestVersion\PowerControlTestVersion.hpp \

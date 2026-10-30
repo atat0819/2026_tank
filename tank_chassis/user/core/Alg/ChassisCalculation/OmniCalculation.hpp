@@ -1,11 +1,14 @@
 #ifndef OmniCalculation_HPP
 #define OmniCalculation_HPP
 
-#include "../user/core/Alg/ChassisCalculation/CalculationBase.hpp"
+#include "CalculationBase.hpp"
+#include "PlanarWheelMath.hpp"
 #include <math.h>
 
 namespace Alg::CalculationBase
 {
+    // 单位：几何 m、角度 rad、车速 m/s、角速度和轮端转速 rad/s、轮端力矩 N*m。
+    // 车体 X/Y 为右手坐标，正角度/正角速度为逆时针；不含减速比和 RPM 换算。
     /**
      * @class Omni_FK
      * @brief 全向轮底盘正向运动学计算类
@@ -13,7 +16,8 @@ namespace Alg::CalculationBase
     class Omni_FK : public ForwardKinematicsBase
     {
         public:
-            // 修复：去掉默认参数，避免编译错误
+            // r: 轮心到中心的相同距离；s: 轮半径；n: 有效轮数 3 或 4。
+            // wheel_azimuth: 各轮正转驱动方向；wheel_direction: 各轮心位置极角，均为 rad。
             Omni_FK(float r, float s, float n, const float wheel_azimuth[4], const float wheel_direction[4]) 
                 : R(r), S(s), N(n), ChassisVx(0.0f), ChassisVy(0.0f), ChassisVw(0.0f) 
             {
@@ -26,21 +30,18 @@ namespace Alg::CalculationBase
 
             void ForKinematics()
             {
-                ChassisVx = 0.0f; ChassisVy = 0.0f; ChassisVw = 0.0f; // 每次计算前清零
-                for(int i = 0; i < 4; i++)
+                double normal[3][3] = {}, rhs[3] = {}, velocity[3];
+                for(int i = 0; i < static_cast<int>(N); i++)
                 {
-                    float wheel_vx = S * Get_w(i) * cosf(Wheel_Azimuth[i]);
-                    float wheel_vy = S * Get_w(i) * sinf(Wheel_Azimuth[i]);
-
-                    ChassisVx += wheel_vx;
-                    ChassisVy += wheel_vy;
-
-                    float delta_angle = Wheel_Azimuth[i] - Wheel_Direction[i];
-                    ChassisVw += (Get_w(i) * S * sinf(delta_angle)) / R;
+                    double row[3];
+                    WheelMath::Row(Wheel_Azimuth[i], R*cosf(Wheel_Direction[i]),
+                                   R*sinf(Wheel_Direction[i]), R, row);
+                    WheelMath::Accumulate(row, S*Get_w(i), normal, rhs);
                 }
-                ChassisVx /= N;
-                ChassisVy /= N;
-                ChassisVw /= N;
+                WheelMath::Solve(normal, rhs, velocity);
+                ChassisVx = static_cast<float>(velocity[0]);
+                ChassisVy = static_cast<float>(velocity[1]);
+                ChassisVw = static_cast<float>(velocity[2] / R);
             }
 
             void OmniForKinematics(float w0, float w1, float w2, float w3)  //传入4个轮子的角速度
@@ -81,13 +82,17 @@ namespace Alg::CalculationBase
 
             void InverseDynamics()
             {
-                for(int i = 0; i < 4; i++)
+                double rows[4][3] = {}, normal[3][3] = {}, allocation[3];
+                const double demand[3] = {GetFx(), GetFy(), GetTorque()/R};
+                for(int i = 0; i < static_cast<int>(N); i++)
                 {
-                    MotorTorque[i] = (cosf(Wheel_Azimuth[i]) / N * GetFx() + 
-                                     sinf(Wheel_Azimuth[i]) / N * GetFy() + 
-                                     (-Wheel_Coordinates[i][1] * cosf(Wheel_Azimuth[i]) + 
-                                      Wheel_Coordinates[i][0] * sinf(Wheel_Azimuth[i])) / N * GetTorque()) * S;
+                    WheelMath::Row(Wheel_Azimuth[i], Wheel_Coordinates[i][0], Wheel_Coordinates[i][1], R, rows[i]);
+                    WheelMath::AddOuter(rows[i], normal);
                 }
+                WheelMath::Solve(normal, demand, allocation);
+                for(int i = 0; i < 4; i++)
+                    MotorTorque[i] = static_cast<float>(S * (rows[i][0]*allocation[0] +
+                                                           rows[i][1]*allocation[1] + rows[i][2]*allocation[2]));
             }
 
             void OmniInvDynamics(float fx, float fy, float torque)
@@ -135,11 +140,9 @@ namespace Alg::CalculationBase
             {   
                 for(int i = 0; i < 4; i++)
                 {
-                    // 修复：WheelAzimuth -> Wheel_Azimuth
-                    Motor[i] = (cosf(Wheel_Azimuth[i]) * Vx -   //手动改了这个-号，后面要改回来
-                                sinf(Wheel_Azimuth[i]) * Vy + 
-                                Vw * (-Wheel_Coordinates[i][1] * cosf(Wheel_Azimuth[i]) +   
-                                      Wheel_Coordinates[i][0] * sinf(Wheel_Azimuth[i]))) / S;
+                    double row[3];
+                    WheelMath::Row(Wheel_Azimuth[i], Wheel_Coordinates[i][0], Wheel_Coordinates[i][1], R, row);
+                    Motor[i] = static_cast<float>((row[0]*Vx + row[1]*Vy + row[2]*R*Vw) / S);
                 }
             }
 

@@ -2685,6 +2685,11 @@
               <FilePath>..\user\core\Alg\ChassisCalculation\StringWheel.hpp</FilePath>
             </File>
             <File>
+              <FileName>MecanumForceControl.hpp</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\user\core\Alg\ChassisCalculation\MecanumForceControl.hpp</FilePath>
+            </File>
+            <File>
               <FileName>Feedforward.cpp</FileName>
               <FileType>8</FileType>
               <FilePath>..\user\core\Alg\Feedforward\Feedforward.cpp</FilePath>

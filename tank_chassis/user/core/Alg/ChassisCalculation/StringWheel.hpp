@@ -1,13 +1,18 @@
 #ifndef STRINGWHEEL_HPP
 #define STRINGWHEEL_HPP
 
-#include "../user/core/Alg/ChassisCalculation/CalculationBase.hpp"
+#include "CalculationBase.hpp"
+#include "PlanarWheelMath.hpp"
 #include <math.h>
 
+#ifndef M_PI
 #define M_PI 3.14159265358979323846
+#endif
 
 namespace Alg::CalculationBase
 {
+    // 单位：几何 m、车速 m/s、轮端转速 rad/s、轮端力矩 N*m；不含减速比/RPM。
+    // wheel_azimuth 为轮心位置极角。舵角输入/输出均为编码器 rad，物理轮朝向=编码器角-phase[i]。
     /**
      * @class Omni_FK
      * @brief 舵轮底盘正向运动学计算类
@@ -20,17 +25,19 @@ namespace Alg::CalculationBase
         public:
             /**
              * @brief 构造函数
-             * @param r 投影带你距离盘中心
+             * @param r 轮心到车体中心的相同距离，m
              * @param s 轮子半径
              * @param wheel_azimuth 轮安装方位角 Wheel_Azimuth = {0, M_PI/2, M_PI, 3*M_PI/2}
              */
-            String_FK(float r, float s, float wheel_azimuth[4]) 
+            // phase 为每轮编码器零位 rad；与 IK 使用同一数组，省略表示全 0。
+            String_FK(float r, float s, const float wheel_azimuth[4], const float *phase = nullptr)
                 : R(r), S(s), ChassisVx(0.0f), ChassisVy(0.0f), ChassisVw(0.0f) 
             {
                 for(int i = 0; i < 4; i++)
                 {
                     Wheel_Azimuth[i] = wheel_azimuth[i];
                     current_steer_angles[i] = 0.0f;
+                    Phase[i] = phase == nullptr ? 0.0f : phase[i];
                 }
             }
 
@@ -42,45 +49,28 @@ namespace Alg::CalculationBase
              */
             void ForKinematics()
             {
-                float wheel_vx = 0.0f, wheel_vy = 0.0f, sumVw = 0.0f;
-                int validWheels = 0;
-
+                double normal[3][3] = {}, rhs[3] = {}, velocity[3];
                 for (int i = 0; i < 4; i++)
                 {
-                    // 计算轮子在底盘坐标系中的速度分量
-                    wheel_vx = Get_w(i) * S * cosf(current_steer_angles[i]);
-                    wheel_vy = Get_w(i) * S * sinf(current_steer_angles[i]);
-
-                    ChassisVx += wheel_vx;
-                    ChassisVy += wheel_vy;
-                    validWheels++;
-
-                    // 计算角速度贡献 (基于轮子安装位置)
-                    float delta_angle = current_steer_angles[i] - Wheel_Azimuth[i];
-                    ChassisVw += (Get_w(i) * S * sinf(delta_angle)) / R;
+                    // 每轮速度满足 vx_i=vx-y_i*wz、vy_i=vy+x_i*wz；逐次重算，不沿用旧输出。
+                    const float angle = current_steer_angles[i] - Phase[i];
+                    const double row_x[3] = {1, 0, -sinf(Wheel_Azimuth[i])};
+                    const double row_y[3] = {0, 1, cosf(Wheel_Azimuth[i])};
+                    WheelMath::Accumulate(row_x, Get_w(i)*S*cosf(angle), normal, rhs);
+                    WheelMath::Accumulate(row_y, Get_w(i)*S*sinf(angle), normal, rhs);
                 }
-
-                // 计算平均值得到底盘整体运动状态
-                if (validWheels > 0) 
-                {
-                    ChassisVx /= validWheels;
-                    ChassisVy /= validWheels;
-                    ChassisVw /= validWheels;
-                } 
-                else 
-                {
-                    ChassisVx = 0;
-                    ChassisVy = 0;
-                    ChassisVw = 0;
-                }
+                WheelMath::Solve(normal, rhs, velocity);
+                ChassisVx = static_cast<float>(velocity[0]);
+                ChassisVy = static_cast<float>(velocity[1]);
+                ChassisVw = static_cast<float>(velocity[2] / R);
             }
 
             /**
              * @brief 完整的舵轮正向运动学计算
-             * @param w0 轮子0的转速 弧度
-             * @param w1 轮子1的转速 弧度
-             * @param w2 轮子2的转速 弧度
-             * @param w3 轮子3的转速 弧度
+             * @param w0 轮子0的轮端转速 rad/s
+             * @param w1 轮子1的轮端转速 rad/s
+             * @param w2 轮子2的轮端转速 rad/s
+             * @param w3 轮子3的轮端转速 rad/s
              * 
              * 先设置轮子转速，然后执行正向运动学计算
              * 必须先使用 void Set_current_steer_angles(float angle, int index) 获取舵向电机当前角度
@@ -148,6 +138,7 @@ namespace Alg::CalculationBase
             float ChassisVy;         // 底盘Y方向速度
             float ChassisVw;         // 底盘绕Z轴角速度
             float current_steer_angles[4] = {0};  // 当前舵向电机角度
+            float Phase[4];           // 编码器零位，rad
             float Wheel_Azimuth[4];   // 轮安装方位角（弧度）
     };
 
@@ -171,7 +162,8 @@ namespace Alg::CalculationBase
              * @param s 轮子半径
              * @param wheel_azimuth 轮安装方位角(弧度) Wheel_Azimuth = {0, M_PI/2, M_PI, 3*M_PI/2}
              */
-            String_ID(float r, float s, float wheel_azimuth[4]) 
+            // phase 为每轮编码器零位 rad；与 IK 使用同一数组，省略表示全 0。
+            String_ID(float r, float s, const float wheel_azimuth[4], const float *phase = nullptr)
                 : R(r), S(s)
             {
                 for(int i = 0; i < 4; i++)
@@ -179,6 +171,7 @@ namespace Alg::CalculationBase
                     MotorTorque[i] = 0.0f;
                     Wheel_Azimuth[i] = wheel_azimuth[i];
                     current_steer_angles[i] = 0.0f;
+                    Phase[i] = phase == nullptr ? 0.0f : phase[i];
                 }
             }
 
@@ -190,10 +183,19 @@ namespace Alg::CalculationBase
              */
             void InverseDynamics()
             {
+                double rows[4][3], normal[3][3] = {}, allocation[3];
+                const double demand[3] = {GetFx(), GetFy(), GetTorque()/R};
                 for(int i = 0; i < 4; i++)
                 {
-                    MotorTorque[i] = GetFx() / 4.0f * cosf(current_steer_angles[i]) + GetFy() / 4.0f * sinf(current_steer_angles[i]) - GetTorque() / 4.0f / R * S * sinf(Wheel_Azimuth[i] - current_steer_angles[i]);
+                    WheelMath::Row(current_steer_angles[i] - Phase[i], R*cosf(Wheel_Azimuth[i]),
+                                   R*sinf(Wheel_Azimuth[i]), R, rows[i]);
+                    WheelMath::AddOuter(rows[i], normal);
                 }
+                // 求最小范数轮缘力；舵角降秩时只保留可产生的合力/转矩分量。
+                WheelMath::Solve(normal, demand, allocation);
+                for(int i = 0; i < 4; i++)
+                    MotorTorque[i] = static_cast<float>(S * (rows[i][0]*allocation[0] +
+                                                           rows[i][1]*allocation[1] + rows[i][2]*allocation[2]));
             }
 
             /**
@@ -258,6 +260,7 @@ namespace Alg::CalculationBase
             float MotorTorque[4]; // 四个电机的扭矩
             float Wheel_Azimuth[4];   // 轮安装方位角（弧度）
             float current_steer_angles[4] = {0};  // 当前舵向电机角度
+            float Phase[4];        // 编码器零位，rad
     };
 
 
@@ -280,7 +283,7 @@ namespace Alg::CalculationBase
              * @param s 轮子半径
              * @param wheel_azimuth 轮子安装方位角 Wheel_Azimuth = {0, M_PI/2, M_PI, 3*M_PI/2}
              */
-            String_IK(float r, float s, float wheel_azimuth[4], float phase[4]) 
+            String_IK(float r, float s, const float wheel_azimuth[4], const float phase[4])
                 : R(r), S(s) 
             {
                 for(int i = 0; i < 4; i++)
@@ -296,16 +299,12 @@ namespace Alg::CalculationBase
             /**
              * @brief 角度归一化到指定范围内
              * @param angle 待归一化的角度
-             * @param tar_angle 目标范围
+             * @param tar_angle 角度周期，当前调用为 2*PI
              * @return 归一化后的角度
              */
             float NormalizeAngle(float angle, float tar_angle)
             {
-                while (angle > M_PI) 
-                    angle -= 2.0f * M_PI;
-                while (angle < -M_PI) 
-                    angle += 2.0f * M_PI;  
-                return angle;
+                return std::remainder(angle, tar_angle);
             }
 
 
@@ -364,13 +363,13 @@ namespace Alg::CalculationBase
                     
                     tmp_velocity_modulus = sqrtf(tmp_velocity_x * tmp_velocity_x + tmp_velocity_y * tmp_velocity_y) / S;
 
-                    Motor_wheel[i] = 40.0f*tmp_velocity_modulus * 60.0f / (2.0f * M_PI); // rad/s转RPM
+                    Motor_wheel[i] = tmp_velocity_modulus; // 轮端 rad/s；减速比和电机 RPM 由调用层处理。
 
                     // 根据速度的xy分量分别决定舵向电机角度
                     if (tmp_velocity_modulus == 0.0f)
                     {
-                        // 排除除零问题，保持当前角度
-                        Motor_direction[i] = atan2f((R * cosf(Wheel_Azimuth[i])), (-R * sinf(Wheel_Azimuth[i]))) + Phase[i];
+                        // 零速时保持当前编码器角度，不自动转到切向或锁轮角度。
+                        Motor_direction[i] = current_steer_angles[i];
                     }
                     else
                     {
@@ -418,7 +417,7 @@ namespace Alg::CalculationBase
             /**
              * @brief 获取指定索引的轮向电机目标速度
              * @param index 电机索引(0-3)
-             * @return 对应电机的目标速度
+             * @return 对应轮端的目标速度，rad/s
              */
             float GetMotor_wheel(int index) const 
             { 
@@ -482,7 +481,7 @@ namespace Alg::CalculationBase
             float R;              // 轮子投影点到中心距离
             float S;              // 轮子半径
             float Motor_wheel[4]; // 轮向电机的目标速度
-            float Motor_direction[4];       // 舵向电机的旋转方向（弧度转角度）
+            float Motor_direction[4];       // 舵向电机编码器目标角度，rad
             float Wheel_Azimuth[4];   // 轮安装方位角（弧度）
             float current_steer_angles[4] = {0};  // 当前舵向电机角度
             float Phase[4]; //初始相位
