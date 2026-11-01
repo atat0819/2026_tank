@@ -23,7 +23,7 @@ def function(anchor):
 usb=function("void vofa_sendN(const float *data, uint8_t count)")
 init=re.search(r"float force_vofa_channels\[15\] = \{\};",source).group(0)
 start=source.index("// 保存本周期力控目标与反馈")
-capture=source[start:source.index("// 仅保留目标轮速",start)]
+capture=source[start:source.index("// 速度目标与反馈快照结束",start)]
 start=source.index("// 力控 VOFA：")
 publish=source[start:source.index("// 原功率辨识 VOFA 暂停",start)]
 # Publication must remain in the common loop, outside drive-enable/STOP branches.
@@ -58,9 +58,14 @@ void sample(uint32_t now_tick,bool enabled,bool wheel_feedback_valid,float delta
     if(enabled) {
         const float force_target[3]={.3f+delta,-.2f,.4f};
         const float force_feedback[3]={.2f,-.1f,.3f};
+        const float force_acceleration[2]={.5f,-.25f};
         for(unsigned axis=0;axis<3;++axis) {
-            chassis_force.force[axis]=10+axis;
-            chassis_force.integral[axis]=1+axis;
+            chassis_force.force[axis]=axis<2?13.f*force_acceleration[axis]:0;
+        }
+        const float feedback_current[4]={1,-2,3,-4};
+        for(unsigned wheel=0;wheel<4;++wheel) {
+            chassis_force.feedback_current[wheel]=feedback_current[wheel];
+            chassis_force.integral[wheel]=10+wheel; // Must not leak into acceleration/PID channels.
         }
         chassis_force.output_scale=.4f;
 '''+capture+r'''
@@ -81,7 +86,7 @@ int main() {
     hUsbDeviceHS.pClassData=&cdc;
     sample(14,true,true);assert(sends==0); // Four milliseconds since last attempt.
     sample(15,true,true);assert(sends==1&&length==64);
-    const float expected[15]={.3f,.2f,-.2f,-.1f,.4f,.3f,10,11,12,1,2,3,.4f,1,.015f};
+    const float expected[15]={.3f,.2f,-.2f,-.1f,.4f,.3f,6.5f,-3.25f,0,.5f,-.25f,4,.4f,1,.015f};
     for(unsigned i=0;i<15;++i) near(channel(i),expected[i]);
     const uint8_t tail[4]={0,0,0x80,0x7f};assert(std::memcmp(active+60,tail,4)==0);
     uint8_t saved[64];std::memcpy(saved,active,64);
@@ -113,4 +118,4 @@ with tempfile.TemporaryDirectory(prefix="force-vofa-") as directory:
     subprocess.run(["g++","-std=c++17","-Wall","-Wextra","-I",ROOT.as_posix(),
                     cpp.as_posix(),"-o",exe.as_posix()],check=True)
     subprocess.run([str(exe)],check=True)
-print("PASS: 15 force channels, USB framing/busy state, 200 Hz timing, STOP/fault/recovery and tick wrap")
+print("PASS: 15 inertia/acceleration/wheel-PID channels, USB framing/busy state, 200 Hz timing, STOP/fault/recovery and tick wrap")

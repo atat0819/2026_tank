@@ -2754,6 +2754,11 @@
               <FileType>5</FileType>
               <FilePath>..\user\core\Alg\UtilityFunction\SlopePlanning.hpp</FilePath>
             </File>
+            <File>
+              <FileName>SecondOrderSetpointPlanner.hpp</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\user\core\Alg\UtilityFunction\SecondOrderSetpointPlanner.hpp</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>

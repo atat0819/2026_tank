@@ -839,5 +839,5 @@ tank_chassis/can_send_task.o: ..\RtosTask\can_send_task.cpp \
   ..\RtosTask\..\user\core\APP\Referee\RM_RefereeSystem.h \
   ..\RtosTask\..\user\core\APP\Referee\..\..\HAL\UART\uart_hal.hpp \
   ..\RtosTask\..\user\core\APP\Referee\RM_RefereeSystemCRC.h \
-  ..\RtosTask\..\user\core\Alg\UtilityFunction\SlopePlanning.hpp \
+  ..\RtosTask\..\user\core\Alg\UtilityFunction\SecondOrderSetpointPlanner.hpp \
   ..\RtosTask\..\fsm\chassis_keyboard_fsm.hpp

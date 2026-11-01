@@ -27,7 +27,7 @@
 #include "../communication/boards_communication_uart_485.hpp"
 #include "../communication/gimbal_refree_uart_485.hpp"
 #include "../user/core/APP/Referee/RM_RefereeSystem.h"
-#include "../user/core/Alg/UtilityFunction/SlopePlanning.hpp"
+#include "../user/core/Alg/UtilityFunction/SecondOrderSetpointPlanner.hpp"
 #include "../fsm/chassis_keyboard_fsm.hpp"
 
 #ifndef M_PI
@@ -157,13 +157,13 @@ Communication::GimbalRefree gimbal_refree;
 volatile uint16_t heat_42mm = 0;
 
 using Alg::CalculationBase::MecanumForceControl;
-// 三轴车体速度 PI 输出 Fx/Fy/Mz；几何、名义力矩换算和初始增益集中在该头文件。
+// 13 kg 平动惯性前馈 + 四轮速度 PID；几何、名义力矩换算和初始增益集中在该头文件。
 MecanumForceControl chassis_force;
 
-// vx/vy 斜坡规划 (防功率尖峰/麦轮打滑), 反馈同步用 FK 实测底盘速度; w 方向不规划, 保持转向响应
-// 斜率单位: 每控制周期增量, 1kHz 循环下 0.008 ≈ 8 m/s² 加速度
-Alg::Utility::SlopePlanning ramp_vx(100.0f, 100.0f);
-Alg::Utility::SlopePlanning ramp_vy(100.0f, 100.0f);
+// X/Y 二阶设定值规划：加速度上限 4 m/s^2，jerk 上限 40 m/s^3，周期 1 ms。
+// 参数为待实车整定的初值；旋转速度保持直接响应，旋转惯性与摩擦前馈未启用。
+Alg::Utility::SecondOrderSetpointPlanner ramp_vx(4.0f, 40.0f, MecanumForceControl::CONTROL_PERIOD);
+Alg::Utility::SecondOrderSetpointPlanner ramp_vy(4.0f, 40.0f, MecanumForceControl::CONTROL_PERIOD);
 
 
 // 模板参数 <N> 表示电机数量
@@ -466,6 +466,8 @@ osDelay(500);
         chassis_motor.setCAN((int16_t)0, i + 1);
         }
          chassis_force.Reset();
+         ramp_vx.Reset();
+         ramp_vy.Reset();
          chassis_fsm.Get_Follow_PID().reset();
          chassis_vx_filter.Reset(0.0f);
          chassis_vy_filter.Reset(0.0f);
@@ -561,8 +563,10 @@ vy_body = (-vx_gimbal * sinf(compensated_angle) + vy_gimbal * cosf(compensated_a
 /**************************************************************** */
 if (chassis_fsm.Get_Mode() != last_mode)
 {
-    // 模式切换：清除三个车体速度环的积分。
+    // 模式切换：清除四轮 PID 和 X/Y 规划状态。
     chassis_force.Reset();
+    ramp_vx.Reset();
+    ramp_vy.Reset();
     last_mode = chassis_fsm.Get_Mode();
 }
 /**************************************************************** */
@@ -577,6 +581,8 @@ if (chassis_fsm.Get_Mode() == CHASSIS_STOP)
        chassis_motor.setCAN((int16_t)0, i + 1);
    }
    chassis_force.Reset();
+   ramp_vx.Reset();
+   ramp_vy.Reset();
    chassis_vx_filter.Reset(0.0f);
    chassis_vy_filter.Reset(0.0f);
    chassis_wz_filter.Reset(0.0f);
@@ -585,7 +591,7 @@ if (chassis_fsm.Get_Mode() == CHASSIS_STOP)
  else
  {
 /**************************************************************** */
-          // 四轮车体力控：目标车速 -> Fx/Fy/Mz -> 轮端力矩 -> 电流。
+          // 四轮车体力控：规划加速度惯性前馈 + 四轮速度 PID -> 合成电流。
           chassis_force.ForwardKinematics(current_speed_rads, chassis_velocity_feedback);
           float force_feedback[3] = {
               chassis_vx_filter.Filter(chassis_velocity_feedback[0]),
@@ -596,22 +602,25 @@ if (chassis_fsm.Get_Mode() == CHASSIS_STOP)
           vx_body = std::clamp(vx_body, -CHASSIS_MAX_VX_M_S, CHASSIS_MAX_VX_M_S);
           vy_body = std::clamp(vy_body, -MAX_VY_M_S, MAX_VY_M_S);
           wz_cmd = std::clamp(wz_cmd, -MAX_WZ_RAD_S, MAX_WZ_RAD_S);
-          ramp_vx.TIM_Calculate_PeriodElapsedCallback(vx_body, force_feedback[0]);
-          ramp_vy.TIM_Calculate_PeriodElapsedCallback(vy_body, force_feedback[1]);
+          ramp_vx.Update(vx_body);
+          ramp_vy.Update(vy_body);
           const float force_target[3] = {
               std::clamp(ramp_vx.GetOut(), -CHASSIS_MAX_VX_M_S, CHASSIS_MAX_VX_M_S),
               std::clamp(ramp_vy.GetOut(), -MAX_VY_M_S, MAX_VY_M_S), wz_cmd
           };
-          chassis_force.Update(force_target, force_feedback, motor_output);
-          // 保存本周期力控目标与反馈：与实际传入 PI 的数值一致。
+          const float force_acceleration[2] = {ramp_vx.GetAcceleration(), ramp_vy.GetAcceleration()};
+          chassis_force.InverseKinematics(force_target, motor_target_speed);
+          chassis_force.Update(motor_target_speed, force_acceleration, current_speed_rads, motor_output);
+          // 保存本周期力控目标与反馈：反馈正解/滤波仅用于观察，控制反馈使用各轮轮速。
           for (uint8_t axis = 0; axis < 3; ++axis)
           {
               force_vofa_channels[2 * axis] = force_target[axis];
               force_vofa_channels[2 * axis + 1] = force_feedback[axis];
           }
+          force_vofa_channels[9] = force_acceleration[0];
+          force_vofa_channels[10] = force_acceleration[1];
           force_vofa_channels[13] = 1.0f; // 闭环使能；不代表电机一定有非零输出。
-          // 仅保留目标轮速供观察，输出不再经过四个轮速 PID。
-          chassis_force.InverseKinematics(force_target, motor_target_speed);
+          // 速度目标与反馈快照结束
 	// 保存功率控制前的电流，用于VOFA对比衰减前后
 		memcpy(motor_output_pre, motor_output, sizeof(motor_output_pre));
 
@@ -657,7 +666,7 @@ if (chassis_fsm.Get_Mode() == CHASSIS_STOP)
 	    for (int i = 0; i < 4; i++) {
 	        I[i]       = motor_output[i] * (20.0f / 16384.0f);     // raw → 物理电流 (A)
 	        V[i]       = chassis_motor.getVelocityRads(i + 1);       // 转子转速 (rad/s)
-	        I_other[i] = 0.0f;                                       // 无前馈
+	        I_other[i] = 0.0f;                                       // I 已含惯性前馈 + PID，不在此重复相加
 	    }
 
 	    // CorrectionConstant: 四轮求和已包含每电机常数项 4*K0，修正项为 0
@@ -709,14 +718,17 @@ if (chassis_fsm.Get_Mode() == CHASSIS_STOP)
     }
 
         // 力控 VOFA：USB CDC / JustFloat，15 通道；每 5 ms 尝试发送，未连接或忙则跳过。
-        // 1/2 vx目标/反馈，3/4 vy目标/反馈，5/6 wz目标/反馈，7~9 Fx/Fy/Mz请求，
-        // 10~12 三轴积分输出，13 合成电流缩放比例，14 控制状态，15 板端时间(s)。
+        // 1/2 vx目标/反馈，3/4 vy目标/反馈，5/6 wz目标/反馈，7~9 惯性前馈 Fx/Fy/Mz，
+        // 10/11 规划 ax/ay，12 四轮 PID 电流最大绝对值(A)，13 合成缩放比例，14 状态，15 时间(s)。
         if (force_vofa_channels[13] == 1.0f)
         {
             for (uint8_t axis = 0; axis < 3; ++axis)
             {
                 force_vofa_channels[6 + axis] = chassis_force.force[axis];
-                force_vofa_channels[9 + axis] = chassis_force.integral[axis];
+            }
+            for (uint8_t i = 0; i < 4; ++i)
+            {
+                force_vofa_channels[11] = std::fmax(force_vofa_channels[11], std::fabs(chassis_force.feedback_current[i]));
             }
             force_vofa_channels[12] = chassis_force.output_scale;
         }
@@ -755,7 +767,7 @@ if (chassis_fsm.Get_Mode() == CHASSIS_STOP)
             for (uint8_t i = 0; i < 4; ++i)
             {
                 power_channels[1 + 2 * i] = chassis_motor.getCurrent(i + 1);
-                // 此对象减速比为 1，直接取转子 rad/s，不能用除过 15.8 的轮速。
+                // 此对象减速比为 1，直接取转子 rad/s，不能用除过总减速比的轮速。
                 power_channels[2 + 2 * i] = chassis_motor.getVelocityRads(i + 1);
                 if (chassis_motor.isConnected(i + 1, i + 1))
                 {

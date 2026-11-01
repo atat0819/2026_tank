@@ -10,6 +10,8 @@ limits="\n".join(re.search(r"constexpr float "+name+r"\s*=[^;]+;",source).group(
                    for name in ("CHASSIS_MAX_VX_M_S","MAX_VY_M_S","MAX_WZ_RAD_S"))
 filters="\n".join(re.search(r"SecondOrderLPFFilter chassis_"+axis+r"_filter\([^;]+;",source).group(0)
                   for axis in ("vx","vy","wz"))
+planners="\n".join(re.search(r"Alg::Utility::SecondOrderSetpointPlanner ramp_v"+axis+r"\([^;]+;",source).group(0)
+                   for axis in ("x","y"))
 start=source.index("if (keyboard_cmd.valid)",source.index("// --- A. 运动学逆解算"))
 transform=source[start:source.index("/**************************************************************** */",start)]
 start=source.index("// 四轮车体力控")
@@ -23,7 +25,7 @@ host=r'''
 #include <cstdint>
 #include "user/core/Alg/ChassisCalculation/MecanumForceControl.hpp"
 #include "user/core/Alg/Filter/Filter.hpp"
-#include "user/core/Alg/UtilityFunction/SlopePlanning.hpp"
+#include "user/core/Alg/UtilityFunction/SecondOrderSetpointPlanner.hpp"
 #ifndef M_PI
 #define M_PI 3.14159265358979323846f
 #endif
@@ -36,11 +38,13 @@ void run(float in_x,float in_y,float in_w,float angle,bool keyboard,float result
     float yaw_offset_rad=angle,phase_comp=0,wz_cmd=in_w;
 '''+transform+r'''
     MecanumForceControl chassis_force;
-    float current_speed_rads[4]={},chassis_velocity_feedback[3]={};
-'''+filters+r'''
-    Alg::Utility::SlopePlanning ramp_vx(100,100),ramp_vy(100,100);
+    float current_speed_rads[4]={},chassis_velocity_feedback[3]={},motor_target_speed[4]={};
+'''+filters+"\n"+planners+r'''
+    // Evaluate the settled target; X/Y intentionally do not step instantaneously.
+    for(unsigned cycle=0;cycle<2000;++cycle) {
 '''+target+r'''
-    for(unsigned i=0;i<3;++i) result[i]=force_target[i];
+        for(unsigned i=0;i<3;++i) result[i]=force_target[i];
+    }
 }
 void near(float actual,float expected) { assert(std::isfinite(actual)&&std::fabs(actual-expected)<.0001f); }
 enum class ControlInputSource { LOCAL, GIMBAL, NONE };
@@ -107,7 +111,6 @@ with tempfile.TemporaryDirectory(prefix="chassis-vx-limit-") as directory:
     cpp.write_text(host,encoding="utf-8")
     subprocess.run(["g++","-std=c++17","-I",ROOT.as_posix(),cpp.as_posix(),
                     (ROOT/"user/core/Alg/Filter/Filter.cpp").as_posix(),
-                    (ROOT/"user/core/Alg/UtilityFunction/SlopPlanning.cpp").as_posix(),
                     "-o",exe.as_posix()],check=True)
     subprocess.run([str(exe)],check=True)
 print("PASS: X/Y/yaw limits, linear local/gimbal sticks, keyboard/mouse/spin and rotated combined inputs")
