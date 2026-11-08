@@ -110,7 +110,8 @@ static void velocity_plant() {
         for(unsigned step=0;step<12000;++step) {
             float wheels[4],fb[3],raw[4],current[4],rotor[4],other[4]={};
             Controller::InverseKinematics(velocity,wheels);Controller::ForwardKinematics(wheels,fb);
-            fb[0]=xf.Filter(fb[0]);fb[1]=yf.Filter(fb[1]);fb[2]=zf.Filter(fb[2]);control.Update(ref,fb,raw);
+            fb[0]=xf.Filter(fb[0]);fb[1]=yf.Filter(fb[1]);fb[2]=zf.Filter(fb[2]);
+            control.UpdateWheelSynchronization(wheels);control.Update(ref,fb,raw);
             for(unsigned i=0;i<4;++i) {current[i]=raw[i]*(20.f/16384);rotor[i]=wheels[i]*Controller::REDUCTION_RATIO;}
             limiter.DecayingCurrent(current,rotor,poly_coeffs,other,0,50);control.ApplyOutputScale(limiter.getEta());
             float power=0;
@@ -127,7 +128,72 @@ static void velocity_plant() {
         for(unsigned i=0;i<3;++i) {near(velocity[i],ref[i],.015f);near(acceleration[i],0,.015f);}
     }
 }
+static void wheel_synchronization() {
+    Controller control;
+    const float rpm_to_wheel=6.28318530718f/60/Controller::REDUCTION_RATIO;
+    const float rpm[4]={-6000,6000,2000,-2000};
+    float wheels[4],feedback[3];
+    for(unsigned i=0;i<4;++i) wheels[i]=rpm[i]*rpm_to_wheel;
+    Controller::ForwardKinematics(wheels,feedback);
+    float before[4],after[4];
+    control.Update(feedback,feedback,before);
+    control.UpdateWheelSynchronization(wheels);
+    control.Update(feedback,feedback,after);
+    assert(after[0]>before[0]&&after[1]<before[1]); // Reduce front forward drive.
+    assert(after[2]>before[2]&&after[3]<before[3]); // Increase rear forward drive.
+    float body[3];reconstruct(control.sync_current,body);
+    for(float value:body) near(value,0);
+    for(unsigned i=0;i<4;++i) near(control.sync_target_speed[i],(i==0||i==3?-4000:4000)*rpm_to_wheel);
+    for(float &value:wheels) value=-value;
+    control.UpdateWheelSynchronization(wheels);
+    assert(control.sync_current[0]<0&&control.sync_current[1]>0);
+    const float commands[][3]={{1,0,0},{-1,0,0},{0,1,0},{0,0,1},{.4f,-.7f,.2f}};
+    for(const auto &command:commands) {
+        Controller::InverseKinematics(command,wheels);
+        control.UpdateWheelSynchronization(wheels);
+        for(float value:control.sync_current) near(value,0);
+    }
+    // Independent P values still cannot introduce nominal body force or yaw.
+    for(unsigned i=0;i<4;++i) {wheels[i]=rpm[i]*rpm_to_wheel;control.sync_kp[i]=100+i;}
+    control.UpdateWheelSynchronization(wheels);
+    near(control.sync_current[0],control.sync_current_limit);
+    reconstruct(control.sync_current,body);for(float value:body) near(value,0);
+    const float zero[3]={};
+    const float demand[3]={100,-100,100};
+    control.Update(demand,zero,after);
+    float torque[4];Controller::InverseDynamics(control.force,torque);
+    for(unsigned i=0;i<4;++i) {
+        near(after[i]/Controller::RAW_PER_AMP,
+             (torque[i]/Controller::WHEEL_TORQUE_PER_AMP+control.sync_current[i])*control.output_scale,.0001f);
+        assert(std::fabs(after[i])<=16384.01f);
+    }
+    ALG::PowerControl::PowerControl<4> limiter;
+    float current[4],rotor[4]={},other[4]={};
+    for(unsigned i=0;i<4;++i) current[i]=after[i]/Controller::RAW_PER_AMP;
+    limiter.DecayingCurrent(current,rotor,poly_coeffs,other,0,50);
+    assert(limiter.getEta()<1);
+    float power=0;
+    for(unsigned i=0;i<4;++i) {
+        const float a=limiter.getCurrentCalculate(i);
+        near(a,current[i]*limiter.getEta());
+        power+=poly_coeffs[0]+poly_coeffs[1]*a+poly_coeffs[4]*a*a;
+    }
+    assert(power<=50.01f);
+    control.Reset();
+    for(unsigned i=0;i<4;++i) {
+        near(control.sync_target_speed[i],0);near(control.sync_error[i],0);near(control.sync_current[i],0);
+    }
+    // Suspension model: hold aggregate speed while an initial front/rear difference decays.
+    control=Controller();
+    for(unsigned i=0;i<4;++i) wheels[i]=rpm[i]*rpm_to_wheel;
+    float initial=std::fabs(wheels[0]+wheels[2]);
+    for(unsigned step=0;step<5000;++step) {
+        control.UpdateWheelSynchronization(wheels);
+        for(unsigned i=0;i<4;++i) wheels[i]+=.001f*20*control.sync_current[i];
+    }
+    assert(std::fabs(wheels[0]+wheels[2])<initial*.001f);
+}
 int main() {
-    zero_gains();geometry();pi_and_saturation();velocity_plant();
-    std::puts("PASS: geometry, force/power consistency, PI, current/power limits and filtered speed plant");
+    zero_gains();geometry();pi_and_saturation();velocity_plant();wheel_synchronization();
+    std::puts("PASS: force geometry/PI, P-only wheel sync directions/projection/convergence/reset, common current/power limits");
 }

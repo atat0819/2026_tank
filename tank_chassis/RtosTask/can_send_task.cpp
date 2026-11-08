@@ -23,7 +23,6 @@
 #include "../user/core/Alg/PowerControl/PowerControl.hpp"
 #include "../user/core/HAL/UART/uart_hal.hpp"
 #include "../communication/super_cupacitor.hpp"
-#include "../communication/gimbal_refree.hpp"
 #include "../communication/boards_communication_uart_485.hpp"
 #include "../communication/gimbal_refree_uart_485.hpp"
 #include "../user/core/APP/Referee/RM_RefereeSystem.h"
@@ -35,11 +34,11 @@
 #endif
 
 // X 轴目标速度上限，m/s；摇杆满量程线性映射至该值。
-constexpr float CHASSIS_MAX_VX_M_S = 2.56f;
+constexpr float CHASSIS_MAX_VX_M_S = 3.75f;
 // Y 轴目标速度上限，m/s；摇杆满量程线性映射至该值。
-constexpr float MAX_VY_M_S = 1.7f;
+constexpr float MAX_VY_M_S = 2.5f;
 // 旋转目标角速度上限，rad/s；摇杆满量程映射至该值，所有旋转来源统一限幅。
-constexpr float MAX_WZ_RAD_S = 1.5f;
+constexpr float MAX_WZ_RAD_S = 2.5f;
 
 QueueHandle_t motorspeedtargetQueue; // 声明一个全局队列句柄，用于在任务之间传递电机转速数据
 QueueHandle_t motorCurrentDataQueue; // 声明一个全局队列句柄，用于在任务之间传递电机当前数据
@@ -74,7 +73,7 @@ static volatile bool gimbal_yaw_received = false;
 void Chassis485_ApplyData(const Chassis485Data &data)
 {
     const uint32_t now = HAL_GetTick();
-    // Pitch 固定在车体上，相对 Yaw 偏角为 0；原 IMU 字段只保留协议位置。
+    // Pitch 固定在车体上，相对 Yaw 偏角为 0。
     gimbalChassis_communicate.yaw_offset_deg = 0.0f;
     gimbalChassis_communicate.right_stick_x = data.right_stick_x;
     gimbalChassis_communicate.mouse_x = data.s1 == 3U && data.s2 == 3U ? data.mouse_x : 0;
@@ -82,8 +81,6 @@ void Chassis485_ApplyData(const Chassis485Data &data)
     gimbalChassis_communicate.vy = data.vy;
     gimbalChassis_communicate.s1 = data.s1;
     gimbalChassis_communicate.s2 = data.s2;
-    gimbalChassis_communicate.imu_yaw_deg = data.imu_yaw_deg;
-    gimbalChassis_communicate.imu_gyro_z_deg_s = data.imu_gyro_z_deg_s;
     gimbal_keyboard = data.keyboard;
     gimbal_yaw_last_tick = now;
     gimbal_speed_last_tick = now;
@@ -134,7 +131,7 @@ ControlInputSnapshot GetControlInputSnapshot(uint32_t now_tick)
         input.s2 = gimbal_s2;
         input.keyboard = gimbal_keyboard;
         input.keyboard_online = gimbal_keyboard_online;
-        input.wz = static_cast<float>(gimbalChassis_communicate.right_stick_x) / 660.0f;
+        input.wz = gimbalChassis_communicate.right_stick_x;
         input.mouse_x = gimbalChassis_communicate.mouse_x;
         input.vx = gimbalChassis_communicate.vx;
         input.vy = gimbalChassis_communicate.vy;
@@ -151,19 +148,18 @@ ChassisKeyboardFSM keyboard_fsm;
 // 超级电容通信实例
 Communication::SuperCapacitor supercap(500); // 500ms 超时阈值
 
-// 裁判系统→云台转发实例
-Communication::GimbalRefree gimbal_refree;
-// CAN发送前的42mm热量诊断值
+// 板间回复使用的 42mm 热量诊断值
 volatile uint16_t heat_42mm = 0;
 
 using Alg::CalculationBase::MecanumForceControl;
 // 三轴车体速度 PI 输出 Fx/Fy/Mz；几何、名义力矩换算和初始增益集中在该头文件。
 MecanumForceControl chassis_force;
 
-// vx/vy 斜坡规划 (防功率尖峰/麦轮打滑), 反馈同步用 FK 实测底盘速度; w 方向不规划, 保持转向响应
-// 斜率单位: 每控制周期增量, 1kHz 循环下 0.008 ≈ 8 m/s² 加速度
-Alg::Utility::SlopePlanning ramp_vx(100.0f, 100.0f);
-Alg::Utility::SlopePlanning ramp_vy(100.0f, 100.0f);
+// 仅键鼠 vx/vy 启动限加速；遥控器直通，w 保持转向响应。
+// 1 ms 周期下 0.008 m/s ≈ 8 m/s²；下降步长 100 使减速/松键目标立即到位。
+constexpr float KEYBOARD_SPEED_RAMP_STEP = 0.008f;
+Alg::Utility::SlopePlanning ramp_vx(KEYBOARD_SPEED_RAMP_STEP, 100.0f);
+Alg::Utility::SlopePlanning ramp_vy(KEYBOARD_SPEED_RAMP_STEP, 100.0f);
 
 
 // 模板参数 <N> 表示电机数量
@@ -214,8 +210,8 @@ RemoteData_t ChassisData;
 LPFFilter acc_filter_x(0.2f);
 LPFFilter acc_filter_y(0.2f);
 LPFFilter acc_filter_z(0.2f);
-SecondOrderLPFFilter chassis_vx_filter(50.0f, 0.001f, 0.70710678f);
-SecondOrderLPFFilter chassis_vy_filter(20.0f, 0.001f, 0.70710678f);
+SecondOrderLPFFilter chassis_vx_filter(150.0f, 0.001f, 0.70710678f);
+SecondOrderLPFFilter chassis_vy_filter(150.0f, 0.001f, 0.70710678f);
 SecondOrderLPFFilter chassis_wz_filter(100.0f, 0.001f, 0.70710678f); // 旋转角速度反馈低通：截止频率 Hz、周期 s、阻尼比
 
 
@@ -269,6 +265,8 @@ float poly_coeffs[6] = {
 // ========== 底盘功率控制 (衰减电流法) ==========
 // 临时调试速度 PID：false=直接使用 PID 电流输出，true=恢复原功率限制。
 constexpr bool CHASSIS_POWER_LIMIT_ENABLED = true;
+// 收腿及到位保持阶段的固定轮组预算，前后组不互借。
+constexpr float STAIR_RETRACT_FRONT_POWER_SHARE = 0.75f;
 // 超电配置 (根据实际硬件修改总容量)
 const float SUPERCAP_TOTAL_CAPACITY = 2000.0f;                        // 超电总容量 (J)
 const float ABUNDANCE_LINE          = SUPERCAP_TOTAL_CAPACITY * 0.8f; // 富足线 = 80%总容量
@@ -276,6 +274,8 @@ const float POVERTY_LINE            = 250.0f;                         // 贫困�
 
 // 功率控制器 (衰减电流法执行层)
 ALG::PowerControl::PowerControl<4> chassis_power_ctrl;
+ALG::PowerControl::PowerControl<2> chassis_front_power_ctrl;
+ALG::PowerControl::PowerControl<2> chassis_rear_power_ctrl;
 
 // 能量环状态机                                        //富足线，贫困线，最小功率限制(防止功率太小跑不动)
 ALG::PowerControl::EnergyRing energy_ring(ABUNDANCE_LINE, POVERTY_LINE, 56.0f);
@@ -287,12 +287,12 @@ ALG::PowerControl::PowerControlStrategy power_strategy(ABUNDANCE_LINE);
 //   能量越高 → AbundanceOut越负 → P_max越大 → 释放过剩能量, 防过充
 //   能量<1600J → EnergyRing走中间分支, 直接P_ref, 此PID不参与
 //   Kp=0.05 → 能量2000J时AbundanceOut≈-20W, P_max≈100W
-ALG::PID::PID abundance_energy_pid(0.05f, 0.0f, 0.0f, 80.0f, 80.0f, 0.0f);
+ALG::PID::PID abundance_energy_pid(4.2361f, 0.0f, 0.0f, 80.0f, 80.0f, 0.0f);
 
 // 贫困环 PID — 目标: 250J (POVERTY_LINE), Shift爆发模式生效
 //   能量>>250J → PovertyOut为负 → P_max = P_ref - (负数) = P_ref + 增量 → 超功率！
 //   Kp=0.05 → 能量1000J时PovertyOut≈-37.5W, P_max≈117.5W
-ALG::PID::PID poverty_energy_pid(0.05f, 0.0f, 0.0f, 80.0f, 80.0f, 0.0f);
+ALG::PID::PID poverty_energy_pid(2.0754f, 0.0f, 0.0f, 80.0f, 80.0f, 0.0f);
 // ========== 功率控制初始化结束 ==========
 
 extern "C" void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t)
@@ -423,12 +423,16 @@ osDelay(500);
                  stair_command.front_target_requested = false;
              }
          }
+         // 拨杆退出双中键鼠或键盘失效时，立即恢复四轮统一缩放。
+         const bool stair_retract_power_split =
+             keyboard_cmd.valid && stair_command.mode == StairMode::IMU &&
+             stair_command.rear_retract_requested;
          taskEXIT_CRITICAL();
 
          //获取底盘旋转速度
          ChassisData.vx = input.vx * CHASSIS_MAX_VX_M_S;
          ChassisData.vy = input.vy * MAX_VY_M_S;
-         ChassisData.wz = -input.wz * MAX_WZ_RAD_S;
+         ChassisData.wz = 0.0f; // 有效控制周期由状态机输出更新。
          ChassisData.s1 = input.s1;
          ChassisData.s2 = input.s2;
 
@@ -466,6 +470,8 @@ osDelay(500);
         chassis_motor.setCAN((int16_t)0, i + 1);
         }
          chassis_force.Reset();
+         ramp_vx.TIM_Calculate_PeriodElapsedCallback(0.0f, 0.0f);
+         ramp_vy.TIM_Calculate_PeriodElapsedCallback(0.0f, 0.0f);
          chassis_fsm.Get_Follow_PID().reset();
          chassis_vx_filter.Reset(0.0f);
          chassis_vy_filter.Reset(0.0f);
@@ -521,25 +527,11 @@ osDelay(500);
 
            // 当前来源完整且新鲜才允许退出 STOP；本地输入以车体为坐标系。
            chassis_fsm.StateUpdate(
-               input.s1, input.s2, input.source != ControlInputSource::NONE);
-           wz_cmd = chassis_fsm.Get_wz_cmd(yaw_offset_rad);
-           if (input.source != ControlInputSource::NONE && !keyboard_mode &&
-               chassis_fsm.Get_Mode() != CHASSIS_GYRO_SPIN)
-           {
-               // 与云台遥控器 yaw 的摇杆方向一致：右摇杆向右对应负角速度。
-               wz_cmd = -input.wz * MAX_WZ_RAD_S;
-           }
-
-           if (keyboard_cmd.valid && keyboard_cmd.gyro_enabled) //小陀螺
-           {
-               wz_cmd = chassis_fsm.gyro_spin_speed;
-           }
-           else if (keyboard_cmd.valid)
-           {
-               // 鼠标每计数对应 1 度/秒，后续统一按旋转角速度上限限幅。
-               wz_cmd = -static_cast<float>(input.mouse_x) *
-                        (1.0f * M_PI / 180.0f);
-           }
+               input.s1, input.s2, input.source != ControlInputSource::NONE,
+               keyboard_cmd.valid);
+           wz_cmd = chassis_fsm.Get_wz_cmd(
+               yaw_offset_rad, input.wz, input.mouse_x, MAX_WZ_RAD_S);
+           ChassisData.wz = wz_cmd;
 
         // 2. 获取电机当前反馈 (当前轮速)
         phase_comp = 0.0f; // Pitch 固定在车体上，无相对云台旋转的相位补偿。
@@ -577,6 +569,8 @@ if (chassis_fsm.Get_Mode() == CHASSIS_STOP)
        chassis_motor.setCAN((int16_t)0, i + 1);
    }
    chassis_force.Reset();
+   ramp_vx.TIM_Calculate_PeriodElapsedCallback(0.0f, 0.0f);
+   ramp_vy.TIM_Calculate_PeriodElapsedCallback(0.0f, 0.0f);
    chassis_vx_filter.Reset(0.0f);
    chassis_vy_filter.Reset(0.0f);
    chassis_wz_filter.Reset(0.0f);
@@ -596,12 +590,47 @@ if (chassis_fsm.Get_Mode() == CHASSIS_STOP)
           vx_body = std::clamp(vx_body, -CHASSIS_MAX_VX_M_S, CHASSIS_MAX_VX_M_S);
           vy_body = std::clamp(vy_body, -MAX_VY_M_S, MAX_VY_M_S);
           wz_cmd = std::clamp(wz_cmd, -MAX_WZ_RAD_S, MAX_WZ_RAD_S);
-          ramp_vx.TIM_Calculate_PeriodElapsedCallback(vx_body, force_feedback[0]);
-          ramp_vy.TIM_Calculate_PeriodElapsedCallback(vy_body, force_feedback[1]);
+          if (keyboard_cmd.valid)
+          {
+              // 反向时先撤销旧方向目标，再从零向新方向加速。
+              if (vx_body * ramp_vx.GetOut() < 0.0f)
+              {
+                  ramp_vx.TIM_Calculate_PeriodElapsedCallback(0.0f, 0.0f);
+              }
+              if (vy_body * ramp_vy.GetOut() < 0.0f)
+              {
+                  ramp_vy.TIM_Calculate_PeriodElapsedCallback(0.0f, 0.0f);
+              }
+              // 使用上次规划输出，避免实测反馈同步逻辑跳过启动斜坡。
+              ramp_vx.TIM_Calculate_PeriodElapsedCallback(vx_body, ramp_vx.GetOut());
+              ramp_vy.TIM_Calculate_PeriodElapsedCallback(vy_body, ramp_vy.GetOut());
+              vx_body = ramp_vx.GetOut();
+              vy_body = ramp_vy.GetOut();
+          }
+          else
+          {
+              // 遥控器直接使用目标；清空键鼠规划，防止再次进入时沿用旧速度。
+              ramp_vx.TIM_Calculate_PeriodElapsedCallback(0.0f, 0.0f);
+              ramp_vy.TIM_Calculate_PeriodElapsedCallback(0.0f, 0.0f);
+          }
           const float force_target[3] = {
-              std::clamp(ramp_vx.GetOut(), -CHASSIS_MAX_VX_M_S, CHASSIS_MAX_VX_M_S),
-              std::clamp(ramp_vy.GetOut(), -MAX_VY_M_S, MAX_VY_M_S), wz_cmd
+              std::clamp(vx_body, -CHASSIS_MAX_VX_M_S, CHASSIS_MAX_VX_M_S),
+              std::clamp(vy_body, -MAX_VY_M_S, MAX_VY_M_S), wz_cmd
           };
+          // 收腿分组限功率期间关闭同步；当周期清除上一阶段残留，保留车体力控。
+          if (stair_retract_power_split)
+          {
+              for (unsigned i = 0; i < 4; ++i)
+              {
+                  chassis_force.sync_target_speed[i] = 0.0f;
+                  chassis_force.sync_error[i] = 0.0f;
+                  chassis_force.sync_current[i] = 0.0f;
+              }
+          }
+          else
+          {
+              chassis_force.UpdateWheelSynchronization(current_speed_rads);
+          }
           chassis_force.Update(force_target, force_feedback, motor_output);
           // 保存本周期力控目标与反馈：与实际传入 PI 的数值一致。
           for (uint8_t axis = 0; axis < 3; ++axis)
@@ -660,6 +689,24 @@ if (chassis_fsm.Get_Mode() == CHASSIS_STOP)
 	        I_other[i] = 0.0f;                                       // 无前馈
 	    }
 
+	    if (stair_retract_power_split)
+	    {
+	        // 力控与同步的合成电流按组限幅，每组预算包含本组两轮的基础损耗。
+	        chassis_front_power_ctrl.DecayingCurrent(
+	            I, V, poly_coeffs, I_other, 0.0f, PowerMax * STAIR_RETRACT_FRONT_POWER_SHARE);
+	        chassis_rear_power_ctrl.DecayingCurrent(
+	            I + 2, V + 2, poly_coeffs, I_other + 2, 0.0f,
+	            PowerMax * (1.0f - STAIR_RETRACT_FRONT_POWER_SHARE));
+	        for (int i = 0; i < 2; i++) {
+	            motor_output[i] = chassis_front_power_ctrl.getCurrentCalculate(i) * (16384.0f / 20.0f);
+	            motor_output[i + 2] = chassis_rear_power_ctrl.getCurrentCalculate(i) * (16384.0f / 20.0f);
+	        }
+	        // 作为保守的饱和标志反馈 PI；不是四轮实际共用一个缩放系数。
+	        chassis_force.ApplyOutputScale(fminf(
+	            chassis_front_power_ctrl.getEta(), chassis_rear_power_ctrl.getEta()));
+	    }
+	    else
+	    {
 	    // CorrectionConstant: 四轮求和已包含每电机常数项 4*K0，修正项为 0
 	    chassis_power_ctrl.DecayingCurrent(
 	        I, V, poly_coeffs, I_other,
@@ -672,6 +719,7 @@ if (chassis_fsm.Get_Mode() == CHASSIS_STOP)
 	         motor_output[i] = chassis_power_ctrl.getCurrentCalculate(i) * (16384.0f / 20.0f);
 	     }
          chassis_force.ApplyOutputScale(chassis_power_ctrl.getEta());
+	    }
 	}
 	// ========== 功率控制结束 ==========
 		// 用衰减后的电流重算功率，用于VOFA对比预测功率 vs 衰减后实际功率
@@ -738,7 +786,7 @@ if (chassis_fsm.Get_Mode() == CHASSIS_STOP)
         if (static_cast<uint32_t>(now_tick - last_force_vofa_tick) >= 5U)
         {
             last_force_vofa_tick = now_tick;
-            vofa_sendN(force_vofa_channels, 15);
+            //vofa_sendN(force_vofa_channels, 15);
         }
 
         // 原功率辨识 VOFA 暂停，保留代码；实际功率限制和功率计接收不受影响。
@@ -788,6 +836,13 @@ if (chassis_fsm.Get_Mode() == CHASSIS_STOP)
             (heat_42mm = ext_power_heat_data_0x0202.shooter_id1_42mm_cooling_heat), // 最新转发热量
             RM_RefereeSystemDirFlag ? 0 : 1                            // 裁判系统在线标志 (1=在线)
         );
+
+        vofa_send(
+            chassis_motor.getVelocityRpm(1), chassis_motor.getVelocityRpm(2),
+            chassis_motor.getVelocityRpm(3), chassis_motor.getVelocityRpm(4),
+            0,0
+        );
+
 
         // 向超级电容发送控制数据
         supercap.sendToSuperCap(

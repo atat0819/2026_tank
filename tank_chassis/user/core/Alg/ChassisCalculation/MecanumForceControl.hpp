@@ -16,18 +16,18 @@ namespace Alg::CalculationBase
         // 前后半轮距 + 左右半轮距，m，用于旋转速度与转矩分配。
         static constexpr float LEVER_ARM = 0.215f + 0.243f;
         // 转子到车轮的总减速比；转子角速度除以此值才是轮端角速度。
-        static constexpr float REDUCTION_RATIO = 15.8f;
+        static constexpr float REDUCTION_RATIO = 268.0f / 17.0f;
         // PI 积分使用的控制周期，s。
         static constexpr float CONTROL_PERIOD = 0.001f;
         // 名义轮端力矩系数，N*m/A；0.3 是原 19:1 减速箱输出侧系数，未计实际传动效率。
         static constexpr float WHEEL_TORQUE_PER_AMP = 0.3f / 19.0f * REDUCTION_RATIO;
         // 电流命令换算系数，raw/A：20 A 对应 16384。
         static constexpr float RAW_PER_AMP = 16384.0f / 20.0f;
-        // 单轮电流上限，A；超限时四轮统一缩放，保留力分配比例。
+        // 单轮电流上限，A；超限时四轮统一缩放，保留力控与同步的合成电流比例。
         static constexpr float MAX_CURRENT = 20.0f;
 
         // 比例增益：速度误差越大，请求作用力越大；单位依次为 N/(m/s)、N/(m/s)、N*m/(rad/s)。
-        float kp[3] = {420.0f, 420.0f, 65.0f};
+        float kp[3] = {420.0f, 450.0f, 65.0f};
         // 积分增益：累积速度误差以消除稳态偏差；单位依次为 N/m、N/m、N*m/rad。
         float ki[3] = {3.0f, 3.0f, 0.0f};
         // 积分输出绝对值上限，N、N、N*m；须非负，0 表示该轴不产生积分输出。
@@ -38,9 +38,35 @@ namespace Alg::CalculationBase
         float force[3] = {};
         // 电流限幅与后续功率限幅的合成电流缩放比例。
         float output_scale = 1.0f;
+        // 四轮同步 PID 当前仅启用 P，单位 A/(轮端 rad/s)，不积累 I/D 状态。
+        float sync_kp[4] = {4.0f, 4.0f, 4.0f, 4.0f};
+        float sync_current_limit = 10.0f; // 投影后同步校正的单轮峰值，A；初试值。
+        float sync_target_speed[4] = {}; // 与当前等效车速兼容的轮端 rad/s。
+        float sync_error[4] = {};
+        float sync_current[4] = {}; // 统一限流/限功率前的同步校正，A。
+
+        // 每个有效控制周期、Update 前调用；使用原始轮速，避免滤波滞后产生伪差速。
+        void UpdateWheelSynchronization(const float wheel_speed[4])
+        {
+            float velocity[3];
+            ForwardKinematics(wheel_speed, velocity);
+            InverseKinematics(velocity, sync_target_speed);
+            float q = 0.0f;
+            for (unsigned i = 0; i < 4; ++i)
+            {
+                sync_error[i] = sync_target_speed[i] - wheel_speed[i];
+                q += SYNC_DIRECTION[i] * sync_kp[i] * sync_error[i] / 4.0f;
+            }
+            // n=(1,-1,1,-1) 对名义 Fx/Fy/Mz 的贡献为零；整体限制 q 保持此性质。
+            q = std::clamp(q, -sync_current_limit, sync_current_limit);
+            for (unsigned i = 0; i < 4; ++i)
+            {
+                sync_current[i] = SYNC_DIRECTION[i] * q;
+            }
+        }
 
         // 逆运动学：[vx,vy,wz]（m/s、m/s、rad/s）-> 四轮轮端角速度（rad/s）。
-        // 当前任务只用结果观察目标轮速，不再经过四个轮速 PID。
+        // 目标车速用于观察目标轮速；同步环用当前等效车速求协调轮速。
         static void InverseKinematics(const float velocity[3], float wheel_speed[4])
         {
             for (unsigned i = 0; i < 4; ++i)
@@ -74,7 +100,7 @@ namespace Alg::CalculationBase
             }
         }
 
-        // 执行三轴速度 PI 和力分配；target/feedback 为同坐标车速，raw_output 为四轮电流命令。
+        // 执行三轴速度 PI、力分配并合成同步电流；target/feedback 为同坐标车速。
         // 本函数完成统一电流限幅；在线判断、总功率限制和 CAN 发送由任务层负责。
         void Update(const float target[3], const float feedback[3], float raw_output[4])
         {
@@ -92,7 +118,7 @@ namespace Alg::CalculationBase
             float peak_current = MAX_CURRENT;
             for (unsigned i = 0; i < 4; ++i)
             {
-                raw_output[i] = torque[i] / WHEEL_TORQUE_PER_AMP;
+                raw_output[i] = torque[i] / WHEEL_TORQUE_PER_AMP + sync_current[i];
                 peak_current = std::fmax(peak_current, std::fabs(raw_output[i]));
             }
             const float current_scale = MAX_CURRENT / peak_current;
@@ -125,6 +151,10 @@ namespace Alg::CalculationBase
         // 清除积分、误差和力请求历史，保留增益与限幅；任务层另行清零输出并发送 CAN。
         void Reset()
         {
+            for (unsigned i = 0; i < 4; ++i)
+            {
+                sync_target_speed[i] = sync_error[i] = sync_current[i] = 0.0f;
+            }
             for (unsigned axis = 0; axis < 3; ++axis)
             {
                 integral[axis] = force[axis] = error_[axis] = previous_integral_[axis] = 0.0f;
@@ -133,6 +163,7 @@ namespace Alg::CalculationBase
         }
 
     private:
+        static constexpr float SYNC_DIRECTION[4] = {1.0f, -1.0f, 1.0f, -1.0f};
         // 正 X、正 Y 运动对应的四轮电机方向；Y 正向沿用原侧移指令，与旧几何 Y 方向相反。
         static constexpr float DIRECTION_X[4] = {-1.0f, 1.0f, 1.0f, -1.0f};
         static constexpr float DIRECTION_Y[4] = {-1.0f, -1.0f, 1.0f, 1.0f};

@@ -137,7 +137,6 @@ int main(void)
   MX_SPI6_Init();
   /* USER CODE BEGIN 2 */
   Board_LED_Init();
-  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_15, GPIO_PIN_SET);
 
   /* USER CODE END 2 */
 

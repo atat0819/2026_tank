@@ -7,6 +7,7 @@
 #include "../user/core/BSP/version/vision_communication.hpp"
 #include "../communication_between_boards/input_dispatcher.hpp"
 #include "../communication_between_boards/refree_receive_uart_485.hpp"
+#include "../communication_between_boards/gimbal_to_arm.hpp"
 #include "gimbal_task.hpp"
 
 QueueHandle_t remoteDataQueue;
@@ -14,6 +15,8 @@ QueueHandle_t remoteDataQueue;
 uint8_t receivedata[18];
 RemoteData_t remote;
 BSP::REMOTE_CONTROL::RemoteController remoteController(100);
+// UART5 接收到首个完整帧后置位，避免上电时误报在线。
+static volatile bool arm_remote_received = false;
 
 extern DMA_HandleTypeDef hdma_uart5_rx;
 
@@ -146,6 +149,7 @@ extern "C" void remote_control_task(void *argument)
         if (data.size == 18) {
             remoteController.parseData(data.buffer);
             remoteController.updateTimestamp();
+            arm_remote_received = true;
         }
     });
 
@@ -174,7 +178,21 @@ extern "C" void remote_control_task(void *argument)
 
     for (;;)
     {
-        if (!remoteController.isConnected())
+        // 只在临界区内读取一份一致的遥控器快照；打包和 DMA 发送在任务中进行。
+        bool remote_online;
+        bool arm_online;
+        uint8_t s1;
+        uint8_t s2;
+        uint16_t keyboard;
+        taskENTER_CRITICAL();
+        remote_online = remoteController.isConnected();
+        arm_online = arm_remote_received && remote_online;
+        s1 = remoteController.get_s1();
+        s2 = remoteController.get_s2();
+        keyboard = remoteController.get_keyboard();
+        taskEXIT_CRITICAL();
+        gimbal_to_arm.SendRemoteData(s1, s2, keyboard, arm_online);
+        if (!remote_online)
         {
             remote.chassis_vx = 0.0f;
             remote.chassis_vy = 0.0f;

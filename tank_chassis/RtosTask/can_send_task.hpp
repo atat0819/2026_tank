@@ -41,14 +41,12 @@ typedef struct
 typedef struct
 {
     float yaw_offset_deg; // 固定安装偏角，当前为 0 度
-    int16_t right_stick_x; // 云台右摇杆 X，约 -660..660
+    float right_stick_x; // 云台右摇杆 X，归一化 -1..1
     int16_t mouse_x; // 最新 DT7 鼠标 X，覆盖保存，供角速度控制持续使用
     float vx;
     float vy;
     float s1;
     float s2;
-    float imu_yaw_deg;      // 保留字段，云台 IMU 已停用
-    float imu_gyro_z_deg_s; // 保留字段，云台 IMU 已停用
 
 } Gimbal_Chassis_communicate_t;
 

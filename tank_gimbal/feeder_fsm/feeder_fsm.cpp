@@ -133,12 +133,12 @@ static void DetermineFeederModeAndTrigger(const Struct_Feeder_Input &input,
         return;
     }
 
-    // ---- 键鼠模式：R 控制摩擦轮许可，G 在单发/连发之间选择，开火沿由上游传入 ----
+    // ---- 键鼠模式：R 控制摩擦轮许可，开启后使用单发模式 ----
     if (input.is_keymouse)
     {
         if (input.friction_on)
         {
-            feeder_mode = input.is_single_shot ? FEEDER_MODE_SINGLE : FEEDER_MODE_CONTINUOUS;
+            feeder_mode = FEEDER_MODE_SINGLE;
         }
         else
         {

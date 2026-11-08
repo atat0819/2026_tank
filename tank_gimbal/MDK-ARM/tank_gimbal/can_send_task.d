@@ -705,9 +705,7 @@ tank_gimbal/can_send_task.o: ..\RtosTask\can_send_task.cpp \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\stdexcept \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__memory\uses_allocator_construction.h \
   ..\RtosTask\..\user\core\BSP\version\vision_communication.hpp \
-  ..\user\core\Alg\PID\pid.hpp \
-  ..\communication_between_boards\boards_communication.hpp \
-  ..\RtosTask\gimbal_task.hpp \
+  ..\user\core\Alg\PID\pid.hpp ..\RtosTask\gimbal_task.hpp \
   ..\RtosTask\..\user\core\BSP\Motor\Dji\DjiMotor.hpp \
   ..\communication_between_boards\..\user\core\BSP\Motor\MotorBase.hpp \
   ..\communication_between_boards\..\user\core\BSP\buzzer\buzzer.hpp \

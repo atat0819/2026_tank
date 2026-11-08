@@ -10,13 +10,13 @@ limits="\n".join(re.search(r"constexpr float "+name+r"\s*=[^;]+;",source).group(
                    for name in ("CHASSIS_MAX_VX_M_S","MAX_VY_M_S","MAX_WZ_RAD_S"))
 filters="\n".join(re.search(r"SecondOrderLPFFilter chassis_"+axis+r"_filter\([^;]+;",source).group(0)
                   for axis in ("vx","vy","wz"))
-mouse=re.search(r"wz_cmd = -static_cast<float>\(input.mouse_x\)[^;]+;",source).group(0)
 start=source.index("// 四轮车体力控")
 drive=source[start:source.index("// 保存功率控制前的电流",start)]
 host=limits+r'''
 #include <cassert>
 #include <cmath>
 #include <cstdint>
+#include "fsm/chassis_fsm.hpp"
 #include "user/core/Alg/ChassisCalculation/MecanumForceControl.hpp"
 #include "user/core/Alg/Filter/Filter.hpp"
 #include "user/core/Alg/UtilityFunction/SlopePlanning.hpp"
@@ -25,17 +25,20 @@ host=limits+r'''
 #endif
 using Alg::CalculationBase::MecanumForceControl;
 MecanumForceControl chassis_force;
+uint32_t HAL_GetTick() { return 100; }
 ''' + filters + r'''
 Alg::Utility::SlopePlanning ramp_vx(100,100),ramp_vy(100,100);
 float current_speed_rads[4]={},chassis_velocity_feedback[3],motor_output[4],motor_target_speed[4];
 float force_vofa_channels[15]={};
 float mouse_yaw(int16_t count) {
-    struct { int16_t mouse_x; } input={count};
-    float wz_cmd=0;
-''' + mouse + r'''
-    return wz_cmd;
+    Chassis_FSM fsm;
+    fsm.Init();
+    fsm.StateUpdate(3,3,true,true);
+    return fsm.Get_wz_cmd(0,0,count,MAX_WZ_RAD_S);
 }
 void step(float vx_body,float vy_body,float wz_cmd) {
+    struct { bool valid; } keyboard_cmd={false}; // Exercise remote targets without keyboard acceleration.
+    const bool stair_retract_power_split=false; // This fixture exercises ordinary synchronized driving.
 ''' + drive + r'''
 }
 int main() {
@@ -48,8 +51,8 @@ int main() {
     assert(mouse_yaw(0)==0);
     assert(std::fabs(mouse_yaw(1)+M_PI/180)<1e-6);
     assert(std::fabs(mouse_yaw(-1)-M_PI/180)<1e-6);
-    step(0,0,mouse_yaw(32767));assert(force_vofa_channels[4]==-1.5f);
-    step(0,0,mouse_yaw(-32768));assert(force_vofa_channels[4]==1.5f);
+    step(0,0,mouse_yaw(32767));assert(force_vofa_channels[4]==-MAX_WZ_RAD_S);
+    step(0,0,mouse_yaw(-32768));assert(force_vofa_channels[4]==MAX_WZ_RAD_S);
     const float commands[][3]={{1,0,0},{-1,0,0},{0,1,0},{0,-1,0},
                               {0,0,1},{0,0,-1},{0,0,4},{0,0,-4},{.4f,-.7f,.2f},{0,0,0}};
     const float sx[4]={-1,1,1,-1},sy[4]={-1,-1,1,1};
@@ -58,8 +61,8 @@ int main() {
         step(command[0],command[1],command[2]);
         for(unsigned i=0;i<4;++i) {
             const float expected=(sx[i]*command[0]+
-                sy[i]*std::clamp(command[1],-1.7f,1.7f)+
-                .458f*std::clamp(command[2],-1.5f,1.5f))/.076f;
+                sy[i]*std::clamp(command[1],-MAX_VY_M_S,MAX_VY_M_S)+
+                .458f*std::clamp(command[2],-MAX_WZ_RAD_S,MAX_WZ_RAD_S))/.076f;
             assert(std::fabs(motor_target_speed[i]-expected)<.0001f);
             assert(std::fabs(motor_output[i])<=16384.01f);
             if(expected==0) assert(std::fabs(motor_output[i])<.001f);
@@ -98,10 +101,15 @@ int main() {
 }
 '''
 with tempfile.TemporaryDirectory(prefix="wheel-force-direction-") as directory:
+    (Path(directory)/"main.h").write_text('#pragma once\n#include <cstdint>\nuint32_t HAL_GetTick();\n',encoding="utf-8")
     cpp=Path(directory)/"test.cpp"
     executable=Path(directory)/"test.exe"
     cpp.write_text(host,encoding="utf-8")
-    subprocess.run(["g++","-std=c++17","-I",ROOT.as_posix(),cpp.as_posix(),
+    subprocess.run(["g++","-std=c++17","-I",Path(directory).as_posix(),
+                    "-I",ROOT.as_posix(),"-I",(ROOT/"user/core").as_posix(),cpp.as_posix(),
+                    (ROOT/"fsm/chassis_fsm.cpp").as_posix(),
+                    (ROOT/"user/core/Alg/FSM/alg_fsm.cpp").as_posix(),
+                    (ROOT/"user/core/Alg/PID/pid.cpp").as_posix(),
                     (ROOT/"user/core/Alg/Filter/Filter.cpp").as_posix(),
                     (ROOT/"user/core/Alg/UtilityFunction/SlopPlanning.cpp").as_posix(),
                     "-o",executable.as_posix()],check=True)

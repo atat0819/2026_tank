@@ -69,11 +69,11 @@ void TestTaskDelay(uint32_t period) {
     after_cycle();
 }
 uint32_t tick = 0;
-GPIO_TypeDef gpio_a, gpio_e;
+GPIO_TypeDef gpio_a, gpio_d, gpio_e;
 uint16_t pins = 0;
 extern "C" uint32_t HAL_GetTick() { return tick; }
 GPIO_PinState HAL_GPIO_ReadPin(GPIO_TypeDef*, uint16_t pin) {
-    assert((pin & ~(GPIO_PIN_13 | GPIO_PIN_9 | GPIO_PIN_2 | GPIO_PIN_3)) == 0);
+    assert((pin & ~(GPIO_PIN_13 | GPIO_PIN_9 | GPIO_PIN_2 | GPIO_PIN_3 | GPIO_PIN_10)) == 0);
     return (pins & pin) ? GPIO_PIN_SET : GPIO_PIN_RESET;
 }
 namespace BSP::REMOTE_CONTROL {
@@ -386,7 +386,7 @@ int main() {
         case 11: tick+=1; refresh_feedback(true); break;
         case 12:
             gantry_fsm.Update(true, true, true, true, true,
-                              false, false, false, true,
+                              false, false, false, true, false,
                               gantry_3508_motor.getAddAngleDeg(1),
                               gantry_3508_motor.getAddAngleDeg(2),
                               gantry_dm4310_motor.getAddAngleDeg(1), 0, 0, 0, 0, tick);
@@ -425,7 +425,7 @@ int main() {
         gantry_fsm=Class_Gantry_FSM{};
         for (bool right_pressed : {false, true})
             gantry_fsm.Update(true, true, true, right_pressed, right_pressed,
-                              false, false, false, true,
+                              false, false, false, true, false,
                               lift_id5_angle, lift_id6_angle, dm_angle+error_deg, 0, 0, 0, 0, tick);
         for (unsigned cycle=0; cycle<(std::abs(error_deg)<10 ? 2U : 1U); ++cycle) {
             run_once();
@@ -450,7 +450,7 @@ int main() {
     gantry_fsm=Class_Gantry_FSM{};
     auto update_fsm = [&](bool right_pressed, bool lift_first_limit) {
         gantry_fsm.Update(true, true, true, right_pressed, right_pressed,
-                          lift_first_limit, false, false, true,
+                          lift_first_limit, false, false, true, false,
                           lift_id5_angle, lift_id6_angle, dm_angle, 0, 0, 0, 0, tick);
     };
     update_fsm(false, false);
@@ -544,7 +544,7 @@ int main() {
         gantry_fsm=Class_Gantry_FSM{};
         auto step = [&](bool right, bool first, bool extend, bool second, bool retract,
                         double a5, double a6, double dm) {
-            gantry_fsm.Update(true, true, true, right, right, first, extend, second, retract,
+            gantry_fsm.Update(true, true, true, right, right, first, extend, second, retract, false,
                               a5, a6, dm, 0, 0, 0, 0, tick);
         };
         step(false,false,false,false,true,initial5,initial6,home_dm);
@@ -624,8 +624,8 @@ with tempfile.TemporaryDirectory(prefix="gantry_motors_") as directory:
     )
     (work / "stm32h7xx_hal.h").write_text(
         '#pragma once\n#include <cstdint>\nstruct GPIO_TypeDef {};\n'
-        'extern GPIO_TypeDef gpio_a, gpio_e;\n#define GPIOA (&gpio_a)\n#define GPIOE (&gpio_e)\n'
-        + ''.join(f'#define GPIO_PIN_{i} (1U<<{i})\n' for i in (2, 3, 9, 13))
+        'extern GPIO_TypeDef gpio_a, gpio_d, gpio_e;\n#define GPIOA (&gpio_a)\n#define GPIOD (&gpio_d)\n#define GPIOE (&gpio_e)\n'
+        + ''.join(f'#define GPIO_PIN_{i} (1U<<{i})\n' for i in (2, 3, 9, 10, 13))
         + 'enum GPIO_PinState { GPIO_PIN_RESET, GPIO_PIN_SET };\n'
         'extern "C" uint32_t HAL_GetTick();\n'
         'GPIO_PinState HAL_GPIO_ReadPin(GPIO_TypeDef*, uint16_t);\n', encoding="utf-8")

@@ -1,5 +1,9 @@
 # 四轮力控 VOFA 调试
 
+收腿阶段使用固定前75%/后25%预算：仅有效双中键鼠下 `IMU && rear_retract_requested` 启用，同时关闭四轮P同步校正，当周期将 `sync_target_speed`、`sync_error`、`sync_current` 清零，保留车体力控。下一次B、V/C切换、退出双中或键盘失效后恢复同步及四轮统一限功率。分组时通道13和 `output_scale` 使用统一限流系数乘两组最小 eta，作为保守饱和指示，不代表四轮相同的电流缩放。每组实际倍率需分别读取 `chassis_front_power_ctrl`、`chassis_rear_power_ctrl` 的 eta。功率上限优先，不强行耗满预算；P同步的当前参数以源码为准。
+
+2026-11-01 增加四轮仅 P 同步校正。原 15 通道协议保持不变，通道 7~9 仍表示车体 PI 请求，未包含同步分量；该分量在名义模型中的合力/合转矩为零。通道 13 表示力控与同步合成后的统一限流、限功率缩放。同步目标、误差和限幅前校正电流可在 Keil 分别观察 `chassis_force.sync_target_speed`、`sync_error`、`sync_current`；前两项为轮端 rad/s，电流为 A。`sync_kp[4]` 初试各为 0.1 A/(rad/s)，I/D 未启用；`sync_current_limit` 初试为 2 A。P-only 对不同阻力可能存在稳态差，需实车整定。
+
 电脑连接主控 USB 数据接口，在 VOFA 选择对应的 USB CDC 虚拟串口和 **JustFloat** 协议。CAN 任务每 5 ms 尝试发送一帧，最高约 200 Hz；与外接功率计是否发帧无关。USB 未枚举或发送忙时跳过，不等待、不覆盖上一帧缓冲区。
 
 每帧为 15 个 float32 加 JustFloat 帧尾 `00 00 80 7F`，共 64 字节。下表按 1 开始编号；软件若从 0 开始显示，编号减 1。

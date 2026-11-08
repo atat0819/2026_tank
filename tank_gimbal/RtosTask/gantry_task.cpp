@@ -27,9 +27,9 @@ volatile GantryWatch gantry_watch{};
 namespace
 {
 Class_Gantry_FSM gantry_fsm;
-BSP::Switch::MicroSwitch limits[4] = {
+BSP::Switch::MicroSwitch limits[5] = {
     {GPIOE, GPIO_PIN_13}, {GPIOE, GPIO_PIN_9}, {GPIOA, GPIO_PIN_2},
-    {GPIOA, GPIO_PIN_3}
+    {GPIOA, GPIO_PIN_3}, {GPIOD, GPIO_PIN_10}
 };
 // 依次为 Kp、Ki、Kd、输出限幅、积分状态限幅、积分分离阈值。
 // 3508 输出轴速度误差 rad/s -> 原始电流指令；409.6 对应 0.5 A。
@@ -81,8 +81,8 @@ extern "C" void gantry_task(void *argument)
         float velocity[3];
         float lift_current_a[2];
         double angle_deg[3];
-        bool limit_pressed[4];
-        for (unsigned i = 0; i < 4; ++i)
+        bool limit_pressed[5];
+        for (unsigned i = 0; i < 5; ++i)
         {
             limits[i].update();
             gantry_watch.limit_raw[i] = limits[i].getRawLevel() == GPIO_PIN_SET;
@@ -140,6 +140,7 @@ extern "C" void gantry_task(void *argument)
             limit_pressed[1], // PE9：前伸
             limit_pressed[2], // PA2：第二次抬升
             limit_pressed[3], // PA3：后收
+            limit_pressed[4], // PD10：下降到底
             angle_deg[0],     // 3508 ID5, deg
             angle_deg[1],     // 3508 ID6, deg
             angle_deg[2],     // DM ID9, deg

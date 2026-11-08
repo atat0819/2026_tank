@@ -1,13 +1,33 @@
 #include "RM_RefereeSystem.h"
-#include "../../BSP/Common/StateWatch/state_watch.hpp"
+#include "cmsis_os.h"
 #include "memory"
 #include "string.h"
 using namespace RM_RefereeSystem;
 using namespace RM_RefereeSystemCRC;
-// 死亡时间
-BSP::WATCH_STATE::StateWatch dirTime(1000);
-// 断连标记
-bool RM_RefereeSystemDirFlag = 0;
+namespace
+{
+constexpr uint32_t REFEREE_TIMEOUT_MS = 1000;
+volatile uint32_t referee_status_tick = 0;
+volatile uint32_t referee_heat_tick = 0;
+volatile bool referee_status_received = false;
+volatile bool referee_heat_received = false;
+
+bool WaitForRefereeTx()
+{
+    const uint32_t start = HAL_GetTick();
+    auto *handle = HAL::UART::get_uart_bus_instance().get_uart1().get_handle();
+    // RX DMA常驻BUSY_RX；这里只等待TX，最长20ms（127字节约需11ms）。
+    while (handle->gState != HAL_UART_STATE_READY)
+    {
+        if (static_cast<uint32_t>(HAL_GetTick() - start) >= 20U)
+            return false;
+        osDelay(1);
+    }
+    return true;
+}
+}
+// 启动时没有有效的性能/热量数据。
+bool RM_RefereeSystemDirFlag = true;
 // 接收数据
 uint8_t RM_RefereeSystemp8Data = 0;
 // 设置颜色与线粗
@@ -28,6 +48,7 @@ map_command_t map_command_0x0303 = {0};
 
 // 发送数据
 uint8_t tx_buf[128] = {0};
+uint8_t rrrdata[57] = {0};
 
 uint8_t daohang_tx_buf[128] = {0};
 
@@ -261,17 +282,19 @@ ext_client_custom_character_t RM_RefereeSystemSetStr(char *name, uint32_t layer,
     ext_client_custom_character.grapic_data_struct.color = RM_RefereeSystemToop.color;
     ext_client_custom_character.grapic_data_struct.width = RM_RefereeSystemToop.width;
     ext_client_custom_character.grapic_data_struct.start_angle = RM_RefereeSystemToop.strsize;
-    ext_client_custom_character.grapic_data_struct.end_angle = strlen(str);
+    size_t length = strlen(str);
+    if (length > sizeof(ext_client_custom_character.data))
+        length = sizeof(ext_client_custom_character.data);
+    ext_client_custom_character.grapic_data_struct.end_angle = length;
     ext_client_custom_character.grapic_data_struct.start_x = start_x;
     ext_client_custom_character.grapic_data_struct.start_y = start_y;
     memcpy((void *)ext_client_custom_character.data, str, ext_client_custom_character.grapic_data_struct.end_angle);
     return ext_client_custom_character;
 }
 // 数据发送客户端绘制删除N个图层
-void RM_RefereeSystemDelete(const char operate, const char number)
+bool RM_RefereeSystemDelete(const char operate, const char number)
 {
-    // 等待上一次发送完成
-    while(HAL_UART_GetState(HAL::UART::get_uart_bus_instance().get_uart1().get_handle()) != HAL_UART_STATE_READY);
+    if (!WaitForRefereeTx()) return false;
 
     static uint8_t seq = 0;
     RM_RefereeSystemData_t RM_RefereeSystemDataTemp = {0};
@@ -299,13 +322,12 @@ void RM_RefereeSystemDelete(const char operate, const char number)
     Append_CRC16_Check_Sum(tx_buf, CRC16LEN(RM_RefereeSystemDataTemp.data_length));
     HAL::UART::Data tx_data{tx_buf,
                             static_cast<uint16_t>(RM_RefereeSystemDataTemp.data_length + 9)};
-    HAL::UART::get_uart_bus_instance().get_uart1().transmit_dma(tx_data);
+    return HAL::UART::get_uart_bus_instance().get_uart1().transmit_dma(tx_data);
 }
 // 数据发送客户端绘制一个图形
-void RM_RefereeSystemSendData1(const graphic_data_struct_t graphic_data_struct)
+bool RM_RefereeSystemSendData1(const graphic_data_struct_t graphic_data_struct)
 {
-    // 等待上一次发送完成
-    while(HAL_UART_GetState(HAL::UART::get_uart_bus_instance().get_uart1().get_handle()) != HAL_UART_STATE_READY);
+    if (!WaitForRefereeTx()) return false;
 
     static uint8_t seq = 0;
     RM_RefereeSystemData_t RM_RefereeSystemDataTemp = {0};
@@ -331,13 +353,14 @@ void RM_RefereeSystemSendData1(const graphic_data_struct_t graphic_data_struct)
     Append_CRC16_Check_Sum(tx_buf, CRC16LEN(RM_RefereeSystemDataTemp.data_length));
     HAL::UART::Data tx_data{tx_buf,
                             static_cast<uint16_t>(RM_RefereeSystemDataTemp.data_length + 9)};
-    HAL::UART::get_uart_bus_instance().get_uart1().transmit_dma(tx_data);
+    return HAL::UART::get_uart_bus_instance().get_uart1().transmit_dma(tx_data);
 }
 // 数据发送客户端绘制1,2,5,7个图形
-void RM_RefereeSystemSendDataN(const graphic_data_struct_t graphic_data_struct[], int size)
+bool RM_RefereeSystemSendDataN(const graphic_data_struct_t graphic_data_struct[], int size)
 {
-    // 等待上一次发送完成
-    while(HAL_UART_GetState(HAL::UART::get_uart_bus_instance().get_uart1().get_handle()) != HAL_UART_STATE_READY);
+    if (graphic_data_struct == nullptr ||
+        (size != 1 && size != 2 && size != 5 && size != 7)) return false;
+    if (!WaitForRefereeTx()) return false;
 
     static uint8_t seq = 0;
     RM_RefereeSystemData_t RM_RefereeSystemDataTemp = {0};
@@ -395,13 +418,14 @@ void RM_RefereeSystemSendDataN(const graphic_data_struct_t graphic_data_struct[]
     Append_CRC16_Check_Sum(tx_buf, CRC16LEN(RM_RefereeSystemDataTemp.data_length));
     HAL::UART::Data tx_data{tx_buf,
                             static_cast<uint16_t>(RM_RefereeSystemDataTemp.data_length + 9)};
-HAL::UART::get_uart_bus_instance().get_uart1().transmit_dma(tx_data);
+    return HAL::UART::get_uart_bus_instance().get_uart1().transmit_dma(tx_data);
 }
 // 数据发送客户端绘制字符串
-void RM_RefereeSystemSendStr(const ext_client_custom_character_t ext_client_custom_character)
+bool RM_RefereeSystemSendStr(const ext_client_custom_character_t ext_client_custom_character)
 {
-    // 等待上一次发送完成
-    while(HAL_UART_GetState(HAL::UART::get_uart_bus_instance().get_uart1().get_handle()) != HAL_UART_STATE_READY);
+    if (ext_client_custom_character.grapic_data_struct.end_angle >
+        sizeof(ext_client_custom_character.data)) return false;
+    if (!WaitForRefereeTx()) return false;
 
     static uint8_t seq = 0;
     RM_RefereeSystemData_t RM_RefereeSystemDataTemp = {0};
@@ -431,7 +455,7 @@ void RM_RefereeSystemSendStr(const ext_client_custom_character_t ext_client_cust
     Append_CRC16_Check_Sum(tx_buf, CRC16LEN(RM_RefereeSystemDataTemp.data_length));
     HAL::UART::Data tx_data{tx_buf,
                             static_cast<uint16_t>(RM_RefereeSystemDataTemp.data_length + 9)};
-HAL::UART::get_uart_bus_instance().get_uart1().transmit_dma(tx_data);
+    return HAL::UART::get_uart_bus_instance().get_uart1().transmit_dma(tx_data);
 }
 
 /*typedef __packed struct
@@ -442,19 +466,19 @@ float target_position_y;
 }map_robot_data_t;
 #define CRC8LEN (5)
 #define CRC16LEN(x) (x + 5 + 2 + 2)*/
-uint8_t rrrdata[20] = {0xA5, 0X0A, 0X00, 0X00, 0XA9, 0X05, 0X03, 0X03, 0X00, 0X11,
-                       0X6E, 0X29, 0X42, 0XAB, 0X0C, 0X4B, 0X41, 0XC3, 0X9D};
 map_robot_data_t map_robot_data;
 void RM_daohangtx(const map_robot_data_t map_robot_data)
 {
-    // 等待上一次发送完成
-    while(HAL_UART_GetState(HAL::UART::get_uart_bus_instance().get_uart1().get_handle()) != HAL_UART_STATE_READY);
+    // 2027协议只允许雷达通过0x0305发送双方坐标。
+    const uint8_t robot_id = ext_power_heat_data_0x0201.robot_id;
+    if (robot_id != 9 && robot_id != 109) return;
+    if (!WaitForRefereeTx()) return;
 
     static uint8_t seq = 0;
     RM_RefereeSystemData_t RM_RefereeSystemDataTemp = {0};
     // 数据格式
     RM_RefereeSystemDataTemp.SOF = 0xA5;
-    RM_RefereeSystemDataTemp.data_length = 10;
+    RM_RefereeSystemDataTemp.data_length = sizeof(map_robot_data);
     RM_RefereeSystemDataTemp.seq = seq++;
     RM_RefereeSystemDataTemp.cmd_id = 0x0305;
     memset(&rrrdata, 0, sizeof(rrrdata));
@@ -464,17 +488,9 @@ void RM_daohangtx(const map_robot_data_t map_robot_data)
     Append_CRC8_Check_Sum(rrrdata, CRC8LEN);
     Append_CRC16_Check_Sum(rrrdata, CRC16LEN(RM_RefereeSystemDataTemp.data_length));
     
-    // 注意：这里 rrrdata 和 tx_buf 好像是独立的 globals，但最好也 protected
-    // 之前代码里没有明确发 rrrdata 的函数调用？假设这里是漏了 HAL_UART_Transmit
-    // 不过原代码确实没写 Transmit... 你可能需要确认下这里是不是写了一半？
-    // 为了保险，我先假设你是要在外部发，或者这里漏了。
-    // 但既然你让我改 Refereee，我就顺手把 Transmit 补上吧，或者至少把 seq 加上
-    
-    HAL::UART::Data nav_data{rrrdata, sizeof(rrrdata) - 5};
-HAL::UART::get_uart_bus_instance().get_uart1().transmit_dma(nav_data); // 稍微估算下长度，或者 sizeof(rrrdata)
-    // 注意：rrrdata 定义是 20 字节，可能不够长？
-    // 原代码里 rrrdata[20] 初始化了一堆 hex，这里又被 memcpy 覆盖了...
-    // 我暂时保持原样逻辑，只加 seq 和 busy wait
+    HAL::UART::Data nav_data{rrrdata,
+                            static_cast<uint16_t>(RM_RefereeSystemDataTemp.data_length + 9)};
+    HAL::UART::get_uart_bus_instance().get_uart1().transmit_dma(nav_data);
 }
 
 void RM_daohangtxParsea(uint8_t *data)
@@ -500,50 +516,57 @@ void RM_RefereeSystemParseData(uint8_t *RM_pDatas, int size)
     if (RM_pDatas == nullptr || size < 9 || RM_pDatas[0] != 0xA5)
         return;
 
+    const uint16_t data_length = RM_pDatas[1] | RM_pDatas[2] << 8;
+    const uint16_t cmd_id = RM_pDatas[5] | RM_pDatas[6] << 8;
+    if (data_length > sizeof(RM_RefereeSystemData.data) ||
+        size != CRC16LEN(data_length))
+        return;
+    if (!Verify_CRC8_Check_Sum(RM_pDatas, CRC8LEN) ||
+        !Verify_CRC16_Check_Sum(RM_pDatas, CRC16LEN(data_length)))
+        return;
+
+    // 固定长度命令只接受完整的2027数据段，禁止旧值拼接或短包清零。
+    switch (cmd_id)
+    {
+    case 0x0201:
+        if (data_length != sizeof(ext_power_heat_data_0x0201)) return;
+        break;
+    case 0x0202:
+        if (data_length != sizeof(ext_power_heat_data_0x0202)) return;
+        break;
+    case 0x0303:
+        if (data_length != sizeof(map_command_0x0303)) return;
+        break;
+    default:
+        return;
+    }
     RM_RefereeSystemData.SOF = RM_pDatas[0];
-    RM_RefereeSystemData.data_length = RM_pDatas[1] | RM_pDatas[2] << 8;
+    RM_RefereeSystemData.data_length = data_length;
     RM_RefereeSystemData.seq = RM_pDatas[3];
     RM_RefereeSystemData.CRC8 = RM_pDatas[4];
-    RM_RefereeSystemData.cmd_id = RM_pDatas[5] | RM_pDatas[6] << 8;
-    if (RM_RefereeSystemData.data_length > sizeof(RM_RefereeSystemData.data) ||
-        size < CRC16LEN(RM_RefereeSystemData.data_length))
-        return;
-    for (uint16_t i = 0; i < RM_RefereeSystemData.data_length; i++)
-    {
-        RM_RefereeSystemData.data[i] = RM_pDatas[7 + i];
-    }
-    RM_RefereeSystemData.frame_tail = RM_pDatas[7 + RM_RefereeSystemData.data_length];
-    if (!Verify_CRC8_Check_Sum(RM_pDatas, CRC8LEN) ||
-        !Verify_CRC16_Check_Sum(RM_pDatas, CRC16LEN(RM_RefereeSystemData.data_length)))
-        return;
-    switch (RM_RefereeSystemData.cmd_id)
+    RM_RefereeSystemData.cmd_id = cmd_id;
+    memcpy(RM_RefereeSystemData.data, RM_pDatas + 7, data_length);
+    RM_RefereeSystemData.frame_tail = RM_pDatas[7 + data_length] |
+                                      RM_pDatas[8 + data_length] << 8;
+    switch (cmd_id)
     {
     case 0x0201:
         memcpy(&ext_power_heat_data_0x0201, (void *)RM_RefereeSystemData.data, sizeof(ext_power_heat_data_0x0201));
+        referee_status_tick = HAL_GetTick();
+        referee_status_received = true;
         break;
     case 0x0202:
     {
         referee_0202_data_length = RM_RefereeSystemData.data_length;
-        // V2.0.0协议中，42mm热量位于偏移12、13，0x0202总长度为14字节。
-        const uint16_t copy_length =
-            (RM_RefereeSystemData.data_length < sizeof(ext_power_heat_data_0x0202))
-                ? RM_RefereeSystemData.data_length
-                : sizeof(ext_power_heat_data_0x0202);
-        memset(&ext_power_heat_data_0x0202, 0, sizeof(ext_power_heat_data_0x0202));
+        // 2027 V1.0.0：42mm热量位于偏移12、13，总长度14字节。
         memcpy(&ext_power_heat_data_0x0202,
                (void *)RM_RefereeSystemData.data,
-               copy_length);
-        if (RM_RefereeSystemData.data_length >= 14)
-        {
-            referee_0202_raw_heat[0] = RM_RefereeSystemData.data[12];
-            referee_0202_raw_heat[1] = RM_RefereeSystemData.data[13];
-        }
-        else
-        {
-            referee_0202_raw_heat[0] = 0;
-            referee_0202_raw_heat[1] = 0;
-        }
+               sizeof(ext_power_heat_data_0x0202));
+        referee_0202_raw_heat[0] = RM_RefereeSystemData.data[12];
+        referee_0202_raw_heat[1] = RM_RefereeSystemData.data[13];
         referee_0202_heat_after_memcpy = ext_power_heat_data_0x0202.shooter_id1_42mm_cooling_heat;
+        referee_heat_tick = HAL_GetTick();
+        referee_heat_received = true;
         break;
     }
     case 0x0303:
@@ -675,30 +698,29 @@ void RM_RefereeSystemGetData(uint8_t byte)
 // 断连
 bool RM_RefereeSystemDir()
 {
-    dirTime.UpdateTime();
-    dirTime.CheckStatus();
-    if (dirTime.GetStatus() == BSP::WATCH_STATE::Status::OFFLINE)
-    {
-        RM_RefereeSystemDirFlag = true;
+    // 先读取ISR更新时间，再取当前时间，避免中断更新后相减产生下溢。
+    const uint32_t status_tick = referee_status_tick;
+    const uint32_t heat_tick = referee_heat_tick;
+    const uint32_t now = HAL_GetTick();
+    RM_RefereeSystemDirFlag = !referee_status_received || !referee_heat_received ||
+        static_cast<uint32_t>(now - status_tick) >= REFEREE_TIMEOUT_MS ||
+        static_cast<uint32_t>(now - heat_tick) >= REFEREE_TIMEOUT_MS;
+    // 数据过期不代表RX DMA已经停止；仅在接收空闲时重启。
+    if (RM_RefereeSystemDirFlag &&
+        HAL::UART::get_uart_bus_instance().get_uart1().get_handle()->RxState == HAL_UART_STATE_READY)
         RM_RefereeSystemInit();
-    }
-    else
-    {
-        RM_RefereeSystemDirFlag = false;
-    }
     return RM_RefereeSystemDirFlag;
 }
 // 解析（逐字节，兼容旧接口）
 void RM_RefereeSystemParse(const uint8_t *data)
 {
-    dirTime.UpdateLastTime();
+    if (data == nullptr) return;
     RM_RefereeSystemGetData(*data);
 }
 // 解析（批量，DMA+空闲模式用）
 void RM_RefereeSystemParse(const uint8_t *data, uint16_t size)
 {
     if (data == nullptr || size == 0) return;
-    dirTime.UpdateLastTime();
     for (uint16_t i = 0; i < size; i++)
     {
         RM_RefereeSystemGetData(data[i]);

@@ -29,7 +29,7 @@ int main() {
     assert(std::abs(LIFT_ID5_SPEED_RAD_S*19-3)<1e-6);
     assert(std::abs(LIFT_ID6_SPEED_RAD_S*19-3)<1e-6);
     assert(std::abs(LOWER_STALL_SPEED_RAD_S*19-.4f)<1e-6);
-    assert(std::abs(LIFT_HOME_TOLERANCE_DEG*19-10)<1e-6);
+    assert(std::abs(LIFT_HOME_TOLERANCE_DEG-10)<1e-6);
     // The new speed loops must produce the same currents, including integral limiting.
     for (unsigned i=0; i<2; ++i) {
         ALG::PID::PID rotor(100, .2f, 0, 409.6f, 1000, 0);
@@ -56,7 +56,7 @@ int main() {
         Class_Gantry_FSM f;
         auto step = [&](bool right, bool first, bool extend, bool second, bool retract,
                         double lift, double dm, unsigned tick) {
-            f.Update(true, true, true, right, right, first, extend, second, retract,
+            f.Update(true, true, true, right, right, first, extend, second, retract, false,
                      lift, lift, dm, 0, 0, 0, 0, tick);
         };
         step(false,false,false,false,true,0,0,0);

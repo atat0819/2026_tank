@@ -3095,16 +3095,6 @@
               <FilePath>..\communication\gimbal_refree_uart_485.cpp</FilePath>
             </File>
             <File>
-              <FileName>gimbal_refree.cpp</FileName>
-              <FileType>8</FileType>
-              <FilePath>..\communication\gimbal_refree.cpp</FilePath>
-            </File>
-            <File>
-              <FileName>gimbal_refree.hpp</FileName>
-              <FileType>5</FileType>
-              <FilePath>..\communication\gimbal_refree.hpp</FilePath>
-            </File>
-            <File>
               <FileName>super_cupacitor.cpp</FileName>
               <FileType>8</FileType>
               <FilePath>..\communication\super_cupacitor.cpp</FilePath>

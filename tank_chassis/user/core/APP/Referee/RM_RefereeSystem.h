@@ -44,7 +44,7 @@ struct __attribute__((packed)) RM_RefereeSystemData_t
 	uint8_t seq;//包序号
 	uint8_t CRC8;//帧头 CRC8 校验
 	uint16_t cmd_id;//命令码 ID
-	uint8_t data[6+105];//数据
+	uint8_t data[6+112];//交互头6字节，内容最多112字节
 	uint16_t frame_tail;//CRC16，整包校验
 };
 //0x0201 机器人状态数据
@@ -115,17 +115,44 @@ struct __attribute__((packed)) map_command_t // 选手端小地图交互数据�
 {
 	float target_position_x;
 	float target_position_y;
-	float target_position_z;
-	uint8_t commd_keyboard;
-	uint16_t target_robot_id;
+	uint8_t cmd_keyboard;
+	uint8_t target_robot_id;
+	uint16_t cmd_source;
 };
 
 struct __attribute__((packed)) map_robot_data_t
 {
-uint16_t target_robot_id;
-float target_position_x;
-float target_position_y;
+	// 0x0305：雷达发送双方坐标，所有坐标单位均为cm。
+	uint16_t opponent_heavyengineer_position_x;
+	uint16_t opponent_heavyengineer_position_y;
+	uint16_t reserved_0;
+	uint16_t reserved_1;
+	uint16_t opponent_infantry_3_position_x;
+	uint16_t opponent_infantry_3_position_y;
+	uint16_t opponent_infantry_4_position_x;
+	uint16_t opponent_infantry_4_position_y;
+	uint16_t reserved_2;
+	uint16_t reserved_3;
+	uint16_t opponent_sentry_position_x;
+	uint16_t opponent_sentry_position_y;
+	uint16_t ally_heavy_position_x;
+	uint16_t ally_heavy_position_y;
+	uint16_t reserved_4;
+	uint16_t reserved_5;
+	uint16_t ally_infantry_3_position_x;
+	uint16_t ally_infantry_3_position_y;
+	uint16_t ally_infantry_4_position_x;
+	uint16_t ally_infantry_4_position_y;
+	uint16_t reserved_6;
+	uint16_t reserved_7;
+	uint16_t ally_sentry_position_x;
+	uint16_t ally_sentry_position_y;
 };
+static_assert(sizeof(ext_game_robot_status_t) == 17, "0x0201 payload size");
+static_assert(sizeof(ext_power_heat_data_t) == 14, "0x0202 payload size");
+static_assert(sizeof(graphic_data_struct_t) == 15, "UI graphic size");
+static_assert(sizeof(map_command_t) == 12, "0x0303 payload size");
+static_assert(sizeof(map_robot_data_t) == 48, "0x0305 payload size");
 //初始化
 void RM_RefereeSystemInit();
 //设置颜色
@@ -143,11 +170,11 @@ void RM_RefereeSystemParseData(uint8_t* RM_pDatas,int size);
 //消息获取
 void RM_RefereeSystemGetData(uint8_t RM_pData);
 //数据发送客户端绘制删除N个图层
-void RM_RefereeSystemDelete(const char operate,const char number);
+bool RM_RefereeSystemDelete(const char operate,const char number);
 //数据发送客户端绘制1,2,5,7个图形
-void RM_RefereeSystemSendDataN(const graphic_data_struct_t graphic_data_struct[],int size);
+bool RM_RefereeSystemSendDataN(const graphic_data_struct_t graphic_data_struct[],int size);
 //数据发送客户端绘制字符串
-void RM_RefereeSystemSendStr(const ext_client_custom_character_t ext_client_custom_character);
+bool RM_RefereeSystemSendStr(const ext_client_custom_character_t ext_client_custom_character);
 
 //机器人获取id
 int RM_RefereeSystemGetRobotId();
@@ -194,5 +221,5 @@ extern RM_RefereeSystem::map_command_t map_command_0x0303;
       
 //发送数据
 extern uint8_t tx_buf[128];
-extern uint8_t rrrdata[25];
+extern uint8_t rrrdata[57];
 extern uint8_t daohang_tx_buf[128];

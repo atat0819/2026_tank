@@ -5,7 +5,6 @@
 #include "cmsis_os.h"
 #include "remote_control_task.hpp"
 #include "Alg/PID/pid.hpp"
-#include "boards_communication.hpp"
 #include "gimbal_task.hpp"
 #include "Alg/Filter/Filter.hpp"
 extern "C" {

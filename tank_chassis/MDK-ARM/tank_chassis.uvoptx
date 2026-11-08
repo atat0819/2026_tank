@@ -390,6 +390,11 @@
           <WinNumber>1</WinNumber>
           <ItemText>chassis_power_ctrl</ItemText>
         </Ww>
+        <Ww>
+          <count>46</count>
+          <WinNumber>1</WinNumber>
+          <ItemText>chassis_motor</ItemText>
+        </Ww>
       </WatchWindow1>
       <WatchWindow2>
         <Ww>
@@ -2220,30 +2225,6 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\communication\gimbal_refree.cpp</PathWithFileName>
-      <FilenameWithoutPath>gimbal_refree.cpp</FilenameWithoutPath>
-      <RteFlg>0</RteFlg>
-      <bShared>0</bShared>
-    </File>
-    <File>
-      <GroupNumber>15</GroupNumber>
-      <FileNumber>138</FileNumber>
-      <FileType>5</FileType>
-      <tvExp>0</tvExp>
-      <tvExpOptDlg>0</tvExpOptDlg>
-      <bDave2>0</bDave2>
-      <PathWithFileName>..\communication\gimbal_refree.hpp</PathWithFileName>
-      <FilenameWithoutPath>gimbal_refree.hpp</FilenameWithoutPath>
-      <RteFlg>0</RteFlg>
-      <bShared>0</bShared>
-    </File>
-    <File>
-      <GroupNumber>15</GroupNumber>
-      <FileNumber>139</FileNumber>
-      <FileType>8</FileType>
-      <tvExp>0</tvExp>
-      <tvExpOptDlg>0</tvExpOptDlg>
-      <bDave2>0</bDave2>
       <PathWithFileName>..\communication\super_cupacitor.cpp</PathWithFileName>
       <FilenameWithoutPath>super_cupacitor.cpp</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
@@ -2251,7 +2232,7 @@
     </File>
     <File>
       <GroupNumber>15</GroupNumber>
-      <FileNumber>140</FileNumber>
+      <FileNumber>138</FileNumber>
       <FileType>5</FileType>
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>

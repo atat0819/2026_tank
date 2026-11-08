@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>底盘 UI 布局预览</title>
+  <style>
+    :root { color-scheme: dark; font-family: "Segoe UI", "Microsoft YaHei", sans-serif; background: #0c1117; color: #e5edf5; }
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    main { width: min(1480px, 94%); margin: 32px auto; }
+    header { display: flex; align-items: end; justify-content: space-between; gap: 20px; margin-bottom: 22px; }
+    .eyebrow { margin: 0 0 8px; color: #82a4b8; font-size: 11px; letter-spacing: .16em; }
+    h1 { margin: 0; font-size: 27px; font-weight: 600; letter-spacing: .02em; }
+    .subtitle { margin: 10px 0 0; color: #91a0af; font-size: 13px; line-height: 1.7; }
+    .badge { flex-shrink: 0; border: 1px solid #31404e; border-radius: 6px; padding: 8px 12px; color: #b4c6d4; font-size: 12px; }
+    .viewport { overflow: hidden; border: 1px solid #30404e; border-radius: 12px; background: #071019; }
+    .toolbar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; padding: 13px 18px; border-bottom: 1px solid #25313e; background: #141e28; font-size: 12px; color: #a0afbd; }
+    .toolbar strong { color: #d5e2eb; font-weight: 500; }
+    .toggles { display: flex; gap: 20px; }
+    label { cursor: pointer; }
+    input[type="checkbox"] { accent-color: #76d9ce; vertical-align: middle; margin: 0 6px 1px 0; }
+    #screen { display: block; width: 100%; height: auto; background: radial-gradient(ellipse at 50% 44%, #152330, #071019 75%); }
+    .hud-green { fill: #00ff00; stroke: #00ff00; }
+    .hud-cyan { fill: #00ffff; }
+    .hud-text { stroke: none; font-family: Consolas, "Courier New", monospace; dominant-baseline: hanging; }
+    .shape { fill: none; stroke-width: 2; }
+    .annotation { font-family: "Segoe UI", "Microsoft YaHei", sans-serif; fill: #b9ccd9; font-size: 20px; }
+    .annotation .small { fill: #7e99ac; font-family: Consolas, monospace; font-size: 17px; }
+    .annotation .leader { fill: none; stroke: #607b8d; stroke-width: 1.5; }
+    .annotation .outline { fill: none; stroke: #58788c; stroke-width: 1; stroke-dasharray: 7 8; }
+    [hidden] { display: none !important; }
+    .controls { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; padding: 15px 18px; border-top: 1px solid #25313e; background: #141e28; font-size: 13px; }
+    input[type="range"] { width: min(250px, 45vw); accent-color: #00de75; }
+    output { color: #94f8ba; font-family: Consolas, monospace; min-width: 76px; }
+    .hint { margin-left: auto; color: #8193a4; font-size: 12px; }
+    .cards { display: grid; grid-template-columns: 1fr 1fr 1.1fr; gap: 14px; margin-top: 18px; }
+    .card { border: 1px solid #273644; border-radius: 10px; padding: 19px 20px; background: #111a23; }
+    h2 { margin: 0 0 12px; font-size: 14px; font-weight: 600; }
+    .dot { display: inline-block; width: 7px; height: 7px; margin-right: 8px; border-radius: 50%; background: #00ff00; }
+    .cyan { background: #00ffff; }
+    .card p { margin: 7px 0; color: #99adbd; font-size: 12px; line-height: 1.75; }
+    code { color: #cedee9; font: 12px Consolas, "Courier New", monospace; }
+    .power-readout { display: grid; grid-template-columns: 1fr auto; gap: 8px 30px; max-width: 200px; padding: 4px 0; color: #00ffff; font: 19px Consolas, monospace; }
+    .unit { color: #607f8f; font-size: 12px; }
+    .note { margin: 18px 0 0; border-left: 2px solid #a9894a; padding: 3px 0 3px 13px; color: #b5a486; font-size: 12px; line-height: 1.9; }
+    footer { margin-top: 16px; color: #647c8e; font-size: 11px; line-height: 1.8; overflow-wrap: anywhere; }
+    @media (max-width: 760px) {
+      main { margin: 20px auto; }
+      header { align-items: start; flex-direction: column; gap: 12px; }
+      h1 { font-size: 23px; }
+      .cards { grid-template-columns: 1fr; }
+      .hint { width: 100%; margin-left: 0; }
+    }
+    @media print {
+      .toolbar, .controls { display: none; }
+      main { width: 100%; margin: 0; }
+      .viewport, .card { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <p class="eyebrow">TANK CHASSIS / UI PREVIEW</p>
+      <h1>当前 UI 布局</h1>
+      <p class="subtitle">按当前固件坐标绘制：左上血量、中心准星及距离刻度、右下功率。画面会等比例缩放。</p>
+    </div>
+    <span class="badge">1920 × 1080 · 原点在左下角</span>
+  </header>
+
+  <section class="viewport" aria-label="底盘 UI 布局画布">
+    <div class="toolbar">
+      <strong>整体位置预览</strong>
+      <div class="toggles">
+        <label><input id="show-annotations" type="checkbox" checked>位置标注</label>
+        <label><input id="show-grid" type="checkbox">参考网格</label>
+      </div>
+    </div>
+    <svg id="screen" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="1920" height="1080" role="img" aria-labelledby="screen-title screen-description">
+      <title id="screen-title">当前底盘 UI 的 1920×1080 布局</title>
+      <desc id="screen-description">血量位于左上，准星位于中心，3m、5m、7m 距离线依次位于准星下方，青色功率数据位于右下。示例血量250，上限500。</desc>
+      <defs>
+        <pattern id="grid-pattern" width="120" height="120" patternUnits="userSpaceOnUse">
+          <path d="M120 0H0V120" fill="none" stroke="#668398" stroke-opacity=".2" stroke-width="1"/>
+        </pattern>
+      </defs>
+      <g id="grid" hidden="">
+        <rect width="1920" height="1080" fill="url(#grid-pattern)"/>
+        <path d="M960 0V1080M0 540H1920" stroke="#668398" stroke-width="1" stroke-dasharray="6 10" opacity=".35"/>
+      </g>
+
+      <!-- Firmware coordinates (x,y) map to SVG (x,1080-y). -->
+      <g id="health" class="hud-green">
+        <text id="HP_" x="100" y="210" font-size="24" class="hud-text">HP</text>
+        <text id="HPN" x="180" y="210" font-size="24" class="hud-text">250</text>
+        <rect id="HPB" x="100" y="256" width="300" height="24" class="shape"/>
+        <line id="HPF" x1="104" y1="268" x2="250" y2="268" stroke-width="16" stroke-linecap="butt"/>
+      </g>
+
+      <g id="aim" class="hud-green">
+        <line id="CRH" x1="936" y1="540" x2="984" y2="540" class="shape"/>
+        <line id="CRV" x1="960" y1="564" x2="960" y2="516" class="shape"/>
+        <line id="DT0" x1="944" y1="580" x2="976" y2="580" class="shape"/>
+        <line id="DT1" x1="936" y1="620" x2="984" y2="620" class="shape"/>
+        <line id="DT2" x1="928" y1="665" x2="992" y2="665" class="shape"/>
+        <text id="DL0" x="988" y="570" font-size="20" class="hud-text">3m</text>
+        <text id="DL1" x="996" y="610" font-size="20" class="hud-text">5m</text>
+        <text id="DL2" x="1004" y="655" font-size="20" class="hud-text">7m</text>
+      </g>
+
+      <!-- Keep the current firmware font size 2; the readable card below is separate. -->
+      <g id="power" class="hud-cyan hud-text" font-size="2">
+        <text id="PW_" x="1320" y="920">PWR</text>
+        <text id="PWR" x="1450" y="920">12</text>
+        <text id="MX_" x="1320" y="860">MAX</text>
+        <text id="MAX" x="1450" y="860">100</text>
+        <text id="BF_" x="1320" y="800">BUF</text>
+        <text id="BUF" x="1450" y="800">40</text>
+      </g>
+
+      <g id="annotations" class="annotation">
+        <rect class="outline" x="84" y="194" width="332" height="103" rx="7"/>
+        <text x="100" y="147">血量数字与血条</text>
+        <text x="100" y="176" class="small">HP (180,870) · BAR (100,800)–(400,824)</text>
+
+        <path class="leader" d="M984 540H1110L1155 460H1395"/>
+        <circle cx="960" cy="540" r="4" fill="none" stroke="#7995a7" stroke-width="1"/>
+        <text x="1162" y="423">固定准星</text>
+        <text x="1162" y="450" class="small">CENTER (960,540) · 48 × 48 px</text>
+
+        <path class="leader" d="M920 620H820L775 706H568"/>
+        <text x="568" y="745">距离刻度 · 位于准星下方</text>
+        <text x="568" y="775" class="small">3m (960,500) / 5m (960,460) / 7m (960,415)</text>
+
+        <rect class="outline" x="1305" y="782" width="168" height="157" rx="7"/>
+        <path class="leader" d="M1473 860H1515L1550 830H1795"/>
+        <text x="1557" y="765">功率显示区域</text>
+        <text x="1557" y="794" class="small">BUF / MAX / PWR</text>
+        <text x="1557" y="820" class="small">FONT = 2 · 见下方放大读数</text>
+
+        <text x="24" y="1048" class="small">(0,0) ↗</text>
+        <text x="1765" y="34" class="small">(1920,1080)</text>
+      </g>
+    </svg>
+    <div class="controls">
+      <label for="health-value">示例血量</label>
+      <input id="health-value" type="range" min="0" max="500" value="250" step="1">
+      <output id="health-output" for="health-value">250 / 500</output>
+      <span class="hint">拖动可查看血条变化；取消“位置标注”可查看纯 UI。</span>
+    </div>
+  </section>
+
+  <div class="cards">
+    <section class="card">
+      <h2><span class="dot"></span>血量 · 左上</h2>
+      <p>标签 <code>(100,870)</code>，数字 <code>(180,870)</code>。</p>
+      <p>边框宽 300、高 24 px；字号 24 px。示例上限为 500，零血量时隐藏填充线。</p>
+    </section>
+    <section class="card">
+      <h2><span class="dot"></span>准星与刻度 · 中心</h2>
+      <p>准星中心 <code>(960,540)</code>；距离线向下偏移 <code>40 / 80 / 125 px</code>。</p>
+      <p>刻度线总长 <code>32 / 48 / 64 px</code>，标签字号 20 px。3/5/7 m 仍需实射标定。</p>
+    </section>
+    <section class="card">
+      <h2><span class="dot cyan"></span>功率 · 辅助放大读数</h2>
+      <div class="power-readout" aria-label="功率示例数据放大显示">
+        <span>BUF</span><span>40 <span class="unit">J</span></span>
+        <span>MAX</span><span>100 <span class="unit">W</span></span>
+        <span>PWR</span><span>12 <span class="unit">W</span></span>
+      </div>
+      <p>主图严格保留当前字号参数 2；这里单独放大以便阅读，单位仅作说明。</p>
+    </section>
+  </div>
+
+  <p class="note">距离标签与位置是未标定占位参数。深色背景和位置标注仅用于预览，不属于实际固件 UI。文字使用浏览器等宽字体近似绘制，实际字形及笔画以裁判客户端为准。示例数据不连接设备。</p>
+  <footer>对应源码：RMRefereeSystemUI.cpp 与 RMRefereeSystemUI.hpp / AimConfig。此 HTML 是当前布局快照，后续修改固件参数后需同步更新预览。</footer>
+</main>
+<script>
+  const annotations = document.getElementById('annotations');
+  const grid = document.getElementById('grid');
+  document.getElementById('show-annotations').addEventListener('change', event => {
+    annotations.toggleAttribute('hidden', !event.target.checked);
+  });
+  document.getElementById('show-grid').addEventListener('change', event => {
+    grid.toggleAttribute('hidden', !event.target.checked);
+  });
+  document.getElementById('health-value').addEventListener('input', event => {
+    const hp = Number(event.target.value);
+    document.getElementById('HPN').textContent = hp;
+    document.getElementById('health-output').textContent = `${hp} / 500`;
+    document.getElementById('HPF').setAttribute('x2', 104 + Math.ceil(292 * hp / 500));
+    document.getElementById('HPF').toggleAttribute('hidden', hp === 0);
+    document.getElementById('screen-description').textContent =
+      `血量位于左上，准星位于中心，3m、5m、7m 距离线依次位于准星下方，功率数据位于右下。示例血量${hp}，上限500。`;
+  });
+</script>
+</body>
+</html>

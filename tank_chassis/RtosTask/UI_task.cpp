@@ -20,10 +20,16 @@ extern "C" void ui_task(void *argument)
                 PowerData.power,
                 ext_power_heat_data_0x0201.chassis_power_limit,
                 ext_power_heat_data_0x0202.chassis_power_buffer);
+            RMRefereeSystemUI::UpdateHealthStatus(
+                ext_power_heat_data_0x0201.current_HP,
+                ext_power_heat_data_0x0201.maximum_HP);
+            RMRefereeSystemUI::UpdateAimGuides();
         }
         else
         {
             RMRefereeSystemUI::ResetPowerStatus();
+            RMRefereeSystemUI::ResetHealthStatus();
+            RMRefereeSystemUI::ResetAimGuides();
         }
 
         osDelay(200);
