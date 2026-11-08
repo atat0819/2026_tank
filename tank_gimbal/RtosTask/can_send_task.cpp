@@ -13,7 +13,6 @@
  */
 #include "can_send_task.hpp"
 #include "remote_control_task.hpp"
-#include "boards_communication.hpp"
 #include "../communication_between_boards/boards_communication_uart_485.hpp"
 #include "FreeRTOS.h"
 #include "queue.h"
@@ -276,9 +275,7 @@ vTaskDelay(500); // 等电机上电完成
             remote_was_offline = true;
             RemoteData = {};
             // 遥控失联仍发送完整快照，清零操作量，阻止底盘沿用旧速度或键盘。
-            RS485_SendBoardData(0, 0, 0.0f, 0.0f, 0U, 0U,
-                                0.0f,
-                                0.0f, 0U);
+            RS485_SendBoardData(0.0f, 0, 0.0f, 0.0f, 0U, 0U, 0U);
 
             ResetGimbalControlState();
             gimbal_motor.ctrl_Mit(1, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); // Pitch
@@ -325,19 +322,17 @@ vTaskDelay(500); // 等电机上电完成
         
 /******************************************************************** */
 // 每轮提交最新快照，收到回复后即可发送；无回复最多等待 2ms，未使用字段归零。
-// IMU 已停用，原姿态/角速度字段保留并固定发送 0，保持帧格式不变。
+// 仅发送操作输入，协议不包含云台 IMU 字段。
 const bool chassis_remote_mode = input_dispatcher.GetSource() == InputSource::Remote;
 const bool chassis_keymouse_mode = input_dispatcher.GetSource() == InputSource::KeyMouse;
 // 鼠标 X 与底盘直连接收机一致：发送最新 DT7 采样值，直到下一帧更新。
 // DMA 忙或启动失败时不排队旧采样，下次按最新状态重试；Pitch Y 仍单次消费。
 RS485_SendBoardData(
-                    chassis_remote_mode ? remoteController.get_right_stick_x() : 0,
+                    chassis_remote_mode ? remoteController.get_right_x() : 0.0f,
                     chassis_keymouse_mode ? RemoteData.mouse_x : 0,
                     chassis_remote_mode ? RemoteData.chassis_vx : 0.0f,
                     chassis_remote_mode ? RemoteData.chassis_vy : 0.0f,
                     RemoteData.s1, RemoteData.s2,
-                    0.0f,
-                    0.0f,
                     chassis_keymouse_mode ? input_dispatcher.GetKeyboardMask() : 0U);
 
  // tick 用于分频发送和周期任务调度。

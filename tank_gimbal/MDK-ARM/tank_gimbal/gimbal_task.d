@@ -816,9 +816,7 @@ tank_gimbal/gimbal_task.o: ..\RtosTask\gimbal_task.cpp \
   ..\RtosTask\..\user\core\BSP\RemoteControl\DT7.hpp \
   ..\communication_between_boards\..\user\core\BSP\Common\StateWatch\buzzer_manager.hpp \
   ..\RtosTask\..\user\core\BSP\version\vision_communication.hpp \
-  ..\RtosTask\can_send_task.hpp \
-  ..\communication_between_boards\boards_communication.hpp \
-  ..\user\core\Alg\Filter\Filter.hpp \
+  ..\RtosTask\can_send_task.hpp ..\user\core\Alg\Filter\Filter.hpp \
   ..\RtosTask\..\communication_between_boards\input_dispatcher.hpp \
   ..\RtosTask\..\communication_between_boards\refree_receive_uart_485.hpp \
   ..\RtosTask\..\user\core\Alg\fire_control\single_shot_heat_limiter.hpp \

@@ -14,7 +14,7 @@ struct Rig
     bool lift_feedback_ok = true;
     bool right_raw = false;
     bool right_pressed = false;
-    bool limit[4] = {false, false, false, true};
+    bool limit[5] = {false, false, false, true, false};
     double angle_deg[3] = {5000, -8000, 600};
     float current_a[2] = {};
     float velocity_rad_s[2] = {};
@@ -26,7 +26,7 @@ struct Rig
     void tick(uint32_t dt = 5) {
         now_ms += dt;
         f.Update(enabled, feedback_ok, lift_feedback_ok, right_raw, right_pressed,
-                 limit[0], limit[1], limit[2], limit[3],
+                 limit[0], limit[1], limit[2], limit[3], limit[4],
                  angle_deg[0], angle_deg[1], angle_deg[2],
                  current_a[0], current_a[1], velocity_rad_s[0], velocity_rad_s[1], now_ms);
         if (!f.IsActive()) {
@@ -98,9 +98,8 @@ int main()
             assert(r.f.GetTargetSpeed(0) == -GantryTuning::LIFT_ID5_SPEED_RAD_S);
             assert(r.f.GetTargetSpeed(1) == GantryTuning::LIFT_ID6_SPEED_RAD_S);
         }
-        r.current_a[0] = 1;
-        r.tick(); r.tick(99); assert(r.f.GetState() == State::Lower);
-        r.tick(1);
+        r.tick(); assert(r.f.GetState() == State::Lower);
+        r.limit[4] = true; r.tick();
         assert(r.f.GetState() == State::Idle && r.f.IsActive());
         assert(!r.f.IsKeeping(0) && !r.f.IsKeeping(1) && r.f.IsKeeping(2));
         for (unsigned axis = 0; axis < 3; ++axis)
@@ -114,7 +113,7 @@ int main()
         r.limit[3] = false;
         r.lift(1000); r.hit(0); r.horizontal(-500); r.hit(1);
         r.lift(1000); r.hit(2); r.horizontal(500); r.limit[3] = true; r.tick();
-        r.lift(-2000); r.current_a[1] = -1; r.tick(); r.tick(100);
+        r.lift(-2000); r.limit[4] = true; r.tick();
         assert(r.f.GetState() == State::Idle);
         r.tick(); assert(r.f.GetState() == State::Idle); // 忙时点击不排队
     }
@@ -124,6 +123,10 @@ int main()
         r.enabled = true; r.tick();
         r.press(); assert(r.f.GetState() == State::Idle); // 按住右键切入模式
         r.release(); r.press(); assert(r.f.GetState() == State::LiftFirst);
+    }
+    {
+        Rig r; r.limit[3] = false; r.press();
+        assert(r.f.GetState() == State::LiftFirst && r.f.IsActive());
     }
     {
         Rig r; r.angle_deg[0] += 20; r.press();
@@ -146,7 +149,7 @@ int main()
         r.tick(10000); assert(r.f.GetFault() == Fault::Timeout);
     }
     {
-        Rig r; r.press(); r.lift(1200);
+        Rig r; r.press(); r.lift(1000 * (1 + GantryTuning::TRAVEL_MARGIN + .01f));
         assert(r.f.GetFault() == Fault::Travel && !r.f.IsActive());
     }
     {
@@ -160,6 +163,22 @@ int main()
     {
         Rig r; r.limit[0] = true; r.press();
         assert(r.f.GetFault() == Fault::SwitchSequence && !r.f.IsActive());
+    }
+    {
+        Rig r; r.press(); r.limit[3] = false;
+        r.lift(1000); r.hit(0); r.horizontal(-500); r.hit(1);
+        r.lift(1000); r.hit(2); r.horizontal(500);
+        r.limit[4] = true; r.limit[3] = true; r.tick();
+        assert(r.f.GetFault() == Fault::SwitchSequence && !r.f.IsActive());
+    }
+    {
+        Rig r; r.lower(); r.lift(-1950);
+        r.velocity_rad_s[0] = r.velocity_rad_s[1] = .2f;
+        r.limit[4] = true; r.tick();
+        assert(r.f.GetState() == State::Idle && r.f.IsActive());
+        assert(!r.f.IsMoving(0) && !r.f.IsKeeping(0));
+        assert(!r.f.IsMoving(1) && !r.f.IsKeeping(1));
+        assert(r.f.IsKeeping(2));
     }
     {
         // Record boot home while control is closed; later mode entry must not rebase it.
@@ -196,7 +215,7 @@ int main()
         r.current_a[0] = 0; r.tick(); // A transient must reset the full confirmation time.
         r.current_a[1] = -1;
         r.tick(); r.tick(99); assert(r.f.GetState() == State::Lower);
-        r.tick(1); assert(r.f.GetState() == State::Idle);
+        r.tick(1); assert(r.f.GetFault() == Fault::Stall && !r.f.IsActive());
     }
     {
         Rig r; r.lower(); r.lift(-1000);
@@ -226,7 +245,7 @@ int main()
         r.current_a[0] = 0; r.release(); r.lower(); r.lift(-2000);
         r.current_a[0] = 1; r.tick(); r.tick(99);
         assert(r.f.GetState() == State::Lower);
-        r.tick(1); assert(r.f.GetState() == State::Idle);
+        r.tick(1); assert(r.f.GetFault() == Fault::Stall && !r.f.IsActive());
     }
     {
         Rig r; r.lower(); r.tick(10000);

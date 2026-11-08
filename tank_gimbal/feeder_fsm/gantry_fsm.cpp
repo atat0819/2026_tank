@@ -63,7 +63,7 @@ void Class_Gantry_FSM::Fail(GantryFault fault)
 }
 
 void Class_Gantry_FSM::Enter(GantryState state, uint32_t now_ms,
-                             const double (&angle_deg)[3], const bool (&limit_pressed)[4])
+                             const double (&angle_deg)[3], const bool (&limit_pressed)[5])
 {
     state_ = state;
     entered_ms_ = now_ms;
@@ -78,7 +78,7 @@ void Class_Gantry_FSM::Enter(GantryState state, uint32_t now_ms,
         target_speed_rad_s_[i] = 0;
     }
     // 新动作的终点开关应先处于松开状态，防止粘连或接线错误直接跳步。
-    if (Running() && state_ != GantryState::Lower && limit_pressed[static_cast<unsigned>(state_) -
+    if (Running() && limit_pressed[static_cast<unsigned>(state_) -
                               static_cast<unsigned>(GantryState::LiftFirst)])
         Fail(GantryFault::SwitchSequence);
 }
@@ -86,7 +86,7 @@ void Class_Gantry_FSM::Enter(GantryState state, uint32_t now_ms,
 void Class_Gantry_FSM::Update(bool control_enabled, bool feedback_ok, bool lift_feedback_ok,
                               bool right_raw, bool right_pressed,
                               bool lift_first_limit, bool extend_limit, bool lift_second_limit,
-                              bool retract_limit,
+                              bool retract_limit, bool lower_limit,
                               double lift_id5_angle_deg, double lift_id6_angle_deg, double dm_angle_deg,
                               float lift_id5_current_a, float lift_id6_current_a,
                               float lift_id5_speed_rad_s, float lift_id6_speed_rad_s,
@@ -94,7 +94,7 @@ void Class_Gantry_FSM::Update(bool control_enabled, bool feedback_ok, bool lift_
 {
     using namespace GantryTuning;
     const double angle_deg[3] = {lift_id5_angle_deg, lift_id6_angle_deg, dm_angle_deg};
-    const bool limit_pressed[4] = {lift_first_limit, extend_limit, lift_second_limit, retract_limit};
+    const bool limit_pressed[5] = {lift_first_limit, extend_limit, lift_second_limit, retract_limit, lower_limit};
     const float current_a[2] = {lift_id5_current_a, lift_id6_current_a};
     const float speed_rad_s[2] = {lift_id5_speed_rad_s, lift_id6_speed_rad_s};
     active_ = false;
@@ -153,7 +153,7 @@ void Class_Gantry_FSM::Update(bool control_enabled, bool feedback_ok, bool lift_
         if (start_armed_ && right_raw && right_pressed)
         {
             start_armed_ = false;
-            if (!limit_pressed[3] || !at_home)
+            if (!at_home)
                 Fail(GantryFault::NotHome);
             else
             {
@@ -169,10 +169,11 @@ void Class_Gantry_FSM::Update(bool control_enabled, bool feedback_ok, bool lift_
                               static_cast<unsigned>(GantryState::LiftFirst);
         const uint32_t timeout_ms[5] = {LIFT_FIRST_TIMEOUT_MS, EXTEND_TIMEOUT_MS,
                                        LIFT_SECOND_TIMEOUT_MS, RETRACT_TIMEOUT_MS, LOWER_TIMEOUT_MS};
-        if (state_ != GantryState::Lower && limit_pressed[step])
+        if (limit_pressed[step])
         {
-            // 前四段由开关决定结束，最后下降由电流、低速和原点位置共同确认。
-            Enter(static_cast<GantryState>(static_cast<unsigned>(state_) + 1),
+            // 五段动作均由对应限位结束，下降到底后回到 Idle。
+            Enter(state_ == GantryState::Lower ? GantryState::Idle :
+                  static_cast<GantryState>(static_cast<unsigned>(state_) + 1),
                   now_ms, angle_deg, limit_pressed);
         }
         else if (static_cast<uint32_t>(now_ms - entered_ms_) >= timeout_ms[step])
@@ -235,10 +236,7 @@ void Class_Gantry_FSM::Update(bool control_enabled, bool feedback_ok, bool lift_
         }
         else if (static_cast<uint32_t>(now_ms - stall_since_ms_) >= LOWER_STALL_CONFIRM_MS)
         {
-            if (at_home)
-                Enter(GantryState::Idle, now_ms, angle_deg, limit_pressed);
-            else
-                Fail(GantryFault::Stall); // 中途堵住不能被当作回到原点。
+            Fail(GantryFault::Stall); // 未触发底部限位时，堵转不能作为到位。
             return;
         }
     }

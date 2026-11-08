@@ -66,12 +66,12 @@ void test_v_event_is_cleared_when_online_or_double_middle_gate_is_lost()
     assert(!fsm.GetCommand().imu_mode_request);
 }
 
-void test_existing_keyboard_command_aggregate_order_is_preserved()
+void test_keyboard_command_aggregate_defaults()
 {
-    const KeyboardMotionCommand legacy_command =
-        {1.0f, -2.0f, true, false, true, false, true};
-    assert(legacy_command.valid);
-    assert(!legacy_command.imu_mode_request);
+    const KeyboardMotionCommand command =
+        {1.0f, -2.0f, true, true, false, true};
+    assert(command.valid);
+    assert(!command.imu_mode_request);
 }
 
 void test_b_and_v_edges_are_independent()
@@ -122,6 +122,6 @@ int main()
     test_v_rising_edge_is_one_shot_and_retriggers_after_release();
     test_v_event_is_cleared_when_online_or_double_middle_gate_is_lost();
     test_b_and_v_edges_are_independent();
-    test_existing_keyboard_command_aggregate_order_is_preserved();
+    test_keyboard_command_aggregate_defaults();
     return 0;
 }

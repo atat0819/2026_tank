@@ -26,9 +26,6 @@ public:
     /// R 键翻转状态：摩擦轮+拨弹轮开关
     bool IsFrictionOn() const { return r_toggle_on_; }
 
-    /// G 键翻转状态：true=单发, false=连发（DBUS 键位掩码无 T 键）
-    bool IsSingleShot() const { return t_single_shot_; }
-
     /// 右键消抖后的原始状态
     bool IsRightButtonHeld() const { return right_button_confirmed_; }
 
@@ -44,7 +41,7 @@ public:
         return IsLeftButtonPressed();
     }
 
-    /// 键盘位掩码（通过 CAN2 发给底盘）
+    /// 键盘位掩码（通过 RS485 发给底盘）
     uint16_t GetKeyboardMask() const { return keyboard_mask_; }
     bool IsHeatLimitBypassed() const { return heat_limit_bypassed_; }
 
@@ -68,17 +65,11 @@ private:
     bool confirmed_r_ = false;
     uint32_t stable_since_r_ = 0;   // R 键输入稳定的起始 tick
 
-    // G 键（单发/连发切换）
-    bool t_single_shot_ = true;   // 默认单发
-    bool prev_confirmed_t_ = false;
-    bool prev_raw_t_ = false;
-    bool confirmed_t_ = false;
     bool heat_limit_bypassed_ = false;
     bool prev_confirmed_v_ = false;
     bool prev_raw_v_ = false;
     bool confirmed_v_ = false;
     uint32_t stable_since_v_ = 0;
-    uint32_t stable_since_t_ = 0;   // G 键输入稳定的起始 tick
 
     // 鼠标右键
     bool right_button_confirmed_ = false;

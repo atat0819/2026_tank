@@ -1,5 +1,6 @@
 #include "RMRefereeSystemUI.hpp"
 
+#include "cmsis_os.h"
 #include <string.h>
 
 namespace
@@ -7,6 +8,41 @@ namespace
 RMRefereeSystemUI::Style g_style = {1, RMRefereeSystemUI::ColorRedBlue, 1,
                                     RMRefereeSystemUI::OperateAdd};
 bool g_power_initialized = false;
+bool g_health_initialized = false;
+bool g_health_bar_visible = false;
+bool g_aim_initialized = false;
+bool g_ui_sent = false;
+uint32_t g_last_send_tick = 0;
+constexpr uint32_t UI_TX_INTERVAL_MS = 40;
+
+void WaitForUiSlot()
+{
+    if (!g_ui_sent) return;
+    const uint32_t elapsed = HAL_GetTick() - g_last_send_tick;
+    if (elapsed < UI_TX_INTERVAL_MS) osDelay(UI_TX_INTERVAL_MS - elapsed);
+}
+
+bool RecordUiSend(bool sent)
+{
+    if (sent)
+    {
+        g_ui_sent = true;
+        g_last_send_tick = HAL_GetTick();
+    }
+    return sent;
+}
+
+bool SendFigures(const RMRefereeSystemUI::Figure *figures, int count)
+{
+    WaitForUiSlot();
+    return RecordUiSend(RM_RefereeSystem::RM_RefereeSystemSendDataN(figures, count));
+}
+
+bool SendText(const RMRefereeSystemUI::Text &text)
+{
+    WaitForUiSlot();
+    return RecordUiSend(RM_RefereeSystem::RM_RefereeSystemSendStr(text));
+}
 
 void SetCommon(RMRefereeSystemUI::Figure &figure, const char name[3],
                uint8_t layer, uint8_t type)
@@ -143,12 +179,12 @@ void UpdatePowerStatus(float current_power, uint16_t max_power,
 
     if (!g_power_initialized)
     {
-        RM_RefereeSystem::RM_RefereeSystemSendStr(
-            MakeString("PW_", 1, "PWR", 1320, 160));
-        RM_RefereeSystem::RM_RefereeSystemSendStr(
-            MakeString("MX_", 1, "MAX", 1320, 220));
-        RM_RefereeSystem::RM_RefereeSystemSendStr(
-            MakeString("BF_", 1, "BUF", 1320, 280));
+        if (!SendText(
+                MakeString("PW_", 1, "PWR", 1320, 160))) return;
+        if (!SendText(
+                MakeString("MX_", 1, "MAX", 1320, 220))) return;
+        if (!SendText(
+                MakeString("BF_", 1, "BUF", 1320, 280))) return;
     }
 
     Figure power[2];
@@ -156,11 +192,11 @@ void UpdatePowerStatus(float current_power, uint16_t max_power,
         current_power + (current_power >= 0.0f ? 0.5f : -0.5f));
     power[0] = MakeInt("PWR", 1, rounded_power, 1450, 160);
     power[1] = MakeInt("MAX", 1, static_cast<int32_t>(max_power), 1450, 220);
-    RM_RefereeSystem::RM_RefereeSystemSendDataN(power, 2);
+    if (!SendFigures(power, 2)) return;
 
     Figure buffer = MakeInt("BUF", 1, static_cast<int32_t>(buffer_energy),
                             1450, 280);
-    RM_RefereeSystem::RM_RefereeSystemSendDataN(&buffer, 1);
+    if (!SendFigures(&buffer, 1)) return;
 
     g_power_initialized = true;
 }
@@ -168,5 +204,83 @@ void UpdatePowerStatus(float current_power, uint16_t max_power,
 void ResetPowerStatus()
 {
     g_power_initialized = false;
+}
+
+void UpdateHealthStatus(uint16_t current_hp, uint16_t maximum_hp)
+{
+    SetOperateType(g_health_initialized ? OperateRevise : OperateAdd);
+    SetColor(ColorGreen);
+    SetWidth(2);
+    SetStringSize(24);
+
+    if (!g_health_initialized)
+    {
+        if (!SendText(MakeString("HP_", 2, "HP", 100, 870))) return;
+        Figure border = MakeRectangle("HPB", 2, 100, 800, 400, 824);
+        if (!SendFigures(&border, 1)) return;
+    }
+
+    Figure health[2];
+    health[0] = MakeInt("HPN", 2, current_hp, 180, 870);
+
+    // Round up so a positive HP remains visible; never exceed the border.
+    const uint16_t bounded_hp = current_hp > maximum_hp ? maximum_hp : current_hp;
+    const uint16_t fill_length = maximum_hp == 0 ? 0 :
+        static_cast<uint16_t>((292U * bounded_hp + maximum_hp - 1U) / maximum_hp);
+    SetOperateType(fill_length == 0 ? OperateDelete :
+                   g_health_bar_visible ? OperateRevise : OperateAdd);
+    SetWidth(16);
+    health[1] = MakeLine("HPF", 2, 104, 812, 104 + fill_length, 812);
+    if (!SendFigures(health, 2)) return;
+
+    g_health_initialized = true;
+    g_health_bar_visible = fill_length != 0;
+}
+
+void ResetHealthStatus()
+{
+    g_health_initialized = false;
+    g_health_bar_visible = false;
+}
+
+void UpdateAimGuides()
+{
+    if (g_aim_initialized) return;
+    SetOperateType(OperateAdd);
+    SetColor(ColorGreen);
+    SetWidth(2);
+    SetStringSize(20);
+
+    using namespace AimConfig;
+    Figure guides[5];
+    guides[0] = MakeLine("CRH", 3, CENTER_X - CROSS_HALF_WIDTH, CENTER_Y,
+                         CENTER_X + CROSS_HALF_WIDTH, CENTER_Y);
+    guides[1] = MakeLine("CRV", 3, CENTER_X, CENTER_Y - CROSS_HALF_HEIGHT,
+                         CENTER_X, CENTER_Y + CROSS_HALF_HEIGHT);
+    for (uint8_t i = 0; i < 3; ++i)
+    {
+        const DistanceMark &mark = DISTANCE_MARKS[i];
+        const int16_t x = CENTER_X + mark.x_offset;
+        const int16_t y = CENTER_Y + mark.y_offset;
+        const char name[3] = {'D', 'T', static_cast<char>('0' + i)};
+        guides[2 + i] = MakeLine(name, 3, x - mark.half_width, y,
+                                  x + mark.half_width, y);
+    }
+    if (!SendFigures(guides, 5)) return;
+
+    for (uint8_t i = 0; i < 3; ++i)
+    {
+        const DistanceMark &mark = DISTANCE_MARKS[i];
+        const char name[3] = {'D', 'L', static_cast<char>('0' + i)};
+        if (!SendText(MakeString(name, 3, mark.label,
+                CENTER_X + mark.x_offset + mark.half_width + LABEL_OFFSET_X,
+                CENTER_Y + mark.y_offset + LABEL_OFFSET_Y))) return;
+    }
+    g_aim_initialized = true;
+}
+
+void ResetAimGuides()
+{
+    g_aim_initialized = false;
 }
 } // namespace RMRefereeSystemUI

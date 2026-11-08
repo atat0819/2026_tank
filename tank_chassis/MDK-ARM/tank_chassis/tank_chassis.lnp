@@ -86,7 +86,6 @@
 "tank_chassis\up_stair_behind_motor_fsm.o"
 "tank_chassis\boards_communication_uart_485.o"
 "tank_chassis\gimbal_refree_uart_485.o"
-"tank_chassis\gimbal_refree.o"
 "tank_chassis\super_cupacitor.o"
 --library_type=microlib --strict --scatter "tank_chassis\tank_chassis.sct"
 --summary_stderr --info summarysizes --map --load_addr_map_info --xref --callgraph --symbols

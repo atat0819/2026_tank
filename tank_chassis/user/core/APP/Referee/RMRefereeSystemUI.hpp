@@ -50,6 +50,32 @@ struct Style
     uint8_t operate_type;
 };
 
+// Uncalibrated defaults. Edit these parameters, rebuild and calibrate by firing.
+// Coordinates use a 1920x1080 canvas with the origin at the bottom left.
+namespace AimConfig
+{
+constexpr int16_t CENTER_X = 960;
+constexpr int16_t CENTER_Y = 540;
+constexpr uint16_t CROSS_HALF_WIDTH = 24;
+constexpr uint16_t CROSS_HALF_HEIGHT = 24;
+constexpr uint16_t LABEL_OFFSET_X = 12;
+constexpr uint16_t LABEL_OFFSET_Y = 10;
+
+struct DistanceMark
+{
+    const char *label;
+    int16_t x_offset; // Relative to CENTER_X.
+    int16_t y_offset; // Relative to CENTER_Y; negative moves down.
+    uint16_t half_width;
+};
+
+constexpr DistanceMark DISTANCE_MARKS[3] = {
+    {"3m", 0, -40, 16},
+    {"5m", 0, -80, 24},
+    {"7m", 0, -125, 32},
+};
+} // namespace AimConfig
+
 void ResetStyle();
 void SetColor(uint8_t color);
 void SetWidth(uint16_t width);
@@ -78,6 +104,10 @@ Text MakeString(const char name[3], uint8_t layer, const char *text,
 void UpdatePowerStatus(float current_power, uint16_t max_power,
                        uint16_t buffer_energy);
 void ResetPowerStatus();
+void UpdateHealthStatus(uint16_t current_hp, uint16_t maximum_hp);
+void ResetHealthStatus();
+void UpdateAimGuides();
+void ResetAimGuides();
 
 } // namespace RMRefereeSystemUI
 

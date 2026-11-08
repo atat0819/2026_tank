@@ -124,7 +124,6 @@ Struct_Feeder_Input feeder_input = {};
 feeder_input.s1             = RemoteData.s1;
 feeder_input.s2             = RemoteData.s2;
 feeder_input.friction_on    = input_dispatcher.IsFrictionOn();
-feeder_input.is_single_shot = input_dispatcher.IsSingleShot();
 feeder_input.fire_triggered = input_dispatcher.IsFireTriggered();
 feeder_input.scroll_value   = remoteController.get_scroll_();
 feeder_input.is_keymouse    = is_keymouse;
@@ -158,7 +157,7 @@ else if (!is_keymouse)
 }
 else
 {
-    // 键鼠模式下 R 关闭时外部强制停机；R 开启后，G 选择单发/连发。
+    // 键鼠模式下 R 关闭时外部强制停机；R 开启后使用单发模式。
     if (!input_dispatcher.IsFrictionOn())
     {
         force_stop = 1;

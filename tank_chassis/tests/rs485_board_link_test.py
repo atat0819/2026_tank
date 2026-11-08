@@ -62,6 +62,7 @@ checks = r'''
 #include <cassert>
 #include <cmath>
 #include <cstring>
+#include <initializer_list>
 #include "chassis/communication/boards_communication_uart_485.hpp"
 #include "chassis/communication/gimbal_refree_uart_485.hpp"
 #include "gimbal/communication_between_boards/boards_communication_uart_485.hpp"
@@ -84,22 +85,21 @@ int main() {
     board=1;
     Referee485_Update(0x1234,0x4567,0x89ab,1);
     board=0;
-    assert(RS485_SendBoardData(330,-1234,0.5f,-0.25f,3,3,0,0,0x1234)==HAL_OK);
-    assert(lengths[0]==28);
-    uint8_t request[28]; memcpy(request,active[0],28);
+    assert(RS485_SendBoardData(0.5f,-1234,0.5f,-0.25f,3,3,0x1234)==HAL_OK);
+    assert(lengths[0]==22);
+    uint8_t request[22]; memcpy(request,active[0],22);
     handles[0].gState=HAL_UART_STATE_READY;
     // 即使上一帧已经发完，未收到回复且未到 2ms 超时仍不能发送。
-    assert(RS485_SendBoardData(0,0,0,0,0,0,0,0,0)==HAL_BUSY);
+    assert(RS485_SendBoardData(0,0,0,0,0,0,0)==HAL_BUSY);
     assert(attempts[0]==1);
     board=1;
     uint8_t noise[]={1,2,0x78,0x22,0};
     Chassis485_Parse(noise,sizeof(noise));
     Chassis485_Parse(request,9); assert(applied==0 && attempts[1]==0);
-    Chassis485_Parse(request+9,19);
+    Chassis485_Parse(request+9,13);
     assert(applied==1 && attempts[1]==1 && lengths[1]==12);
-    assert(snapshot.right_stick_x==330 && snapshot.mouse_x==-1234);
+    assert(snapshot.right_stick_x==0.5f && snapshot.mouse_x==-1234);
     assert(snapshot.vx==0.5f && snapshot.vy==-0.25f && snapshot.keyboard==0x1234);
-    assert(snapshot.imu_yaw_deg==0 && snapshot.imu_gyro_z_deg_s==0);
     auto input=GetControlInputSnapshot(now);
     assert(input.source==ControlInputSource::GIMBAL && input.keyboard==0x1234);
     assert(input.wz==0.5f && input.yaw_offset_deg==0 && input.mouse_x==-1234);
@@ -119,22 +119,22 @@ int main() {
     assert(ref.getHeatLimit()==0x4567 && ref.getHeat42mm()==0x89ab && ref.isRefereeOnline());
     assert(ref.getDataAgeMs(now)==0);
     // 收到有效回复即可在下一次调用发送，不再等待固定 5ms。
-    assert(RS485_SendBoardData(0,0,0,0,1,1,0,0,0)==HAL_OK);
+    assert(RS485_SendBoardData(0,0,0,0,1,1,0)==HAL_OK);
     handles[0].gState=HAL_UART_STATE_READY;
     now+=1;
-    assert(RS485_SendBoardData(0,0,0,0,1,1,0,0,0)==HAL_BUSY);
+    assert(RS485_SendBoardData(0,0,0,0,1,1,0)==HAL_BUSY);
     now+=1;
-    assert(RS485_SendBoardData(0,0,0,0,1,1,0,0,0)==HAL_OK);
+    assert(RS485_SendBoardData(0,0,0,0,1,1,0)==HAL_OK);
     // 错误 CRC 不刷新输入、不回复；下一帧仍能重新同步。
     board=1; handles[1].gState=HAL_UART_STATE_READY;
-    request[8]^=1; Chassis485_Parse(request,28);
+    request[8]^=1; Chassis485_Parse(request,22);
     assert(applied==1 && attempts[1]==1);
     request[8]^=1;
-    uint8_t pair[56]; memcpy(pair,request,28); memcpy(pair+28,request,28);
-    Chassis485_Parse(pair,56); assert(applied==3);
+    uint8_t pair[44]; memcpy(pair,request,22); memcpy(pair+22,request,22);
+    Chassis485_Parse(pair,44); assert(applied==3);
     // 回复 DMA 忙时不得覆盖旧缓冲区。
     uint8_t saved[12]; memcpy(saved,active[1],12);
-    Referee485_Update(1,2,3,0); Chassis485_Parse(request,28);
+    Referee485_Update(1,2,3,0); Chassis485_Parse(request,22);
     assert(memcmp(saved,active[1],12)==0);
     // 损坏的回复不刷新裁判心跳，含噪声后的完整帧能恢复。
     board=0; const uint32_t age_before_bad=ref.getDataAgeMs(now);
@@ -144,9 +144,9 @@ int main() {
     assert(ref.getDataAgeMs(now)==0);
     // 无回复时按周期发送最新快照，不积压旧命令。
     next_request();
-    assert(RS485_SendBoardData(0,0,0,0,0,0,0,0,0)==HAL_OK);
+    assert(RS485_SendBoardData(0,0,0,0,0,0,0)==HAL_OK);
     board=1; handles[1].gState=HAL_UART_STATE_READY;
-    Chassis485_Parse(active[0],28);
+    Chassis485_Parse(active[0],22);
     assert(snapshot.right_stick_x==0 && snapshot.mouse_x==0 && snapshot.s1==0 && snapshot.s2==0);
     assert(snapshot.vx==0 && snapshot.vy==0 && snapshot.keyboard==0);
     assert(GetControlInputSnapshot(now).source==ControlInputSource::NONE);
@@ -154,38 +154,45 @@ int main() {
     board=0; ref.parse485(active[1],12);
     assert(!ref.isRefereeOnline() && ref.getCoolingValue()==1);
     // 非法开关/NaN 即使带合法 CRC 也不能进入控制数据。
-    next_request(); assert(RS485_SendBoardData(0,0,NAN,0,3,3,0,0,0)==HAL_OK);
-    board=1; unsigned old=applied; Chassis485_Parse(active[0],28); assert(applied==old);
-    next_request(); assert(RS485_SendBoardData(0,0,0,0,4,3,0,0,0)==HAL_OK);
-    board=1; Chassis485_Parse(active[0],28); assert(applied==old);
-    // 摇杆范围及明确失联帧同时校验两个新字段；有符号鼠标全范围允许。
-    next_request(); assert(RS485_SendBoardData(661,0,0,0,3,3,0,0,0)==HAL_OK);
-    board=1; Chassis485_Parse(active[0],28); assert(applied==old);
-    next_request(); assert(RS485_SendBoardData(-661,0,0,0,3,3,0,0,0)==HAL_OK);
-    board=1; Chassis485_Parse(active[0],28); assert(applied==old);
-    next_request(); assert(RS485_SendBoardData(1,0,0,0,0,0,0,0,0)==HAL_OK);
-    board=1; Chassis485_Parse(active[0],28); assert(applied==old);
-    next_request(); assert(RS485_SendBoardData(0,1,0,0,0,0,0,0,0)==HAL_OK);
-    board=1; Chassis485_Parse(active[0],28); assert(applied==old);
-    next_request(); assert(RS485_SendBoardData(-660,-32768,0,0,3,3,0,0,0)==HAL_OK);
-    board=1; Chassis485_Parse(active[0],28); assert(applied==old+1);
-    assert(snapshot.right_stick_x==-660 && snapshot.mouse_x==-32768);
-    next_request(); assert(RS485_SendBoardData(660,32767,0,0,3,3,0,0,0)==HAL_OK);
-    board=1; Chassis485_Parse(active[0],28); assert(applied==old+2);
-    assert(snapshot.right_stick_x==660 && snapshot.mouse_x==32767);
-    next_request(); assert(RS485_SendBoardData(0,0,0,0,3,3,0,0,0)==HAL_OK);
-    board=1; Chassis485_Parse(active[0],28);
+    next_request(); assert(RS485_SendBoardData(0,0,NAN,0,3,3,0)==HAL_OK);
+    board=1; unsigned old=applied; Chassis485_Parse(active[0],22); assert(applied==old);
+    next_request(); assert(RS485_SendBoardData(0,0,0,0,4,3,0)==HAL_OK);
+    board=1; Chassis485_Parse(active[0],22); assert(applied==old);
+    // 归一化摇杆必须有限且在 [-1,1]；非法值不刷新心跳、不回复。
+    for (float invalid : {1.001f,-1.001f,NAN,INFINITY,-INFINITY}) {
+        next_request(); assert(RS485_SendBoardData(invalid,0,0,0,3,3,0)==HAL_OK);
+        board=1;
+        const uint32_t previous_tick=gimbal_switch_last_tick;
+        const unsigned previous_replies=attempts[1];
+        Chassis485_Parse(active[0],22);
+        assert(applied==old && gimbal_switch_last_tick==previous_tick && attempts[1]==previous_replies);
+    }
+    // 明确失联帧要求所有操作量为零；有符号鼠标全范围允许。
+    next_request(); assert(RS485_SendBoardData(1,0,0,0,0,0,0)==HAL_OK);
+    board=1; Chassis485_Parse(active[0],22); assert(applied==old);
+    next_request(); assert(RS485_SendBoardData(0,1,0,0,0,0,0)==HAL_OK);
+    board=1; Chassis485_Parse(active[0],22); assert(applied==old);
+    next_request(); assert(RS485_SendBoardData(-1.0f,-32768,0,0,3,3,0)==HAL_OK);
+    board=1; Chassis485_Parse(active[0],22); assert(applied==old+1);
+    assert(snapshot.right_stick_x==-1.0f && snapshot.mouse_x==-32768);
+    assert(GetControlInputSnapshot(now).wz==-1.0f);
+    next_request(); assert(RS485_SendBoardData(1.0f,32767,0,0,3,3,0)==HAL_OK);
+    board=1; Chassis485_Parse(active[0],22); assert(applied==old+2);
+    assert(snapshot.right_stick_x==1.0f && snapshot.mouse_x==32767);
+    assert(GetControlInputSnapshot(now).wz==1.0f);
+    next_request(); assert(RS485_SendBoardData(0,0,0,0,3,3,0)==HAL_OK);
+    board=1; Chassis485_Parse(active[0],22);
     assert(GetControlInputSnapshot(now).mouse_x==0);
     // HAL 启动失败不能把链路锁在等待状态。
     next_request(); accept[0]=false;
-    assert(RS485_SendBoardData(0,0,0,0,1,1,0,0,0)==HAL_ERROR);
-    accept[0]=true; assert(RS485_SendBoardData(0,0,0,0,1,1,0,0,0)==HAL_OK);
+    assert(RS485_SendBoardData(0,0,0,0,1,1,0)==HAL_ERROR);
+    accept[0]=true; assert(RS485_SendBoardData(0,0,0,0,1,1,0)==HAL_OK);
     // tick 溢出后 2ms 回复超时仍按无符号差值判断。
     now=0xfffffffeU; handles[0].gState=HAL_UART_STATE_READY;
-    assert(RS485_SendBoardData(0,0,0,0,1,1,0,0,0)==HAL_OK);
+    assert(RS485_SendBoardData(0,0,0,0,1,1,0)==HAL_OK);
     now=0xffffffffU; handles[0].gState=HAL_UART_STATE_READY;
-    assert(RS485_SendBoardData(0,0,0,0,1,1,0,0,0)==HAL_BUSY);
-    now=0; assert(RS485_SendBoardData(0,0,0,0,1,1,0,0,0)==HAL_OK);
+    assert(RS485_SendBoardData(0,0,0,0,1,1,0)==HAL_BUSY);
+    now=0; assert(RS485_SendBoardData(0,0,0,0,1,1,0)==HAL_OK);
 }
 '''
 with tempfile.TemporaryDirectory(prefix="rs485_link_") as directory:

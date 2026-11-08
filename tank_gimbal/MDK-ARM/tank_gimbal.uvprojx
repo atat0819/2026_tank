@@ -1202,16 +1202,6 @@
               <FilePath>..\communication_between_boards\boards_communication_uart_485.hpp</FilePath>
             </File>
             <File>
-              <FileName>boards_communication.cpp</FileName>
-              <FileType>8</FileType>
-              <FilePath>..\communication_between_boards\boards_communication.cpp</FilePath>
-            </File>
-            <File>
-              <FileName>boards_communication.hpp</FileName>
-              <FileType>5</FileType>
-              <FilePath>..\communication_between_boards\boards_communication.hpp</FilePath>
-            </File>
-            <File>
               <FileName>HI14.cpp</FileName>
               <FileType>8</FileType>
               <FilePath>..\communication_between_boards\HI14.cpp</FilePath>
@@ -1232,14 +1222,14 @@
               <FilePath>..\communication_between_boards\input_dispatcher.hpp</FilePath>
             </File>
             <File>
-              <FileName>refree_receive.cpp</FileName>
+              <FileName>gimbal_to_arm.cpp</FileName>
               <FileType>8</FileType>
-              <FilePath>..\communication_between_boards\refree_receive.cpp</FilePath>
+              <FilePath>..\communication_between_boards\gimbal_to_arm.cpp</FilePath>
             </File>
             <File>
-              <FileName>refree_receive.hpp</FileName>
+              <FileName>gimbal_to_arm.hpp</FileName>
               <FileType>5</FileType>
-              <FilePath>..\communication_between_boards\refree_receive.hpp</FilePath>
+              <FilePath>..\communication_between_boards\gimbal_to_arm.hpp</FilePath>
             </File>
           </Files>
         </Group>

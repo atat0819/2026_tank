@@ -808,6 +808,7 @@ tank_gimbal/remote_control_task.o: ..\RtosTask\remote_control_task.cpp \
   D:\Keil5\Core\ARM\ARMCLANG\include\libcxx\__functional\unary_negate.h \
   ..\RtosTask\..\communication_between_boards\input_dispatcher.hpp \
   ..\RtosTask\..\communication_between_boards\refree_receive_uart_485.hpp \
+  ..\RtosTask\..\communication_between_boards\gimbal_to_arm.hpp \
   ..\RtosTask\gimbal_task.hpp \
   ..\RtosTask\..\user\core\BSP\Motor\Dji\DjiMotor.hpp \
   ..\communication_between_boards\..\user\core\BSP\Motor\MotorBase.hpp \
@@ -820,5 +821,4 @@ tank_gimbal/remote_control_task.o: ..\RtosTask\remote_control_task.cpp \
   ..\RtosTask\..\feeder_fsm\..\user\core\Alg\FSM\alg_fsm.hpp \
   ..\RtosTask\..\feeder_fsm\friction_fsm.hpp \
   ..\user\core\Alg\PID\pid.hpp ..\RtosTask\can_send_task.hpp \
-  ..\communication_between_boards\boards_communication.hpp \
   ..\user\core\Alg\Filter\Filter.hpp

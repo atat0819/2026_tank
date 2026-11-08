@@ -6,6 +6,10 @@
 #include "chassis_fsm.hpp"
 #include <math.h>
 
+#ifndef M_PI
+#define M_PI 3.14159265358979323846f
+#endif
+
 void Chassis_FSM::Init()
 {
     Class_FSM::Init(CHASSIS_MODE_COUNT, CHASSIS_STOP);
@@ -16,18 +20,19 @@ void Chassis_FSM::Init()
 /**
  * @brief 拨杆值 -> 模式映射（逐挡位列出）
  *
- *   s1=上, s2=上 -> FOLLOW_GIMBAL（跟随）
- *   s1=上, s2=中 -> FOLLOW_GIMBAL（跟随）
- *   s1=上, s2=下 -> FOLLOW_GIMBAL（跟随）
- *   s1=中, s2=上 -> NOT_FOLLOW（不跟随）
- *   s1=中, s2=中 -> NOT_FOLLOW（不跟随）
- *   s1=中, s2=下 -> GYRO_SPIN（小陀螺）
- *   s1=下, s2=上 -> GYRO_SPIN（小陀螺）
- *   s1=下, s2=中 -> FOLLOW_GIMBAL（跟随）
+ *   s1=上, s2=上 -> JOYSTICK_ROTATE（遥控）
+ *   s1=上, s2=中 -> JOYSTICK_ROTATE（遥控）
+ *   s1=上, s2=下 -> JOYSTICK_ROTATE（遥控）
+ *   s1=中, s2=上 -> JOYSTICK_ROTATE（遥控）
+ *   s1=中, s2=中 -> MOUSE_ROTATE（键鼠，失效则 STOP）
+ *   s1=中, s2=下 -> JOYSTICK_ROTATE（遥控）
+ *   s1=下, s2=上 -> JOYSTICK_ROTATE（遥控）
+ *   s1=下, s2=中 -> JOYSTICK_ROTATE（遥控）
  *   s1=下, s2=下 -> STOP（停止）
  *   离线         -> STOP（停止）
  */
-void Chassis_FSM::StateUpdate(uint8_t s1, uint8_t s2, bool equipment_online)
+void Chassis_FSM::StateUpdate(uint8_t s1, uint8_t s2, bool equipment_online,
+                              bool keyboard_valid)
 {
     Enum_Chassis_Mode target_mode;
 
@@ -36,45 +41,45 @@ void Chassis_FSM::StateUpdate(uint8_t s1, uint8_t s2, bool equipment_online)
     {
         target_mode = CHASSIS_STOP;
     }
-    // s1上, s2上 -> 不跟随
+    // s1上, s2上 -> 遥控
     else if (s1 == 1 && s2 == 1)
     {
-        target_mode = CHASSIS_NOT_FOLLOW;
+        target_mode = CHASSIS_JOYSTICK_ROTATE;
     }
-    // s1上, s2中 -> 小陀螺
+    // s1上, s2中 -> 遥控
     else if (s1 == 1 && s2 == 3)
     {
-        target_mode = CHASSIS_GYRO_SPIN;
+        target_mode = CHASSIS_JOYSTICK_ROTATE;
     }
-    // s1上, s2下 -> 跟随
+    // s1上, s2下 -> 遥控
     else if (s1 == 1 && s2 == 2)
     {
-        target_mode = CHASSIS_FOLLOW_GIMBAL;
+        target_mode = CHASSIS_JOYSTICK_ROTATE;
     }
-    // s1中, s2上 -> 小陀螺
+    // s1中, s2上 -> 遥控
     else if (s1 == 3 && s2 == 1)
     {
-        target_mode = CHASSIS_GYRO_SPIN;
+        target_mode = CHASSIS_JOYSTICK_ROTATE;
     }
-    // s1中, s2中 -> 不跟随
+    // s1中, s2中 -> 键鼠
     else if (s1 == 3 && s2 == 3)
     {
-        target_mode = CHASSIS_NOT_FOLLOW;
+        target_mode = keyboard_valid ? CHASSIS_MOUSE_ROTATE : CHASSIS_STOP;
     }
-    // s1中, s2下 -> 跟随
+    // s1中, s2下 -> 遥控
     else if (s1 == 3 && s2 == 2)
     {
-        target_mode = CHASSIS_FOLLOW_GIMBAL;
+        target_mode = CHASSIS_JOYSTICK_ROTATE;
     }
-    // s1下, s2上 -> 跟随
+    // s1下, s2上 -> 遥控
     else if (s1 == 2 && s2 == 1)
     {
-        target_mode = CHASSIS_FOLLOW_GIMBAL;
+        target_mode = CHASSIS_JOYSTICK_ROTATE;
     }
-    // s1下, s2中 -> 跟随
+    // s1下, s2中 -> 遥控
     else if (s1 == 2 && s2 == 3)
     {
-        target_mode = CHASSIS_FOLLOW_GIMBAL;
+        target_mode = CHASSIS_JOYSTICK_ROTATE;
     }
     // s1下, s2下 -> 停止
     else if (s1 == 2 && s2 == 2)
@@ -85,31 +90,6 @@ void Chassis_FSM::StateUpdate(uint8_t s1, uint8_t s2, bool equipment_online)
     else
     {
         target_mode = CHASSIS_STOP;
-    }
-
-    // ---- 小陀螺延时逻辑：拨到小陀螺后必须保持2秒不动才真正切换 ----
-    if (target_mode == CHASSIS_GYRO_SPIN)
-    {
-        if (!gyro_spin_pending)
-        {
-            // 第一次请求小陀螺，开始计时，保持当前模式
-            gyro_spin_pending = true;
-            gyro_spin_request_tick = HAL_GetTick();
-            return;
-        }
-
-        // 已在等待中，检查是否到时间
-        if (HAL_GetTick() - gyro_spin_request_tick < GYRO_SPIN_DELAY_MS)
-        {
-            return; // 没到2秒，继续等
-        }
-        // 到时间了，fall through 执行切换
-    }
-    else
-    {
-        // 目标不是小陀螺，清除等待状态
-        // 拨杆中途切走再切回来会重新开始计时
-        gyro_spin_pending = false;
     }
 
     if (target_mode != current_mode)
@@ -124,18 +104,22 @@ void Chassis_FSM::StateUpdate(uint8_t s1, uint8_t s2, bool equipment_online)
  * @brief 核心输出：根据当前模式返回旋转角速度指令
  *
  * - FOLLOW_GIMBAL: 使用 ALG::PID::PID 计算跟随输出（带死区）
- * - GYRO_SPIN:    返回固定自旋速度
- * - 其他:          返回 0
+ * - JOYSTICK_ROTATE / MOUSE_ROTATE: 摇杆 / 鼠标角速度
+ * - STOP / NOT_FOLLOW: 返回 0
  */
-float Chassis_FSM::Get_wz_cmd(float yaw_offset_rad)
+float Chassis_FSM::Get_wz_cmd(float yaw_offset_rad, float right_stick_x,
+                             int16_t mouse_x, float max_wz_rad_s)
 {
     switch (current_mode)
     {
     case CHASSIS_FOLLOW_GIMBAL:
         return Get_follow_wz_cmd(yaw_offset_rad);
 
-    case CHASSIS_GYRO_SPIN:
-        return gyro_spin_speed;
+    case CHASSIS_JOYSTICK_ROTATE:
+        return -right_stick_x * max_wz_rad_s;
+
+    case CHASSIS_MOUSE_ROTATE:
+        return -static_cast<float>(mouse_x) * (1.0f * M_PI / 180.0f);
 
     case CHASSIS_STOP:
         return 0.0f;

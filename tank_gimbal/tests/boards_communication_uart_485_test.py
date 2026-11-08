@@ -28,8 +28,9 @@ struct {
     uint16_t GetKeyboardMask() { return 0x4321; }
 } input_dispatcher;
 struct {
-    int16_t stick=-660, mouse=321;
-    int16_t get_right_stick_x() { return stick; }
+    float stick=-0.5f;
+    int16_t mouse=321;
+    float get_right_x() { return stick; }
     int16_t get_mouseX() { return mouse; }
     int32_t pending_mouse_x_=0, pending_mouse_y_=0;
     void receive_mouse(int16_t dx,int16_t dy=0) { mouse=dx; pending_mouse_x_+=dx; pending_mouse_y_+=dy; }
@@ -113,105 +114,103 @@ int16_t read_int16(unsigned position) {
 }
 int main() {
     using namespace HAL::UART;
-    assert(RS485_SendBoardData(-660,321,0.25f,-0.5f,3,1,-30.0f,-12.5f,0x1234)==HAL_OK);
-    assert(active_size==28 && attempts==1);
+    assert(RS485_SendBoardData(-0.5f,321,0.25f,-0.5f,3,1,0x1234)==HAL_OK);
+    assert(active_size==22 && attempts==1);
     assert(active[0]==0x78 && active[1]==0x91);
-    assert(read_int16(2)==-660 && read_int16(4)==321);
-    assert(active[2]==0x6c && active[3]==0xfd && active[4]==0x41 && active[5]==0x01);
-    assert(read_float(6)==0.25f && read_float(10)==-0.5f);
-    assert(active[14]==3 && active[15]==1);
-    assert(read_float(16)==330.0f && read_float(20)==-12.5f);
-    assert(active[24]==0x34 && active[25]==0x12);
-    uint16_t crc=expected_crc(active,26);
-    assert(active[26]==(crc&255) && active[27]==(crc>>8));
-    uint8_t saved[28]; memcpy(saved,active,28);
-    assert(RS485_SendBoardData(660,-32768,0,0,0,0,0,0,0)==HAL_BUSY);
-    assert(attempts==1 && memcmp(saved,active,28)==0);
+    assert(read_float(2)==-0.5f && read_int16(6)==321);
+    assert(active[2]==0 && active[3]==0 && active[4]==0 && active[5]==0xbf);
+    assert(active[6]==0x41 && active[7]==0x01);
+    assert(read_float(8)==0.25f && read_float(12)==-0.5f);
+    assert(active[16]==3 && active[17]==1);
+    assert(active[18]==0x34 && active[19]==0x12);
+    uint16_t crc=expected_crc(active,20);
+    assert(active[20]==(crc&255) && active[21]==(crc>>8));
+    uint8_t saved[22]; memcpy(saved,active,22);
+    assert(RS485_SendBoardData(1.0f,-32768,0,0,0,0,0)==HAL_BUSY);
+    assert(attempts==1 && memcmp(saved,active,22)==0);
     handle.gState=HAL_UART_STATE_READY; now+=5;
-    assert(RS485_SendBoardData(0,0,0,0,0,0,720.0f,0,0)==HAL_OK);
-    for(unsigned i=2;i<26;++i) assert(active[i]==0);
-    crc=expected_crc(active,26);
-    assert(active[26]==(crc&255) && active[27]==(crc>>8));
+    assert(RS485_SendBoardData(0,0,0,0,0,0,0)==HAL_OK);
+    for(unsigned i=2;i<20;++i) assert(active[i]==0);
+    crc=expected_crc(active,20);
+    assert(active[20]==(crc&255) && active[21]==(crc>>8));
     handle.gState=HAL_UART_STATE_READY; now+=5; accept=false;
-    assert(RS485_SendBoardData(0,0,0,0,0,0,0,0,0)==HAL_ERROR);
+    assert(RS485_SendBoardData(0,0,0,0,0,0,0)==HAL_ERROR);
     accept=true;
-    assert(RS485_SendBoardData(660,-32768,1,2,1,2,361.5f,7,1)==HAL_OK);
-    assert(read_int16(2)==660 && read_int16(4)==-32768);
-    assert(read_float(16)==1.5f && read_float(20)==7);
+    assert(RS485_SendBoardData(1.0f,-32768,1,2,1,2,1)==HAL_OK);
+    assert(read_float(2)==1.0f && read_int16(6)==-32768);
 
     handle.gState=HAL_UART_STATE_READY; now+=5;
     task_snapshot(false);
-    assert(read_int16(2)==-660 && read_int16(4)==0);
-    assert(read_float(6)==0.75f && read_float(10)==-0.25f);
-    assert(active[24]==0 && active[25]==0);
-    assert(read_float(16)==0 && read_float(20)==0);
+    assert(read_float(2)==-0.5f && read_int16(6)==0);
+    assert(read_float(8)==0.75f && read_float(12)==-0.25f);
+    assert(active[18]==0 && active[19]==0);
     input_dispatcher.source=InputSource::KeyMouse;
     remoteController.receive_mouse(10,7);
     handle.gState=HAL_UART_STATE_READY; now+=5;
     task_snapshot(false);
-    assert(read_int16(2)==0 && read_int16(4)==10 && observed_pitch_delta_y==7);
-    assert(read_float(6)==0 && read_float(10)==0);
-    assert(active[14]==3 && active[15]==3 && active[24]==0x21 && active[25]==0x43);
+    assert(read_float(2)==0 && read_int16(6)==10 && observed_pitch_delta_y==7);
+    assert(read_float(8)==0 && read_float(12)==0);
+    assert(active[16]==3 && active[17]==3 && active[18]==0x21 && active[19]==0x43);
     // Repeat the same latest DT7 X state; Pitch Y remains a one-shot increment.
     for (int i=0;i<5;++i) {
         handle.gState=HAL_UART_STATE_READY; now+=5; task_snapshot(false);
-        assert(read_int16(4)==10 && observed_pitch_delta_y==0);
+        assert(read_int16(6)==10 && observed_pitch_delta_y==0);
     }
     remoteController.receive_mouse(10,7);
     handle.gState=HAL_UART_STATE_READY; now+=5; task_snapshot(false);
-    assert(read_int16(4)==10 && observed_pitch_delta_y==7);
+    assert(read_int16(6)==10 && observed_pitch_delta_y==7);
     remoteController.receive_mouse(0);
     handle.gState=HAL_UART_STATE_READY; now+=5; task_snapshot(false);
-    assert(read_int16(4)==0 && observed_pitch_delta_y==0);
+    assert(read_int16(6)==0 && observed_pitch_delta_y==0);
     for (int16_t value : {-32768,32767}) {
         remoteController.receive_mouse(value);
         handle.gState=HAL_UART_STATE_READY; now+=5; task_snapshot(false);
-        assert(read_int16(4)==value);
+        assert(read_int16(6)==value);
         handle.gState=HAL_UART_STATE_READY; now+=5; task_snapshot(false);
-        assert(read_int16(4)==value);
+        assert(read_int16(6)==value);
     }
     // DMA busy preserves in-flight bytes. Later TX uses -20, not the sum 100-20.
-    memcpy(saved,active,28);
+    memcpy(saved,active,22);
     remoteController.receive_mouse(100,4); task_snapshot(false);
     assert(observed_pitch_delta_y==4);
     remoteController.receive_mouse(-20,5); task_snapshot(false);
-    assert(observed_pitch_delta_y==5 && memcmp(saved,active,28)==0);
+    assert(observed_pitch_delta_y==5 && memcmp(saved,active,22)==0);
     handle.gState=HAL_UART_STATE_READY; now+=5; task_snapshot(false);
-    assert(read_int16(4)==-20 && observed_pitch_delta_y==0);
+    assert(read_int16(6)==-20 && observed_pitch_delta_y==0);
     // Original 2ms reply gate and reply-immediate retry are unchanged.
     const unsigned previous_attempts=attempts;
     handle.gState=HAL_UART_STATE_READY; ++now;
     remoteController.receive_mouse(7); task_snapshot(false);
-    assert(attempts==previous_attempts && read_int16(4)==-20);
+    assert(attempts==previous_attempts && read_int16(6)==-20);
     ++now; task_snapshot(false);
-    assert(attempts==previous_attempts+1 && read_int16(4)==7);
+    assert(attempts==previous_attempts+1 && read_int16(6)==7);
     handle.gState=HAL_UART_STATE_READY; RS485_ReplyReceived(); task_snapshot(false);
-    assert(attempts==previous_attempts+2 && active_size==28 && read_int16(4)==7);
+    assert(attempts==previous_attempts+2 && active_size==22 && read_int16(6)==7);
     // Failed TX does not queue an old mouse state.
     handle.gState=HAL_UART_STATE_READY; now+=5; accept=false;
     remoteController.receive_mouse(-30); task_snapshot(false);
     remoteController.receive_mouse(45); accept=true; task_snapshot(false);
-    assert(read_int16(4)==45);
+    assert(read_int16(6)==45);
     handle.gState=HAL_UART_STATE_READY; now+=5; task_snapshot(false);
-    assert(read_int16(4)==45);
+    assert(read_int16(6)==45);
     // Zero updates during busy TX supersede the previous nonzero state.
     remoteController.receive_mouse(0); task_snapshot(false);
     handle.gState=HAL_UART_STATE_READY; now+=5; task_snapshot(false);
-    assert(read_int16(4)==0);
+    assert(read_int16(6)==0);
     remoteController.receive_mouse(40);
     input_dispatcher.source=InputSource::Remote;
     handle.gState=HAL_UART_STATE_READY; now+=5; task_snapshot(false);
-    assert(read_int16(4)==0);
+    assert(read_int16(6)==0);
     input_dispatcher.source=InputSource::Other;
     handle.gState=HAL_UART_STATE_READY; now+=5; task_snapshot(false);
-    assert(read_int16(4)==0);
+    assert(read_int16(6)==0);
     input_dispatcher.source=InputSource::KeyMouse;
     handle.gState=HAL_UART_STATE_READY; now+=5; task_snapshot(true);
-    assert(read_int16(2)==0 && read_int16(4)==0 && active[14]==0 && active[15]==0);
-    assert(read_float(6)==0 && read_float(10)==0 && active[24]==0 && active[25]==0);
+    assert(read_float(2)==0 && read_int16(6)==0 && active[16]==0 && active[17]==0);
+    assert(read_float(8)==0 && read_float(12)==0 && active[18]==0 && active[19]==0);
     remoteController.receive_mouse(0);
     handle.gState=HAL_UART_STATE_READY; now+=5; task_snapshot(false);
-    assert(read_int16(4)==0);
+    assert(read_int16(6)==0);
 
 }
 '''
@@ -229,4 +228,4 @@ with tempfile.TemporaryDirectory(prefix="boards485_") as directory:
                     "communication_between_boards/boards_communication_uart_485.cpp",
                     "-o", "test.exe"], cwd=work, check=True)
     subprocess.run([str(work / "test.exe")], check=True)
-print("PASS: 28-byte RS485 frame, latest mouse X state, one-shot Pitch Y, busy/error latest-value TX, timing and safety")
+print("PASS: 22-byte RS485 frame, float right X, no IMU, latest mouse X, one-shot Pitch Y, busy/error TX, timing and safety")

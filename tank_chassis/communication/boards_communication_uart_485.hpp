@@ -1,18 +1,16 @@
 #pragma once
 #include <stdint.h>
 
-// 云台 -> 底盘：78 91 + 24 字节数据 + CRC16，共 28 字节。
-// 多字节字段为小端；2..3=摇杆 X，4..5=最新 DT7 鼠标 X 采样值，16..23=停用 IMU 的保留字段。
+// 云台 -> 底盘：78 91 + 18 字节数据 + CRC16，共 22 字节，不包含云台 IMU 数据。
+// 多字节字段为小端；2..5=归一化摇杆 X float，6..7=最新 DT7 鼠标 X int16。
 typedef struct Chassis485Data
 {
-    int16_t right_stick_x;
+    float right_stick_x;
     int16_t mouse_x;
     float vx;
     float vy;
     uint8_t s1;
     uint8_t s2;
-    float imu_yaw_deg;
-    float imu_gyro_z_deg_s;
     uint16_t keyboard;
 } Chassis485Data;
 

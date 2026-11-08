@@ -833,11 +833,10 @@ tank_chassis/can_send_task.o: ..\RtosTask\can_send_task.cpp \
   ..\RtosTask\..\user\core\HAL\UART\interface\uart_bus.hpp \
   ..\RtosTask\..\user\core\HAL\UART\interface\uart_device.hpp \
   ..\RtosTask\..\communication\super_cupacitor.hpp \
-  ..\RtosTask\..\communication\gimbal_refree.hpp \
   ..\RtosTask\..\communication\boards_communication_uart_485.hpp \
   ..\RtosTask\..\communication\gimbal_refree_uart_485.hpp \
   ..\RtosTask\..\user\core\APP\Referee\RM_RefereeSystem.h \
   ..\RtosTask\..\user\core\APP\Referee\..\..\HAL\UART\uart_hal.hpp \
   ..\RtosTask\..\user\core\APP\Referee\RM_RefereeSystemCRC.h \
-  ..\RtosTask\..\user\core\Alg\UtilityFunction\SecondOrderSetpointPlanner.hpp \
+  ..\RtosTask\..\user\core\Alg\UtilityFunction\SlopePlanning.hpp \
   ..\RtosTask\..\fsm\chassis_keyboard_fsm.hpp

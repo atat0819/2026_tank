@@ -6,11 +6,11 @@ import tempfile
 
 root = Path(__file__).resolve().parents[1]
 task = (root / "RtosTask/gantry_task.cpp").read_text(encoding="utf-8")
-switches = re.search(r"MicroSwitch limits\[4\]\s*=\s*\{(.*?)\n\};", task, re.S)[1]
+switches = re.search(r"MicroSwitch limits\[5\]\s*=\s*\{(.*?)\n\};", task, re.S)[1]
 assert re.findall(r"\{(GPIO\w), GPIO_PIN_(\d+)\}", switches) == [
-    ("GPIOE", "13"), ("GPIOE", "9"), ("GPIOA", "2"), ("GPIOA", "3")]
+    ("GPIOE", "13"), ("GPIOE", "9"), ("GPIOA", "2"), ("GPIOA", "3"), ("GPIOD", "10")]
 ioc = (root / "tank_gimbal.ioc").read_text(encoding="utf-8")
-for pin in ("PE13", "PE9", "PA2", "PA3"):
+for pin in ("PE13", "PE9", "PA2", "PA3", "PD10"):
     assert re.search(r"Mcu.Pin\d+=" + pin + r"$", ioc, re.M)
     assert pin + ".Signal=GPIO_Input" in ioc
     assert pin + ".GPIO_PuPd=GPIO_PULLDOWN" in ioc
@@ -19,19 +19,21 @@ for pin in ("PA0", "PA1"):
 gpio = (root / "Core/Src/gpio.c").read_text(encoding="utf-8")
 stub = '''#include <cassert>
 struct GPIO_TypeDef {};
-GPIO_TypeDef a,c,e;
+GPIO_TypeDef a,c,d,e;
 #define GPIOA (&a)
 #define GPIOC (&c)
+#define GPIOD (&d)
 #define GPIOE (&e)
 struct GPIO_InitTypeDef { unsigned Pin=0, Mode=0, Pull=0, Speed=0; };
 enum { GPIO_PIN_RESET=0, GPIO_MODE_OUTPUT_PP=1, GPIO_MODE_INPUT=2,
        GPIO_NOPULL=0, GPIO_PULLDOWN=1, GPIO_SPEED_FREQ_LOW=0 };
-unsigned actual_a=0, actual_e=0;
+unsigned actual_a=0, actual_d=0, actual_e=0;
 void HAL_GPIO_WritePin(GPIO_TypeDef*, unsigned, unsigned) {}
 void HAL_GPIO_Init(GPIO_TypeDef *port, GPIO_InitTypeDef *cfg) {
     if (port==GPIOC) return;
     assert(cfg->Mode==GPIO_MODE_INPUT && cfg->Pull==GPIO_PULLDOWN);
     if (port==GPIOA) actual_a |= cfg->Pin;
+    else if (port==GPIOD) actual_d |= cfg->Pin;
     else { assert(port==GPIOE); actual_e |= cfg->Pin; }
 }
 '''
@@ -45,6 +47,7 @@ with tempfile.TemporaryDirectory(prefix="gantry_gpio_") as directory:
 int main() {
     MX_GPIO_Init();
     assert(actual_a==(GPIO_PIN_2|GPIO_PIN_3));
+    assert(actual_d==GPIO_PIN_10);
     assert(actual_e==(GPIO_PIN_9|GPIO_PIN_13));
 }
 ''', encoding="utf-8")
@@ -53,4 +56,4 @@ int main() {
                     "-I", work.as_posix(), (work / "test.cpp").as_posix(),
                     "-o", exe.as_posix()], check=True)
     subprocess.run([str(exe)], check=True)
-print("PASS: PE13/PE9/PA2/PA3 switch order, GPIO input/pulldown and CubeMX mapping")
+print("PASS: PE13/PE9/PA2/PA3/PD10 switch order, GPIO input/pulldown and CubeMX mapping")

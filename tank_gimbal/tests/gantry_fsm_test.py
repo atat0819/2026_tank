@@ -26,8 +26,8 @@ invalid_test = '''
 int main() {
     assert(!Class_Gantry_FSM::ConfigValid());
     Class_Gantry_FSM f;
-    f.Update(true, true, true, false, false, false, false, false, true, 0, 0, 0, 0, 0, 0, 0, 0);
-    f.Update(true, true, true, true, true, false, false, false, true, 0, 0, 0, 0, 0, 0, 0, 5);
+    f.Update(true, true, true, false, false, false, false, false, true, false, 0, 0, 0, 0, 0, 0, 0, 0);
+    f.Update(true, true, true, true, true, false, false, false, true, false, 0, 0, 0, 0, 0, 0, 0, 5);
     assert(!f.IsActive());
     for (unsigned axis=0; axis<3; ++axis) assert(!f.IsKeeping(axis));
     assert(f.GetState()==GantryState::Disabled);
@@ -53,6 +53,56 @@ cases = [
 with tempfile.TemporaryDirectory(prefix="gantry_fsm_") as directory:
     work = Path(directory)
     (work / "gantry_fsm.cpp").write_text(source, encoding="utf-8")
+    (work / "gantry_fsm.hpp").write_text(header, encoding="utf-8")
+    zero_test = invalid_test.replace(
+        "assert(!Class_Gantry_FSM::ConfigValid());",
+        """using namespace GantryTuning;
+    assert(LIFT_ID5_HOME_DEG == 0 && LIFT_ID6_HOME_DEG == 0);
+    assert(LIFT_ID5_FIRST_DEG == 0 && LIFT_ID6_FIRST_DEG == 0);
+    assert(LIFT_ID5_SECOND_DEG == 0 && LIFT_ID6_SECOND_DEG == 0);
+    assert(DM_RETRACT_DEG == 0 && DM_EXTEND_DEG == 0);
+    assert(LIFT_ID5_SPEED_RAD_S == 0 && LIFT_ID6_SPEED_RAD_S == 0 && DM_SPEED_RAD_S == 0);
+    assert(!Class_Gantry_FSM::ConfigValid());""")
+    (work / "test.cpp").write_text(zero_test, encoding="utf-8")
+    exe = work / "test.exe"
+    subprocess.run(["g++", "-std=c++17", "-Wall", "-Wextra", "-Werror", "-I", str(work),
+                    str(work / "test.cpp"), str(work / "gantry_fsm.cpp"), "-o", str(exe)], check=True)
+    subprocess.run([str(exe)], check=True)
+    print("PASS: zeroed actual configuration remains disabled")
+    home_fixture = header
+    for key in ("LIFT_ID5_HOME_DEG", "LIFT_ID6_HOME_DEG", "LIFT_ID5_FIRST_DEG",
+                "LIFT_ID6_FIRST_DEG", "LIFT_ID5_SECOND_DEG", "LIFT_ID6_SECOND_DEG",
+                "DM_RETRACT_DEG", "DM_EXTEND_DEG", "LIFT_ID5_SPEED_RAD_S",
+                "LIFT_ID6_SPEED_RAD_S", "DM_SPEED_RAD_S"):
+        home_fixture, count = re.subn(
+            r"(static constexpr \w+ " + key + r"\s*=\s*)[^;]+;",
+            lambda match: match[1] + valid[key] + ";", home_fixture)
+        assert count == 1, key
+    (work / "gantry_fsm.hpp").write_text(home_fixture, encoding="utf-8")
+    (work / "test.cpp").write_text(r'''
+#include "gantry_fsm.hpp"
+#include <cassert>
+int main() {
+    auto check = [](double id5, double id6, bool allowed) {
+        Class_Gantry_FSM f;
+        f.Update(true, true, true, false, false, false, false, false, false, false,
+                 0, 0, 0, 0, 0, 0, 0, 0);
+        f.Update(true, true, true, true, true, false, false, false, false, false,
+                 id5, id6, 0, 0, 0, 0, 0, 5);
+        assert((f.GetState() == GantryState::LiftFirst) == allowed);
+        if (!allowed) assert(f.GetFault() == GantryFault::NotHome);
+    };
+    check(10, -10, true);
+    check(-10, 10, true);
+    check(10.01, 0, false);
+    check(0, -10.01, false);
+}
+''', encoding="utf-8")
+    exe = work / "test.exe"
+    subprocess.run(["g++", "-std=c++17", "-Wall", "-Wextra", "-Werror", "-I", str(work),
+                    str(work / "test.cpp"), str(work / "gantry_fsm.cpp"), "-o", str(exe)], check=True)
+    subprocess.run([str(exe)], check=True)
+    print("PASS: gantry startup home tolerance with valid travel fixture")
     for name, values in cases:
         fixture = header
         for key, value in values.items():
