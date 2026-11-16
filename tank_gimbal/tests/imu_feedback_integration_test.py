@@ -46,7 +46,7 @@ int main() {
     def test_encoder_startup_recovery_and_limits(self):
         task = (ROOT / "RtosTask/can_send_task.cpp").read_text(encoding="utf-8-sig")
         self.assertLess(task.index("pitch_target_angle = pitch_current_angle;"),
-                        task.index("gimbal_motor.On(1,"))
+                        task.index("pitch_motor.On(1,"))
         loop = task.split("    for(;;)", 1)[1]
         self.assertLess(loop.index("UpdatePitchMotorFeedback();"),
                         loop.index("if(!remoteController.isConnected()"))

@@ -1,4 +1,5 @@
 #include "gimbal_task.hpp"
+#include "watchdog_heartbeat.h"
 #include "FreeRTOS.h"
 #include "queue.h"
 #include "cmsis_os.h"
@@ -12,7 +13,7 @@
 // GM3508 逻辑槽 1~4：拨弹轮、左摩擦轮、右摩擦轮、下摩擦轮；接收反馈偏移为 1~4。
 const uint8_t chassis_motor_idxs[4] = {1, 2, 3, 4};
 // GM3508<4> 电机组：反馈 ID 基址 0x200，发送电流命令帧 ID 0x200。
-BSP::Motor::Dji::GM3508<4> friction_motor(0x200, chassis_motor_idxs, 0x200);
+BSP::Motor::Dji::GM3508<4> friction_motor(0x200, chassis_motor_idxs, 0x200, HAL::FDCAN::FdcanDeviceId::HAL_Fdcan2);
 
 using Remote = BSP::REMOTE_CONTROL::RemoteController;
 
@@ -137,8 +138,17 @@ friction_input.s2          = RemoteData.s2;
 friction_input.friction_on = input_dispatcher.IsFrictionOn();
 friction_input.is_keymouse = is_keymouse;
 
+// 锁定时把 FSM 输入也置为 STOP，避免积累发射/摩擦轮运行状态。
+if (g_watchdog_rearm_required)
+{
+    feeder_input = {};
+    feeder_input.s1 = feeder_input.s2 = Remote::DOWN;
+    friction_input = {};
+    friction_input.s1 = friction_input.s2 = Remote::DOWN;
+}
+
 force_stop = 0;
-if (!remoteController.isConnected())
+if (!remoteController.isConnected() || g_watchdog_rearm_required)
 {
     // 遥控器失联：不信任拨杆和滚轮数据，最高优先级强制停止。
     force_stop = 1;
@@ -396,6 +406,7 @@ friction_motor.sendCAN();
 //           0.0f,
 //           0.0f);
 /****************************************************************************** */
+Watchdog_RecordHeartbeat(WATCHDOG_TASK_GIMBAL);
 vTaskDelay(5); // 每5ms执行一次控制循环
     }
 }

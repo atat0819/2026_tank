@@ -12,6 +12,7 @@
  * 本任务更新 Pitch 云台 FSM；摩擦轮、拨弹控制由其他任务中的对应 FSM 负责。
  */
 #include "can_send_task.hpp"
+#include "watchdog_heartbeat.h"
 #include "remote_control_task.hpp"
 #include "../communication_between_boards/boards_communication_uart_485.hpp"
 #include "FreeRTOS.h"
@@ -78,11 +79,11 @@ using Remote = BSP::REMOTE_CONTROL::RemoteController;
 Struct_Gimbal_FSM_Config pitch_gimbal_fsm_config;  // pitch 轴的 FSM 配置结构体
 Class_Gimbal_FSM pitch_gimbal_fsm;   // 定义 pitch 轴的 FSM 实例
 
-DM4340_State_t dm4340_state[1]; // 下标 0=Pitch，物理 CAN ID8、逻辑槽 1
+DM4340_State_t dm4340_state[2]; // 下标 0=Yaw ID7，1=Pitch ID8
 RemoteData_t RemoteData;
 
 
-float pitch_target_angle = 300.0f; // 目标角(rad)；此处为原有初值，启动时由编码器和 FSM 覆盖
+float pitch_target_angle = 0.0f; // 目标角(rad)；此处为原有初值，启动时由编码器和 FSM 覆盖
 float pitch_current_angle = 0.0f; // Pitch 原始编码器反馈角(rad)
 
 float pitch_target_speed = 0.0f; // 目标角速度(rad/s)：角度分支由外环 PID 产生
@@ -93,12 +94,15 @@ float pitch_current_speed = 0.0f; // Pitch 电机反馈角速度(rad/s)
 
 
 
+BSP::Motor::DM::J4310<1> yaw_motor(
+    0,{7},{7},HAL::FDCAN::FdcanDeviceId::HAL_Fdcan1);
 
-// 唯一云台电机：Pitch，物理 CAN ID8 对应逻辑槽 1。
-BSP::Motor::DM::J4340<1> gimbal_motor(
-    0,{8},{8},HAL::FDCAN::FdcanDeviceId::HAL_Fdcan3);
+// Pitch，物理 CAN ID8 对应逻辑槽 1。
+BSP::Motor::DM::J4340<1> pitch_motor(
+    0,{8},{8},HAL::FDCAN::FdcanDeviceId::HAL_Fdcan1);
 
 static void UpdatePitchMotorFeedback();
+static void UpdateYawMotorFeedback();
 
 
 
@@ -195,28 +199,39 @@ static uint16_t startup_protect = 0; // 遥控有效且 Pitch 在线时累计的
     // 这行代码执行时会触发 HAL_FDCAN_Start 和开启接收中断     
 	HAL::FDCAN::get_fdcan_bus_instance(); // 触发 FDCAN bus 初始化：HAL_FDCAN_Start + 激活中断通知
 	    auto &fdcan1 = HAL::FDCAN::get_fdcan_bus_instance().get_device(HAL::FDCAN::FdcanDeviceId::HAL_Fdcan1);
-    auto &fdcan3 = HAL::FDCAN::get_fdcan_bus_instance().get_device(HAL::FDCAN::FdcanDeviceId::HAL_Fdcan3);
-    // FDCAN1：本回调仅将 0x201~0x204 帧交给 friction_motor 的解析器。
+        auto &fdcan2 = HAL::FDCAN::get_fdcan_bus_instance().get_device(HAL::FDCAN::FdcanDeviceId::HAL_Fdcan2);
+        auto &fdcan3 = HAL::FDCAN::get_fdcan_bus_instance().get_device(HAL::FDCAN::FdcanDeviceId::HAL_Fdcan3);
+    // FDCAN1：Pitch ID8、Yaw ID7；FDCAN2：摩擦轮。
+
+
+    // FDCAN3：龙门架 3508 ID5/6 和 DM4310 ID9。
     fdcan1.register_rx_callback([](const HAL::FDCAN::Frame &frame) {
-    if (frame.id >= 0x201 && frame.id <= 0x204)
-    {
-        friction_motor.Parse(frame);
-    }
-        else if (frame.id == 0x205 || frame.id == 0x206)
+        if (frame.id == 8)
+        {
+            pitch_motor.Parse(frame);
+        }
+        else if (frame.id == 7 && frame.dlc == 8 && !frame.is_extended_id &&
+                 !frame.is_remote_frame && (frame.data[0] & 0x0F) == 7)
+        {
+            yaw_motor.Parse(frame);
+        }
+    });
+
+    fdcan2.register_rx_callback([](const HAL::FDCAN::Frame &frame) {
+
+            if (frame.id >= 0x201 && frame.id <= 0x204)
             {
-                gantry_3508_motor.Parse(frame);
+                friction_motor.Parse(frame);
             }
 
     });
 
-    // 裁判转发已改为 USART3，接收 lambda 在 remote_control_task 中注册。
-
-    // FDCAN3：云台 Pitch ID8、龙门架 3508 ID5/6 和 DM4310 ID9。
     fdcan3.register_rx_callback([](const HAL::FDCAN::Frame &frame) {
-        if (frame.id == 8)
-        {
-            gimbal_motor.Parse(frame);
-        }
+
+         if (frame.id == 0x205 || frame.id == 0x206)
+            {
+                gantry_3508_motor.Parse(frame);
+            }
         else if (frame.dlc == 8 && !frame.is_extended_id && !frame.is_remote_frame)
         {
              if (frame.id == 9 && (frame.data[0] & 0x0F) == 9)
@@ -225,6 +240,8 @@ static uint16_t startup_protect = 0; // 遥控有效且 Pitch 在线时累计的
                 gantry_watch.dm_status = frame.data[0] >> 4;
             }
         }
+
+
     });
 
 
@@ -242,6 +259,7 @@ for (uint32_t wait = 0; wait < 200; wait++)
 }
 
 UpdatePitchMotorFeedback();
+UpdateYawMotorFeedback();
 
 // 初始目标使用编码器；电机或遥控恢复时按编码器角重新锚定。
 pitch_target_angle = pitch_current_angle;
@@ -250,19 +268,22 @@ pitch_target_angle = pitch_current_angle;
 MotorRecoveryFSM pitch_recovery_fsm;
 const uint32_t motor_init_tick = HAL_GetTick();
 pitch_recovery_fsm.Init(motor_init_tick);
-gimbal_motor.On(1, BSP::Motor::DM::MIT); // Pitch, FDCAN3
+// 看门狗复位后跳过启动时 On，解锁并退出双下后由恢复 FSM 使能。
+if (!g_watchdog_rearm_required && !g_watchdog_reset_detected)
+    pitch_motor.On(1, BSP::Motor::DM::MIT); // Pitch, FDCAN3
 vTaskDelay(500); // 等电机上电完成
 
     // 主循环：采集输入、更新状态机、计算控制量并发送 CAN。
     for(;;)
     {
         UpdatePitchMotorFeedback();
+        UpdateYawMotorFeedback();
          // 一次性消费此前收到的鼠标累计位移，避免控制任务多次累加同一帧。
          int32_t mouse_delta_x = 0;
          int32_t mouse_delta_y = 0;
          remoteController.ConsumeMouseDelta(mouse_delta_x, mouse_delta_y);
 
-         if(!remoteController.isConnected() ||   // 遥控器失联
+         if(!remoteController.isConnected() || g_watchdog_rearm_required ||   // 遥控器失联或看门狗复位后未解锁
             (remoteController.get_left_y() == -1 // 或摇杆数据全-1（解析异常，数据不可信）
          && remoteController.get_left_x() == -1
          && remoteController.get_right_x() == -1
@@ -278,10 +299,8 @@ vTaskDelay(500); // 等电机上电完成
             RS485_SendBoardData(0.0f, 0, 0.0f, 0.0f, 0U, 0U, 0U);
 
             ResetGimbalControlState();
-            gimbal_motor.ctrl_Mit(1, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); // Pitch
+            pitch_motor.ctrl_Mit(1, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); // Pitch
 
-            vTaskDelay(1);
-            continue;
         }
          else {
         gimbal_remote_offline = 0;
@@ -341,7 +360,7 @@ RS485_SendBoardData(
 /************************************************************************************** */
    // 仅检查仍存在的 Pitch 电机。
    // isConnected 的第一个参数为逻辑状态槽，第二个参数为蜂鸣器标识，不是另一 CAN ID。
-  const bool pitch_motor_online = gimbal_motor.isConnected(1, 8);
+  const bool pitch_motor_online = pitch_motor.isConnected(1, 8);
   // 电机恢复使能：双下停车期间不发 On，退出后重新请求一次。
   const bool motor_recovery_paused =
       input_dispatcher.GetSource() != InputSource::KeyMouse &&
@@ -355,7 +374,7 @@ RS485_SendBoardData(
       // 先检查恢复请求，离线轴也需要周期性重试使能。
       const uint32_t motor_recovery_tick = HAL_GetTick();
       if (pitch_recovery_fsm.Should_Enable(pitch_motor_online, motor_recovery_tick))
-          gimbal_motor.On(1, BSP::Motor::DM::MIT);
+          pitch_motor.On(1, BSP::Motor::DM::MIT);
   }
   // 电机掉线按轴处理：Pitch 传入 STOP 并发送零力矩。
   if (!pitch_motor_online)
@@ -515,7 +534,7 @@ while (pitch_error < -kPi) pitch_error += kTwoPi;
 
             // MIT 参数顺序为电机槽、位置(rad)、速度(rad/s)、Kp、Kd、力矩(N*m)。
             // 正常由 MIT 速度反馈与前馈产生力矩；STOP 的 Kd/前馈均为 0。
-            gimbal_motor.ctrl_Mit(1, 0.0f, pitch_target_speed, 0.0f, pitch_mit_kd, pitch_feedforward); // Pitch
+            pitch_motor.ctrl_Mit(1, 0.0f, pitch_target_speed, 0.0f, pitch_mit_kd, pitch_feedforward); // Pitch
         // UART10 的 VOFA 六通道 JustFloat 帧为 28 字节；当前每 4 个调度拍尝试 DMA 发送一次。
         // 发送发生在有效控制分支；实际频率取决于任务周期及故障跳过，不是固定每 10 ms。
         
@@ -537,6 +556,7 @@ while (pitch_error < -kPi) pitch_error += kTwoPi;
 
 
 
+        Watchdog_RecordHeartbeat(WATCHDOG_TASK_CAN_SEND);
         vTaskDelay(1); // 相对延时 1 个 FreeRTOS tick；实际循环周期还包含本周期执行时间
     }
 }
@@ -555,7 +575,7 @@ void SafetyCheck()
     for (int i = 1; i <= 1; i++)
     {
         // 逻辑槽 1 对应物理 ID8 的 Pitch。
-        if (!gimbal_motor.isConnected(i, 8))
+        if (!pitch_motor.isConnected(i, 8))
         {
             // 电机 i 掉线了！
             // 蜂鸣器会自动报警
@@ -571,7 +591,7 @@ void SafetyCheck()
     }
 
     // 或者直接获取掉线的电机编号
-    uint8_t offline_motor = gimbal_motor.getOfflineStatus();
+    uint8_t offline_motor = pitch_motor.getOfflineStatus();
 	
     // 返回 0 表示都在线
     // 非零值表示驱动报告的掉线电机；当前只配置一台 Pitch J4340，返回值在本函数中未进一步使用。
@@ -634,14 +654,27 @@ void vofa_send(float x1, float x2, float x3, float x4, float x5, float x6)
 // 读取物理 ID8（逻辑槽 1）的反馈缓存，更新状态快照和本周期控制反馈。
 static void UpdatePitchMotorFeedback()
 {
-    dm4340_state[0].angle_deg      = gimbal_motor.getAngleDeg(1);
-    dm4340_state[0].angle_rad      = gimbal_motor.getAngleRad(1);
-    dm4340_state[0].velocity_rpm   = gimbal_motor.getVelocityRpm(1);
-    dm4340_state[0].velocity_rads  = gimbal_motor.getVelocityRads(1);
-    dm4340_state[0].current_a      = gimbal_motor.getCurrent(1);
-    dm4340_state[0].temperature    = gimbal_motor.getTemperature(1);
-    dm4340_state[0].delta_angle    = gimbal_motor.getAddAngleDeg(1);
+    dm4340_state[1].angle_deg      = pitch_motor.getAngleDeg(1);
+    dm4340_state[1].angle_rad      = pitch_motor.getAngleRad(1);
+    dm4340_state[1].velocity_rpm   = pitch_motor.getVelocityRpm(1);
+    dm4340_state[1].velocity_rads  = pitch_motor.getVelocityRads(1);
+    dm4340_state[1].current_a      = pitch_motor.getCurrent(1);
+    dm4340_state[1].torque_nm      = pitch_motor.getTorque(1);
+    dm4340_state[1].temperature    = pitch_motor.getTemperature(1);
+    dm4340_state[1].delta_angle    = pitch_motor.getAddAngleDeg(1);
 
-    pitch_current_angle = dm4340_state[0].angle_rad;
-    pitch_current_speed = dm4340_state[0].velocity_rads;
+    pitch_current_angle = dm4340_state[1].angle_rad;
+    pitch_current_speed = dm4340_state[1].velocity_rads;
+}
+
+// 读取 Yaw ID7（逻辑槽 1）的反馈缓存，不发送控制指令。
+static void UpdateYawMotorFeedback()
+{
+    dm4340_state[0].angle_deg = yaw_motor.getAngleDeg(1);
+    dm4340_state[0].angle_rad = yaw_motor.getAngleRad(1);
+    dm4340_state[0].velocity_rpm = yaw_motor.getVelocityRpm(1);
+    dm4340_state[0].velocity_rads = yaw_motor.getVelocityRads(1);
+    dm4340_state[0].torque_nm = yaw_motor.getTorque(1);
+    dm4340_state[0].temperature = yaw_motor.getTemperature(1);
+    dm4340_state[0].delta_angle = yaw_motor.getAddAngleDeg(1);
 }

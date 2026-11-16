@@ -46,7 +46,7 @@ struct {
         assert(slot==1 && position==0 && kp==0);
         velocity=speed; kd=damping; ff=torque;
     }
-} gimbal_motor;
+} pitch_motor;
 Class_Gimbal_FSM pitch_gimbal_fsm;
 Struct_Gimbal_FSM_Config pitch_gimbal_fsm_config;
 float pitch_target_speed=0,pitch_current_speed=0,pitch_error=0,pitch_control_output=0;
@@ -72,20 +72,20 @@ int main() {
     // Real gains and output caps, in rad/s; outer loops remain independent.
     init(GIMBAL_STATUS_ANGLE);
     pitch_error=0.01f; step();
-    assert(near(gimbal_motor.velocity,0.32015f));
-    assert(gimbal_motor.kd==PITCH_REMOTE_ANGLE_MIT_KD && gimbal_motor.ff==0);
+    assert(near(pitch_motor.velocity,0.32015f));
+    assert(pitch_motor.kd==PITCH_REMOTE_ANGLE_MIT_KD && pitch_motor.ff==0);
     assert(pitch_keymouse_angle_encoder_pid.getOutput()==0);
     init(GIMBAL_STATUS_ANGLE,true);
     pitch_error=0.01f; step();
-    assert(near(gimbal_motor.velocity,0.265f));
-    assert(gimbal_motor.kd==PITCH_KEYMOUSE_MIT_KD);
+    assert(near(pitch_motor.velocity,0.265f));
+    assert(pitch_motor.kd==PITCH_KEYMOUSE_MIT_KD);
     assert(pitch_remote_angle_encoder_pid.getOutput()==0);
     for (bool mouse : {false,true}) {
         for (float sign : {-1.0f,1.0f}) {
             init(GIMBAL_STATUS_ANGLE,mouse);
             pitch_error=sign; step();
-            assert(near(gimbal_motor.velocity,sign*PITCH_MAX_SPEED_RAD_S));
-            assert(gimbal_motor.kd==(mouse?PITCH_KEYMOUSE_MIT_KD:PITCH_REMOTE_ANGLE_MIT_KD));
+            assert(near(pitch_motor.velocity,sign*PITCH_MAX_SPEED_RAD_S));
+            assert(pitch_motor.kd==(mouse?PITCH_KEYMOUSE_MIT_KD:PITCH_REMOTE_ANGLE_MIT_KD));
         }
     }
     // Remote velocity mode bypasses the angle PID and uses MIT velocity feedback.
@@ -93,48 +93,48 @@ int main() {
     Struct_Gimbal_Input input={};
     input.s1=Remote::MIDDLE; input.s2=Remote::DOWN; input.joystick_speed=-0.5f;
     pitch_gimbal_fsm.Update(input,0.8f); step();
-    assert(near(gimbal_motor.velocity,-0.5f*PITCH_MAX_SPEED_RAD_S) && gimbal_motor.kd==PITCH_REMOTE_SPEED_MIT_KD);
+    assert(near(pitch_motor.velocity,-0.5f*PITCH_MAX_SPEED_RAD_S) && pitch_motor.kd==PITCH_REMOTE_SPEED_MIT_KD);
     assert(pitch_remote_angle_encoder_pid.getOutput()==0);
     // STOP/offline must remove Kd as well as feedforward, even while moving.
     init(GIMBAL_STATUS_STOP);
     pitch_current_speed=1; step(true,2);
-    assert(gimbal_motor.velocity==0 && gimbal_motor.kd==0 && gimbal_motor.ff==0);
+    assert(pitch_motor.velocity==0 && pitch_motor.kd==0 && pitch_motor.ff==0);
     init(GIMBAL_STATUS_ANGLE);
     pitch_error=1; pitch_current_speed=-1; step(false,2);
-    assert(gimbal_motor.velocity==0 && gimbal_motor.kd==0 && gimbal_motor.ff==0);
+    assert(pitch_motor.velocity==0 && pitch_motor.kd==0 && pitch_motor.ff==0);
     // Lower endpoint: positive target speed can still request negative braking torque.
     init(GIMBAL_STATUS_ANGLE,false,34.2f*DEG_TO_RAD);
     pitch_error=0.01f; pitch_current_speed=1; step();
-    assert(gimbal_motor.kd==0 && gimbal_motor.ff==0 && pitch_control_output==0);
+    assert(pitch_motor.kd==0 && pitch_motor.ff==0 && pitch_control_output==0);
     init(GIMBAL_STATUS_ANGLE,false,34.2f*DEG_TO_RAD);
     pitch_error=0.01f; pitch_current_speed=-1; step();
-    assert(gimbal_motor.kd==0 && gimbal_motor.ff>0 && pitch_control_output==gimbal_motor.ff);
+    assert(pitch_motor.kd==0 && pitch_motor.ff>0 && pitch_control_output==pitch_motor.ff);
     // Even zero estimated torque must not leave a live MIT speed loop at the lower bound.
     init(GIMBAL_STATUS_ANGLE,false,34.2f*DEG_TO_RAD); step();
-    assert(gimbal_motor.kd==0 && gimbal_motor.ff==0);
+    assert(pitch_motor.kd==0 && pitch_motor.ff==0);
     // Existing upper policy allows positive support/braking torque.
     init(GIMBAL_STATUS_ANGLE,false,67.9f*DEG_TO_RAD);
     pitch_current_speed=-1; step();
-    assert(gimbal_motor.kd==PITCH_REMOTE_ANGLE_MIT_KD && pitch_control_output>0);
+    assert(pitch_motor.kd==PITCH_REMOTE_ANGLE_MIT_KD && pitch_control_output>0);
     // Protect combined Kd*(v_des-v_fb)+feedforward, rather than t_ff alone.
     init(GIMBAL_STATUS_ANGLE);
     pitch_current_speed=-13.0f/PITCH_REMOTE_ANGLE_MIT_KD; step(true,2);
-    assert(near(pitch_control_output,15) && gimbal_motor.kd==PITCH_REMOTE_ANGLE_MIT_KD && gimbal_motor.ff==2);
+    assert(near(pitch_control_output,15) && pitch_motor.kd==PITCH_REMOTE_ANGLE_MIT_KD && pitch_motor.ff==2);
     init(GIMBAL_STATUS_ANGLE);
     pitch_current_speed=13.0f/PITCH_REMOTE_ANGLE_MIT_KD; step(true,-2);
-    assert(near(pitch_control_output,-15) && gimbal_motor.kd==PITCH_REMOTE_ANGLE_MIT_KD && gimbal_motor.ff==-2);
+    assert(near(pitch_control_output,-15) && pitch_motor.kd==PITCH_REMOTE_ANGLE_MIT_KD && pitch_motor.ff==-2);
     init(GIMBAL_STATUS_ANGLE);
     pitch_current_speed=-10; step(true,20);
-    assert(pitch_control_output==27 && gimbal_motor.kd==0 && gimbal_motor.ff==27);
+    assert(pitch_control_output==27 && pitch_motor.kd==0 && pitch_motor.ff==27);
     init(GIMBAL_STATUS_ANGLE);
     pitch_current_speed=10; step(true,-20);
-    assert(pitch_control_output==-27 && gimbal_motor.kd==0 && gimbal_motor.ff==-27);
+    assert(pitch_control_output==-27 && pitch_motor.kd==0 && pitch_motor.ff==-27);
     init(GIMBAL_STATUS_ANGLE,false,34.2f*DEG_TO_RAD);
     step(true,-2);
-    assert(gimbal_motor.kd==0 && gimbal_motor.ff==0);
+    assert(pitch_motor.kd==0 && pitch_motor.ff==0);
     init(GIMBAL_STATUS_ANGLE);
     step(true,2);
-    assert(gimbal_motor.kd==PITCH_REMOTE_ANGLE_MIT_KD && gimbal_motor.ff==2);
+    assert(pitch_motor.kd==PITCH_REMOTE_ANGLE_MIT_KD && pitch_motor.ff==2);
 }
 '''.replace("CONSTANTS", constants).replace("PIDS", pids).replace("BLOCK", block)
         harness = '#include <initializer_list>\n' + harness

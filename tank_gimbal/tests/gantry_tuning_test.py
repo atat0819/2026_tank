@@ -28,7 +28,7 @@ int main() {
     assert(std::abs((LIFT_ID6_SECOND_DEG-LIFT_ID6_HOME_DEG)*19-720)<1e-6);
     assert(std::abs(LIFT_ID5_SPEED_RAD_S*19-3)<1e-6);
     assert(std::abs(LIFT_ID6_SPEED_RAD_S*19-3)<1e-6);
-    assert(std::abs(LOWER_STALL_SPEED_RAD_S*19-.4f)<1e-6);
+    assert(std::abs(HOME_STOP_SPEED_RAD_S*19-.4f)<1e-6);
     assert(std::abs(LIFT_HOME_TOLERANCE_DEG-10)<1e-6);
     // The new speed loops must produce the same currents, including integral limiting.
     for (unsigned i=0; i<2; ++i) {

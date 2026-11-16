@@ -27,8 +27,7 @@ valid = {
     "LIFT_FIRST_TIMEOUT_MS": "1000", "EXTEND_TIMEOUT_MS": "1000",
     "LIFT_SECOND_TIMEOUT_MS": "1000", "RETRACT_TIMEOUT_MS": "1000", "LOWER_TIMEOUT_MS": "1000",
     "DM_MOVE_KD": "2", "DM_HOLD_KD": "4", "DM_TORQUE_LIMIT_NM": ".2f",
-    "LOWER_CURRENT_LIMIT_A": ".1f", "LOWER_STALL_CURRENT_A": ".05f",
-    "LOWER_STALL_SPEED_RAD_S": ".1f", "LOWER_STALL_CONFIRM_MS": "100",
+    "HOME_STOP_SPEED_RAD_S": ".1f",
     "LIFT_HOME_TOLERANCE_DEG": "10",
 }
 # Supply distinct move/hold and ID5/ID6 PID values at the production constructors.
@@ -560,7 +559,9 @@ int main() {
     const auto &limited=last_control(0x1FF);
     const int16_t current5=static_cast<int16_t>((limited.data[0]<<8)|limited.data[1]);
     const int16_t current6=static_cast<int16_t>((limited.data[2]<<8)|limited.data[3]);
-    assert(current5==-81 && current6==81); // 0.1 A cap -> raw magnitude 81 after conversion.
+    assert(current5==static_cast<int16_t>(lift_move_pid[0].getOutput()));
+    assert(current6==static_cast<int16_t>(lift_move_pid[1].getOutput()));
+    assert(current5 < -81 && current6 > 81); // 下降不再使用单独的 0.1 A 限幅。
 
     prime_lower(home5, home6);
     refresh_feedback(true, 1, 64);

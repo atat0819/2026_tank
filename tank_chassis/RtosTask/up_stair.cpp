@@ -1,4 +1,5 @@
 #include "up_stair.hpp"
+#include "watchdog_heartbeat.h"
 #include "../fsm/stair_mode_policy.hpp"
 #include "../fsm/up_stair_fsm.hpp"
 #include "../fsm/up_stair_behind_motor_fsm.hpp"
@@ -196,7 +197,7 @@ extern "C" void up_stair_task(void *argument)
         command = stair_command;
         now_tick = HAL_GetTick();
         taskEXIT_CRITICAL();
-        const ControlInputSnapshot input = GetControlInputSnapshot(now_tick);
+        const ControlInputSnapshot input = GetControlInputSnapshot();
         const bool source_changed = input.source != last_input_source;
         last_input_source = input.source;
         // 本地遥控/云台链路切源的首周期暂按无效输入处理，触发安全门清除旧动作。
@@ -263,6 +264,7 @@ extern "C" void up_stair_task(void *argument)
             // 仅链路掉线或档位非法时命中：延时后跳过本周期；双下不会命中，仍会走到循环末尾延时。
             if (policy.control_fault)
             {
+                Watchdog_RecordHeartbeat(WATCHDOG_TASK_UP_STAIR);
                 osDelay(1U);
                 continue;
             }
@@ -329,12 +331,12 @@ extern "C" void up_stair_task(void *argument)
             filtered_pitch_rate_dps = rear_6248_pitch_rate_filter.getOutput();
             filtered_roll_deg = rear_6248_roll_filter.getOutput();
             // UART10 VOFA：原始/滤波 Pitch(deg)、Pitch 角速度(deg/s)、Roll(deg)。
-            if (imu_new_frame)
-            {
-                // vofa_send(imu_snapshot.pitch_deg, filtered_pitch_deg,
-                //           imu_snapshot.pitch_rate_dps, filtered_pitch_rate_dps,
-                //           imu_snapshot.roll_deg, filtered_roll_deg);
-            }
+            //if (imu_new_frame)
+            // {
+            //     vofa_send(imu_snapshot.pitch_deg, filtered_pitch_deg,
+            //               imu_snapshot.pitch_rate_dps, filtered_pitch_rate_dps,
+            //               imu_snapshot.roll_deg, filtered_roll_deg);
+            // }
         }
         else
         {
@@ -537,6 +539,10 @@ extern "C" void up_stair_task(void *argument)
 
         }
 
+
+
+
+        Watchdog_RecordHeartbeat(WATCHDOG_TASK_UP_STAIR);
         osDelay(1U); // 让出一个 RTOS tick；实际循环时间还包含本轮计算/发送的开销。
         // 规划/超时使用真实 tick 差值，本循环并非硬件定时器严格固定周期。
     }

@@ -41,6 +41,7 @@ constexpr float MOUSE_RATE = 1.0f * M_PI / 180.0f;
 uint32_t tick=100;
 uint32_t HAL_GetTick() { return tick; }
 bool local_remote_received=false;
+volatile uint32_t g_watchdog_rearm_required=0;
 uint32_t local_remote_last_tick=0;
 uint16_t local_remote_keyboard=0;
 int16_t local_remote_mouse_x=0;
@@ -59,7 +60,7 @@ void publish(float stick,int16_t mouse,uint8_t s1=3,uint8_t s2=3,uint16_t keys=0
 }
 float step(bool source_changed=false) {
     const uint32_t now_tick=tick;
-    const auto input=GetControlInputSnapshot(now_tick);
+    const auto input=GetControlInputSnapshot();
     const bool keyboard_mode=input.s1==3 && input.s2==3;
     keyboard_fsm.Update(input.keyboard,keyboard_mode,input.keyboard_online && !source_changed,now_tick);
     const auto& keyboard_cmd=keyboard_fsm.GetCommand();
@@ -74,7 +75,7 @@ int main() {
     chassis_fsm.Init();
     publish(0,10);
     for (int i=0;i<5;++i) {
-        const auto snapshot=GetControlInputSnapshot(tick);
+        const auto snapshot=GetControlInputSnapshot();
         assert(snapshot.source==ControlInputSource::GIMBAL && snapshot.mouse_x==10);
         assert(near(step(),-10*MOUSE_RATE));
     }
@@ -88,13 +89,13 @@ int main() {
     publish(0,32767); assert(step()==-MAX_WZ_RAD_S); assert(step()==-MAX_WZ_RAD_S);
     publish(0,-32768); assert(step()==MAX_WZ_RAD_S); assert(step()==MAX_WZ_RAD_S);
     publish(1.0f,0,2,3);
-    assert(GetControlInputSnapshot(tick).wz==1);
+    assert(GetControlInputSnapshot().wz==1);
     assert(step()==-MAX_WZ_RAD_S); assert(step()==-MAX_WZ_RAD_S);
     publish(-0.5f,0,2,3); assert(step()==0.5f*MAX_WZ_RAD_S);
     publish(0,40); publish(0,0,2,3); publish(0,0); assert(step()==0);
     publish(0,40); publish(0,0,0,0);
-    assert(GetControlInputSnapshot(tick).source==ControlInputSource::NONE);
-    assert(GetControlInputSnapshot(tick).mouse_x==0 && step()==0);
+    assert(GetControlInputSnapshot().source==ControlInputSource::NONE);
+    assert(GetControlInputSnapshot().mouse_x==0 && step()==0);
     publish(0,0); assert(step()==0);
     publish(0,40); tick+=100; assert(step()==0);
     publish(0,0); assert(step()==0);
@@ -107,7 +108,7 @@ int main() {
         const float gimbal_wz=step();
         local_remote_received=true; local_remote_last_tick=tick;
         remoteData.s1=remoteData.s2=3; local_remote_mouse_x=value;
-        assert(GetControlInputSnapshot(tick).source==ControlInputSource::LOCAL);
+        assert(GetControlInputSnapshot().source==ControlInputSource::LOCAL);
         assert(step()==gimbal_wz && step()==gimbal_wz);
     }
     publish(0,0); assert(step()==MAX_WZ_RAD_S); // LOCAL still has -32768 and takes priority.

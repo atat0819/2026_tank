@@ -8,12 +8,7 @@ bool Class_Gantry_FSM::ConfigValid()
     if (!CALIBRATED || !std::isfinite(TRAVEL_MARGIN) ||
         TRAVEL_MARGIN <= 0 || TRAVEL_MARGIN >= 1 ||
         !std::isfinite(LIFT_MISMATCH) || LIFT_MISMATCH <= 0 || LIFT_MISMATCH >= 1 ||
-        !std::isfinite(LOWER_CURRENT_LIMIT_A) || LOWER_CURRENT_LIMIT_A <= 0 || LOWER_CURRENT_LIMIT_A > 20 ||
-        !std::isfinite(LOWER_STALL_CURRENT_A) || LOWER_STALL_CURRENT_A <= 0 ||
-        LOWER_STALL_CURRENT_A >= LOWER_CURRENT_LIMIT_A ||
-        !std::isfinite(LOWER_STALL_SPEED_RAD_S) || LOWER_STALL_SPEED_RAD_S <= 0 ||
-        LOWER_STALL_SPEED_RAD_S >= std::min(LIFT_ID5_SPEED_RAD_S, LIFT_ID6_SPEED_RAD_S) ||
-        LOWER_STALL_CONFIRM_MS == 0 || LOWER_STALL_CONFIRM_MS >= LOWER_TIMEOUT_MS ||
+        !std::isfinite(HOME_STOP_SPEED_RAD_S) || HOME_STOP_SPEED_RAD_S <= 0 ||
         !std::isfinite(LIFT_HOME_TOLERANCE_DEG) || LIFT_HOME_TOLERANCE_DEG <= 0)
         return false;
     const double first[2] = {LIFT_ID5_FIRST_DEG - LIFT_ID5_HOME_DEG,
@@ -52,8 +47,10 @@ void Class_Gantry_FSM::Fail(GantryFault fault)
     fault_ = fault;
     state_ = GantryState::Fault;
     holding_ = active_ = false;
-    stall_pending_ = false;
+    gravity_unloading_ = false;
+    gravity_load_factor_ = 0;
     start_armed_ = false;
+    start_hold_pending_ = false;
     progress_ = 0;
     for (unsigned i = 0; i < 3; ++i)
     {
@@ -69,7 +66,9 @@ void Class_Gantry_FSM::Enter(GantryState state, uint32_t now_ms,
     entered_ms_ = now_ms;
     scale_ = 1;
     progress_ = 0;
-    stall_pending_ = false;
+    gravity_unloading_ = false;
+    gravity_load_factor_ = (state == GantryState::LiftSecond || state == GantryState::Retract ||
+                            state == GantryState::Lower) ? 1.0f : 0.0f;
     for (unsigned i = 0; i < 3; ++i)
     {
         start_deg_[i] = angle_deg[i];
@@ -109,8 +108,8 @@ void Class_Gantry_FSM::Update(bool control_enabled, bool feedback_ok, bool lift_
         lift_valid = lift_valid && std::isfinite(angle_deg[i]) &&
                      std::isfinite(current_a[i]) && std::isfinite(speed_rad_s[i]);
     const bool valid = feedback_ok && lift_valid && std::isfinite(angle_deg[2]);
-    const bool stopped = std::abs(speed_rad_s[0]) <= LOWER_STALL_SPEED_RAD_S &&
-                         std::abs(speed_rad_s[1]) <= LOWER_STALL_SPEED_RAD_S;
+    const bool stopped = std::abs(speed_rad_s[0]) <= HOME_STOP_SPEED_RAD_S &&
+                         std::abs(speed_rad_s[1]) <= HOME_STOP_SPEED_RAD_S;
     // 机构启动时已靠重力落底；首次有效低速快照是本次上电的原点参考。
     // 安全门关闭时也记录，后续切模式或故障恢复不重新定义原点。
     if (!home_recorded_ && lift_valid && stopped)
@@ -126,8 +125,7 @@ void Class_Gantry_FSM::Update(bool control_enabled, bool feedback_ok, bool lift_
     {
         state_ = GantryState::Disabled;
         fault_ = GantryFault::None;
-        holding_ = start_armed_ = false;
-        stall_pending_ = false;
+        holding_ = start_armed_ = start_hold_pending_ = false;
         return;
     }
     if (state_ == GantryState::Fault)
@@ -140,6 +138,7 @@ void Class_Gantry_FSM::Update(bool control_enabled, bool feedback_ok, bool lift_
         {
             state_ = GantryState::Disabled;
             start_armed_ = false;
+            start_hold_pending_ = false;
         }
         return;
     }
@@ -149,22 +148,40 @@ void Class_Gantry_FSM::Update(bool control_enabled, bool feedback_ok, bool lift_
     if (state_ == GantryState::Idle)
     {
         if (!right_raw && !right_pressed)
+        {
             start_armed_ = true;
+            start_hold_pending_ = false;
+        }
+        else if (!right_raw)
+        {
+            // 原始右键松开立即取消计时，必须等消抖状态也松开后才能重新计时。
+            start_armed_ = false;
+            start_hold_pending_ = false;
+        }
         if (start_armed_ && right_raw && right_pressed)
         {
-            start_armed_ = false;
-            if (!at_home)
-                Fail(GantryFault::NotHome);
-            else
+            if (!start_hold_pending_)
             {
-                holding_ = true;
-                Enter(GantryState::LiftFirst, now_ms, angle_deg, limit_pressed);
+                start_hold_pending_ = true;
+                start_hold_since_ms_ = now_ms;
+            }
+            else if (static_cast<uint32_t>(now_ms - start_hold_since_ms_) >= START_HOLD_MS)
+            {
+                start_armed_ = start_hold_pending_ = false;
+                if (!at_home)
+                    Fail(GantryFault::NotHome);
+                else
+                {
+                    holding_ = true;
+                    Enter(GantryState::LiftFirst, now_ms, angle_deg, limit_pressed);
+                }
             }
         }
     }
     else if (Running())
     {
         start_armed_ = false; // 忙时的点击不排队，完成后必须重新松开、按下
+        start_hold_pending_ = false;
         const unsigned step = static_cast<unsigned>(state_) -
                               static_cast<unsigned>(GantryState::LiftFirst);
         const uint32_t timeout_ms[5] = {LIFT_FIRST_TIMEOUT_MS, EXTEND_TIMEOUT_MS,
@@ -225,20 +242,15 @@ void Class_Gantry_FSM::Update(bool control_enabled, bool feedback_ok, bool lift_
     progress_ = lift ? std::max(progress[0], progress[1]) : progress[2];
     if (state_ == GantryState::Lower)
     {
-        const bool stalled = stopped &&
-            std::max(std::abs(current_a[0]), std::abs(current_a[1])) >= LOWER_STALL_CURRENT_A;
-        if (!stalled)
-            stall_pending_ = false;
-        else if (!stall_pending_)
+        if (!gravity_unloading_ && std::min(progress[0], progress[1]) >= LOWER_UNLOAD_PROGRESS)
         {
-            stall_since_ms_ = now_ms;
-            stall_pending_ = true;
+            gravity_unloading_ = true;
+            gravity_unload_since_ms_ = now_ms;
         }
-        else if (static_cast<uint32_t>(now_ms - stall_since_ms_) >= LOWER_STALL_CONFIRM_MS)
-        {
-            Fail(GantryFault::Stall); // 未触发底部限位时，堵转不能作为到位。
-            return;
-        }
+        if (gravity_unloading_)
+            gravity_load_factor_ = 1.0f - std::min(1.0f,
+                static_cast<float>(static_cast<uint32_t>(now_ms - gravity_unload_since_ms_)) /
+                LOWER_UNLOAD_BLEND_MS);
     }
     // 第一次抬升和 DM 伸缩按行程减速；第二次抬升和下降全程使用配置速度。
     if (state_ != GantryState::LiftSecond && state_ != GantryState::Lower)

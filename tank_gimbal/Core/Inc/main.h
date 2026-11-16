@@ -53,6 +53,8 @@ extern "C" {
 void Error_Handler(void);
 
 /* USER CODE BEGIN EFP */
+extern volatile uint32_t g_watchdog_reset_detected;
+extern volatile uint32_t g_watchdog_rearm_required;
 
 /* FreeRTOS 任务入口（定义在 RtosTask 目录的 .cpp 中，供 Core/Src/freertos.c 创建任务时引用） */
 void can_send_task(void *argument);

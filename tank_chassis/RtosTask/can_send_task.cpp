@@ -1,4 +1,6 @@
 #include "can_send_task.hpp"
+#include "main.h"
+#include "watchdog_heartbeat.h"
 #include "remote_task.hpp"
 #include "up_stair.hpp"
 #include "FreeRTOS.h"
@@ -95,10 +97,12 @@ void Chassis485_ApplyData(const Chassis485Data &data)
     gimbalChassisSpeedUpdated = input_online ? 1U : 0U;
 }
 
-ControlInputSnapshot GetControlInputSnapshot(uint32_t now_tick)
+ControlInputSnapshot GetControlInputSnapshot()
 {
     ControlInputSnapshot input;
     taskENTER_CRITICAL();
+    // 取时和读取 ISR 更新时间戳必须在同一临界区，避免新帧比采样时间更新。
+    const uint32_t now_tick = HAL_GetTick();
     const bool local_online = local_remote_received &&
                               now_tick - local_remote_last_tick < 100U;
     const uint8_t gimbal_s1 = static_cast<uint8_t>(gimbalChassis_communicate.s1);
@@ -136,6 +140,14 @@ ControlInputSnapshot GetControlInputSnapshot(uint32_t now_tick)
         input.vx = gimbalChassis_communicate.vx;
         input.vy = gimbalChassis_communicate.vy;
         input.yaw_offset_deg = gimbalChassis_communicate.yaw_offset_deg;
+    }
+    // 看门狗复位后，只有当前选中的新鲜输入双下才能解除停车锁定。
+    if (g_watchdog_rearm_required)
+    {
+        if (input.source != ControlInputSource::NONE && input.s1 == 2U && input.s2 == 2U)
+            g_watchdog_rearm_required = 0;
+        else
+            input = {};
     }
     taskEXIT_CRITICAL();
     return input;
@@ -388,7 +400,7 @@ osDelay(500);
          taskEXIT_CRITICAL();
          const uint32_t now_tick = HAL_GetTick();
          float force_vofa_channels[15] = {}; // 本周期快照；停机时不沿用旧目标和力请求。
-         const ControlInputSnapshot input = GetControlInputSnapshot(now_tick);
+         const ControlInputSnapshot input = GetControlInputSnapshot();
          chassis_input_watch = input;
          const bool source_changed = input.source != last_input_source;
          last_input_source = input.source;
@@ -837,11 +849,11 @@ if (chassis_fsm.Get_Mode() == CHASSIS_STOP)
             RM_RefereeSystemDirFlag ? 0 : 1                            // 裁判系统在线标志 (1=在线)
         );
 
-        vofa_send(
-            chassis_motor.getVelocityRpm(1), chassis_motor.getVelocityRpm(2),
-            chassis_motor.getVelocityRpm(3), chassis_motor.getVelocityRpm(4),
-            0,0
-        );
+        // vofa_send(
+        //     chassis_motor.getVelocityRpm(1), chassis_motor.getVelocityRpm(2),
+        //     chassis_motor.getVelocityRpm(3), chassis_motor.getVelocityRpm(4),
+        //     0,0
+        // );
 
 
         // 向超级电容发送控制数据
@@ -853,6 +865,7 @@ if (chassis_fsm.Get_Mode() == CHASSIS_STOP)
             RM_RefereeSystemDirFlag ? 0 : 1                           // 裁判系统在线标志
         );
 
+Watchdog_RecordHeartbeat(WATCHDOG_TASK_CAN_SEND);
 osDelay(1); 
     }
 }

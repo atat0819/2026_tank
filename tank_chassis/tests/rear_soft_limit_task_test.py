@@ -8,7 +8,7 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 source = (ROOT / "RtosTask/up_stair.cpp").read_text(encoding="utf-8")
 start = source.index("        const bool rear_both_controllable =")
-end = source.index("\n        }\n\n        osDelay", start)
+end = source.index("\n        }\n\n        Watchdog_RecordHeartbeat", start)
 branch = source[start:end]
 kd_declaration = "\n".join(re.search(
     rf"^float {name}\s*=\s*[^;]+;", source, flags=re.M).group(0)

@@ -21,6 +21,7 @@
 #include "cmsis_os.h"
 #include "dma.h"
 #include "fdcan.h"
+#include "iwdg.h"
 #include "spi.h"
 #include "tim.h"
 #include "usart.h"
@@ -50,6 +51,8 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
+volatile uint32_t g_watchdog_reset_detected = 0;
+volatile uint32_t g_watchdog_rearm_required = 0;
 
 /* USER CODE END PV */
 
@@ -109,6 +112,9 @@ int main(void)
   HAL_Init();
 
   /* USER CODE BEGIN Init */
+  g_watchdog_reset_detected = (__HAL_RCC_GET_FLAG(RCC_FLAG_IWDG1RST) != RESET) ? 1U : 0U;
+  g_watchdog_rearm_required = g_watchdog_reset_detected;
+  __HAL_RCC_CLEAR_RESET_FLAGS();
 
   /* USER CODE END Init */
 
@@ -135,6 +141,7 @@ int main(void)
   MX_TIM6_Init();
   MX_TIM12_Init();
   MX_SPI6_Init();
+  MX_IWDG1_Init();
   /* USER CODE BEGIN 2 */
   Board_LED_Init();
 
@@ -182,8 +189,10 @@ void SystemClock_Config(void)
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI48|RCC_OSCILLATORTYPE_HSE;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI48|RCC_OSCILLATORTYPE_LSI
+                              |RCC_OSCILLATORTYPE_HSE;
   RCC_OscInitStruct.HSEState = RCC_HSE_ON;
+  RCC_OscInitStruct.LSIState = RCC_LSI_ON;
   RCC_OscInitStruct.HSI48State = RCC_HSI48_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;

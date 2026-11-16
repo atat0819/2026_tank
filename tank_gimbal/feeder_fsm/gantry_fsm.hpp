@@ -8,13 +8,13 @@ enum class GantryState : uint8_t
 
 enum class GantryFault : uint8_t
 {
-    None, NotHome, Feedback, Timeout, Travel, LiftMismatch, SwitchSequence, Stall
+    None, NotHome, Feedback, Timeout, Travel, LiftMismatch, SwitchSequence
 };
 
 class Class_Gantry_FSM
 {
 public:
-    // 限位依次为 PE13、PE9、PA2、PA3、PD10；角度为 ID5、ID6、DM ID9 的累计角度 deg。
+    // 限位依次为 PE13、PE9、PA2、PA0、PD10；角度为 ID5、ID6、DM ID9 的累计角度 deg。
     // 两台 3508 的反馈电流为 A，速度为输出轴端 rad/s。
     void Update(bool control_enabled, bool feedback_ok, bool lift_feedback_ok,
                 bool right_raw, bool right_pressed,
@@ -36,6 +36,7 @@ public:
     float GetTargetSpeed(unsigned axis) const { return target_speed_rad_s_[axis]; } // rad/s
     double GetHoldAngle(unsigned axis) const { return active_ ? hold_deg_[axis] : 0; } // deg
     float GetProgress() const { return progress_; }
+    float GetGravityLoadFactor() const { return active_ ? gravity_load_factor_ : 0; }
     float GetScale() const { return active_ && Running() ? scale_ : 1; }
 
 private:
@@ -46,9 +47,12 @@ private:
     GantryState state_ = GantryState::Disabled;
     GantryFault fault_ = GantryFault::None;
     bool start_armed_ = false;
+    bool start_hold_pending_ = false;
+    uint32_t start_hold_since_ms_ = 0;
     bool home_recorded_ = false; // 启动时机构已靠重力落底，只记录一次，不随切模式重置
-    bool stall_pending_ = false;
-    uint32_t stall_since_ms_ = 0;
+    bool gravity_unloading_ = false;
+    uint32_t gravity_unload_since_ms_ = 0;
+    float gravity_load_factor_ = 0;
     double home_deg_[2] = {};
     bool holding_ = false;
     uint32_t entered_ms_ = 0;
@@ -66,6 +70,7 @@ private:
 // 实测时读取 gantry_watch.angle_deg，再填写本文件并重新编译。
 namespace GantryTuning
 {
+static constexpr uint32_t START_HOLD_MS = 1000; // 右键消抖确认后连续按住 1 秒
 static constexpr bool CALIBRATED = true; // 行程和速度仍需填写有效值才能通过校验
 
 // 行程标定使用 deg 和端点差值；3508 减速比 19，使用输出轴端角度。
@@ -92,13 +97,17 @@ static constexpr uint32_t LOWER_TIMEOUT_MS = 30000;       // 下降超时，ms
 static constexpr float TRAVEL_MARGIN = 0.20f;        // 超出行程或反向走 10% 判故障
 static constexpr float LIFT_MISMATCH = 0.10f;        // 双升降归一化进度差允许 10%
 
-// 以下为本次空载试转初值，并非实测触底判据；不取消任何堵转、原点或行程保护。
-// 下降到位由 PD10 限位判断，电流和低速仅用于检测堵转故障。
-static constexpr float LOWER_CURRENT_LIMIT_A = 20.0f; // 空载下降限流；还需实测触底电流
-static constexpr float LOWER_STALL_CURRENT_A = 0.3f; // 任一台反馈电流绝对值门槛，>0 且小于下降限流
-static constexpr float LOWER_STALL_SPEED_RAD_S = 0.4f / 19.0f; // 两台输出轴低速门槛，约 0.0211 rad/s，待实测
-static constexpr uint32_t LOWER_STALL_CONFIRM_MS = 50; // 电流和低速条件连续成立时间，>0 且小于下降超时
-static constexpr double LIFT_HOME_TOLERANCE_DEG = 10.0; // 两台输出轴相对上电原点允许偏差 ±10 deg，待实测
+// 上电记录原点和启动时，两台升降输出轴的静止速度门槛。
+static constexpr float HOME_STOP_SPEED_RAD_S = 0.4f / 19.0f; // 约 0.0211 rad/s，待实测
+static constexpr double LIFT_HOME_TOLERANCE_DEG = 20.0; // 两台输出轴相对上电原点允许偏差 ±10 deg，待实测
+
+// 重力补偿为 C620 有符号原始电流指令（±16384）；正负号须按实际向上方向标定。
+static constexpr float LIFT_ID5_GRAVITY_EMPTY_CMD = 0.0f;
+static constexpr float LIFT_ID6_GRAVITY_EMPTY_CMD = 0.0f;
+static constexpr float LIFT_ID5_GRAVITY_LOADED_CMD = 0.0f;
+static constexpr float LIFT_ID6_GRAVITY_LOADED_CMD = 0.0f;
+static constexpr float LOWER_UNLOAD_PROGRESS = 0.40f; // 两台均达到此下降行程后开始卸载切换
+static constexpr uint32_t LOWER_UNLOAD_BLEND_MS = 200;
 
 static constexpr float DM_MOVE_KD = 1.0f;      // 空载起始速度阻尼，Nm/(rad/s)，待实机整定
 static constexpr float DM_HOLD_KD = 1.0f;      // 空载起始保持阻尼，Nm/(rad/s)

@@ -35,19 +35,21 @@ struct {
     float getVelocityRpm(int slot) { assert(slot==1); return 6.0f; }
     float getVelocityRads(int slot) { assert(slot==1); return speed; }
     float getCurrent(int slot) { assert(slot==1); return 1.0f; }
+    float getTorque(int slot) { assert(slot==1); return 2.0f; }
     uint8_t getTemperature(int slot) { assert(slot==1); return 25; }
     float getAddAngleDeg(int slot) { assert(slot==1); return 390.0f; }
-} gimbal_motor;
+} pitch_motor;
 struct {
-    float angle_deg,angle_rad,velocity_rpm,velocity_rads,current_a,delta_angle;
+    float angle_deg,angle_rad,velocity_rpm,velocity_rads,current_a,torque_nm,delta_angle;
     uint8_t temperature;
-} dm4340_state[1];
+} dm4340_state[2];
 float pitch_current_angle=0,pitch_current_speed=0;
 SELECTOR
 int main() {
     UpdatePitchMotorFeedback();
     assert(pitch_current_angle==0.4f && pitch_current_speed==-0.6f);
-    gimbal_motor.angle=0.8f; gimbal_motor.speed=1.2f;
+    assert(dm4340_state[0].angle_rad==0 && dm4340_state[1].torque_nm==2.0f);
+    pitch_motor.angle=0.8f; pitch_motor.speed=1.2f;
     UpdatePitchMotorFeedback();
     assert(pitch_current_angle==0.8f && pitch_current_speed==1.2f);
 }

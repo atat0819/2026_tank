@@ -13,7 +13,7 @@ for axis, motor in (("pitch", 1),):
     assert task.index(f"{axis}_gimbal_fsm.Update({axis}_input, {axis}_current_angle)") < task.index(update)
     assert task.index(update) < task.index(f"{axis}_target_angle = {axis}_gimbal_fsm.Get_Target_Angle()")
     assert task.index(f"{axis}_control_output = BSP::Motor::DM::ClampMitCommandValue(") < task.index(guard)
-    assert task.index(guard) < task.index(f"gimbal_motor.ctrl_Mit({motor}, 0.0f, pitch_target_speed, 0.0f, pitch_mit_kd, pitch_feedforward)")
+    assert task.index(guard) < task.index(f"pitch_motor.ctrl_Mit({motor}, 0.0f, pitch_target_speed, 0.0f, pitch_mit_kd, pitch_feedforward)")
     assert f"{axis}_mode_changed != 0U || {axis}_limit_reset != 0U" in task
     assert f"{axis}_gimbal_fsm.Take_Limit_Reset_Flag()" in task
 

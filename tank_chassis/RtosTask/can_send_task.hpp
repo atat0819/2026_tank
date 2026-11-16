@@ -89,7 +89,7 @@ struct ControlInputSnapshot {
 
 extern ControlInputSnapshot chassis_input_watch;
 
-ControlInputSnapshot GetControlInputSnapshot(uint32_t now_tick);
+ControlInputSnapshot GetControlInputSnapshot();
 #endif
 
 #endif // CAN_SEND_TASK_HPP

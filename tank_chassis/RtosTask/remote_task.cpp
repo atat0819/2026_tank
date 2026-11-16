@@ -1,4 +1,5 @@
 #include "remote_task.hpp"
+#include "watchdog_heartbeat.h"
 #include "FreeRTOS.h"
 #include "task.h"
 #include "queue.h"
@@ -415,6 +416,7 @@ extern "C" void remote_task(void *argument)
     {
         // 裁判系统掉线检测（超时1000ms无数据判定掉线，内部会更新RM_RefereeSystemDirFlag并重连DMA）
         RM_RefereeSystem::RM_RefereeSystemDir();
+        Watchdog_RecordHeartbeat(WATCHDOG_TASK_REMOTE);
         osDelay(1);
     }
 }

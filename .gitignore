@@ -1,1 +1,13 @@
 .worktrees/
+
+# Keil build output
+/tank_chassis/MDK-ARM/tank_chassis/
+/tank_gimbal/MDK-ARM/tank_gimbal/
+/tank_chassis/MDK-ARM/*.log
+/tank_gimbal/MDK-ARM/*.log
+
+# Local debugger and IDE state
+/tank_chassis/MDK-ARM/JLinkLog.txt
+/tank_gimbal/MDK-ARM/JLinkLog.txt
+/tank_chassis/MDK-ARM/*.uvguix.*
+/tank_gimbal/MDK-ARM/*.uvguix.*

@@ -1,4 +1,5 @@
 #include "gantry_task.hpp"
+#include "watchdog_heartbeat.h"
 #include "FreeRTOS.h"
 #include "task.h"
 #include "cmsis_os.h"
@@ -11,12 +12,12 @@
 #include <algorithm>
 #include <cmath>
 
-// FDCAN1：3508 物理 ID 5、6，反馈 ID 0x205、0x206。
+// FDCAN3：3508 物理 ID 5、6，反馈 ID 0x205、0x206。
 // 0x1FF 命令帧内槽位 1、2 对应物理 ID 5、6；setCAN() 传槽位 1、2。
 // 减速比 19：累计角度和速度均使用输出轴端单位。
 const uint8_t gantry_3508_motor_idxs[2] = {5, 6};
 BSP::Motor::Dji::GM3508<2> gantry_3508_motor(
-    0x200, gantry_3508_motor_idxs, 0x1FF, HAL::FDCAN::FdcanDeviceId::HAL_Fdcan1, 19.0);
+    0x200, gantry_3508_motor_idxs, 0x1FF, HAL::FDCAN::FdcanDeviceId::HAL_Fdcan3, 19.2);
 
 // FDCAN3：DM4310 控制/反馈 ID 均为 9；对象内部仅有逻辑通道 1。
 BSP::Motor::DM::J4310<1> gantry_dm4310_motor(
@@ -29,34 +30,44 @@ namespace
 Class_Gantry_FSM gantry_fsm;
 BSP::Switch::MicroSwitch limits[5] = {
     {GPIOE, GPIO_PIN_13}, {GPIOE, GPIO_PIN_9}, {GPIOA, GPIO_PIN_2},
-    {GPIOA, GPIO_PIN_3}, {GPIOD, GPIO_PIN_10}
+    {GPIOA, GPIO_PIN_0}, {GPIOD, GPIO_PIN_10}
 };
 // 依次为 Kp、Ki、Kd、输出限幅、积分状态限幅、积分分离阈值。
 // 3508 输出轴速度误差 rad/s -> 原始电流指令；409.6 对应 0.5 A。
 // 以下为空载低速起始参数，尚未实机整定；Ki 按每次调用累加（周期 2 ms）。
 // 从转子端换算：速度环 Kp/Ki 乘 19，积分状态限幅除以 19，保持相同实际电流响应。
 ALG::PID::PID lift_move_pid[2] = {
-    {1900.0f, 0.0f, 0, 16384.0f, 0.0f, 0}, // 3508 ID5 升降运动速度环
-    {1900.0f, 0.0f, 0, 16384.0f, 0.0f, 0}  // 3508 ID6 升降运动速度环
+    {0.0f, 0.0f, 0, 16384.0f, 0.0f, 0}, // 3508 ID5 升降运动速度环
+    {0.0f, 0.0f, 0, 16384.0f, 0.0f, 0}  // 3508 ID6 升降运动速度环
 };
 
 // 位置保持角度外环：误差 rad -> 目标速度 rad/s；六参数顺序同上。
 // 输出限幅直接使用各轴速度上限，让 PID 在限幅时处理积分。
 ALG::PID::PID hold_angle_pid[3] = {
-    {2.0f, 0.001f, 0, GantryTuning::LIFT_ID5_SPEED_RAD_S, 100.0f / 19.0f, 0}, // 3508 ID5
-    {2.0f, 0.001f, 0, GantryTuning::LIFT_ID6_SPEED_RAD_S, 100.0f / 19.0f, 0}, // 3508 ID6
-    {1.0f, 0.001f, 0, GantryTuning::DM_SPEED_RAD_S, 10, 0}        // DM ID9
+    {0.0f, 0.0f, 0, GantryTuning::LIFT_ID5_SPEED_RAD_S, 100.0f / 19.0f, 0}, // 3508 ID5
+    {0.0f, 0.0f, 0, GantryTuning::LIFT_ID6_SPEED_RAD_S, 100.0f / 19.0f, 0}, // 3508 ID6
+    {0.0f, 0.0f, 0, GantryTuning::DM_SPEED_RAD_S, 10, 0}        // DM ID9
 };
 
 ALG::PID::PID lift_hold_pid[2] = {
-    {1900.0f, 0.0f, 0, 16384.0f, 0.0f, 0}, // 3508 ID5 位置保持速度内环
-    {1900.0f, 0.0f, 0, 16384.0f, 0.0f, 0}  // 3508 ID6 位置保持速度内环
+    {0.0f, 0.0f, 0, 16384.0f, 0.0f, 0}, // 3508 ID5 位置保持速度内环
+    {0.0f, 0.0f, 0, 16384.0f, 0.0f, 0}  // 3508 ID6 位置保持速度内环
 };
 
 bool Gantry_ConfigValid()
 {
     using namespace GantryTuning;
-    if (!Class_Gantry_FSM::ConfigValid() || DM_SPEED_RAD_S > 30 ||
+    const float gravity_cmd[] = {LIFT_ID5_GRAVITY_EMPTY_CMD, LIFT_ID6_GRAVITY_EMPTY_CMD,
+                                 LIFT_ID5_GRAVITY_LOADED_CMD, LIFT_ID6_GRAVITY_LOADED_CMD};
+    for (float value : gravity_cmd)
+        if (!std::isfinite(value) || std::abs(value) > 16384.0f)
+            return false;
+    if (!Class_Gantry_FSM::ConfigValid())
+        return false;
+    if (!std::isfinite(LOWER_UNLOAD_PROGRESS) || LOWER_UNLOAD_PROGRESS <= 0 ||
+        LOWER_UNLOAD_PROGRESS >= 1 || LOWER_UNLOAD_BLEND_MS == 0)
+        return false;
+    if (DM_SPEED_RAD_S > 30 ||
         !std::isfinite(DM_MOVE_KD) || DM_MOVE_KD <= 0 || DM_MOVE_KD > 5 ||
         !std::isfinite(DM_HOLD_KD) || DM_HOLD_KD <= 0 || DM_HOLD_KD > 5 ||
         !std::isfinite(DM_TORQUE_LIMIT_NM) || DM_TORQUE_LIMIT_NM <= 0 ||
@@ -93,7 +104,7 @@ extern "C" void gantry_task(void *argument)
         const bool remote_online = remoteController.isConnected();
         taskENTER_CRITICAL();
         const uint32_t now_ms = HAL_GetTick();
-        const bool control_enabled = configured && remote_online &&
+        const bool control_enabled = configured && remote_online && !g_watchdog_rearm_required &&
             remoteController.get_s1() == BSP::REMOTE_CONTROL::RemoteController::MIDDLE &&
             remoteController.get_s2() == BSP::REMOTE_CONTROL::RemoteController::MIDDLE &&
             input_dispatcher.GetSource() == InputSource::KeyMouse;
@@ -101,26 +112,27 @@ extern "C" void gantry_task(void *argument)
         const bool right_pressed = input_dispatcher.IsRightButtonHeld();
         bool feedback_ok = true;
         bool lift_feedback_ok = true;
-        for (unsigned i = 0; i < 3; ++i)
+        for (unsigned i = 0; i < 2; ++i)
         {
-            angle_deg[i] = i < 2 ? gantry_3508_motor.getAddAngleDeg(i + 1) :
-                                     gantry_dm4310_motor.getAddAngleDeg(1);
-            velocity[i] = i < 2 ? gantry_3508_motor.getVelocityRads(i + 1) :
-                                 gantry_dm4310_motor.getVelocityRads(1);
+            angle_deg[i] = gantry_3508_motor.getAddAngleDeg(i + 1);
+            velocity[i] = gantry_3508_motor.getVelocityRads(i + 1);
             // Parse() 在驱动内更新时间戳，isConnected() 判断反馈超时。
-            const bool online = i < 2 ? gantry_3508_motor.isConnected(i + 1, i + 5) :
-                                       gantry_dm4310_motor.isConnected(1, 9);
+            const bool online = gantry_3508_motor.isConnected(i + 1, i + 5);
             gantry_watch.online[i] = online;
             gantry_watch.angle_deg[i] = angle_deg[i];
             gantry_watch.velocity_rad_s[i] = velocity[i];
-            if (i < 2)
-            {
-                lift_current_a[i] = gantry_3508_motor.getCurrent(i + 1);
-                gantry_watch.lift_current_a[i] = lift_current_a[i];
-                lift_feedback_ok = lift_feedback_ok && online;
-            }
+            lift_current_a[i] = gantry_3508_motor.getCurrent(i + 1);
+            gantry_watch.lift_current_a[i] = lift_current_a[i];
+            lift_feedback_ok = lift_feedback_ok && online;
             feedback_ok = feedback_ok && online && std::isfinite(velocity[i]);
         }
+        angle_deg[2] = gantry_dm4310_motor.getAddAngleDeg(1);
+        velocity[2] = gantry_dm4310_motor.getVelocityRads(1);
+        const bool dm_online = gantry_dm4310_motor.isConnected(1, 9);
+        gantry_watch.online[2] = dm_online;
+        gantry_watch.angle_deg[2] = angle_deg[2];
+        gantry_watch.velocity_rad_s[2] = velocity[2];
+        feedback_ok = feedback_ok && dm_online && std::isfinite(velocity[2]);
         const bool dm_ready = gantry_watch.online[2] && gantry_watch.dm_status == 1;
         feedback_ok = feedback_ok && dm_ready;
         gantry_watch.control_enabled = control_enabled;
@@ -139,7 +151,7 @@ extern "C" void gantry_task(void *argument)
             limit_pressed[0], // PE13：第一次抬升
             limit_pressed[1], // PE9：前伸
             limit_pressed[2], // PA2：第二次抬升
-            limit_pressed[3], // PA3：后收
+            limit_pressed[3], // PA0：后收
             limit_pressed[4], // PD10：下降到底
             angle_deg[0],     // 3508 ID5, deg
             angle_deg[1],     // 3508 ID6, deg
@@ -183,11 +195,28 @@ extern "C" void gantry_task(void *argument)
                 lift_move_pid[i].reset();
                 current = lift_hold_pid[i].UpDate(target, velocity[i]);
             }
-            if (gantry_fsm.GetState() == GantryState::Lower)
+            if (gantry_fsm.IsMoving(i) || gantry_fsm.IsKeeping(i))
             {
-                // C620 指令为原始值，±16384 对应 ±20 A，与减速比无关。
-                const float current_limit = LOWER_CURRENT_LIMIT_A * (16384.0f / 20.0f);
-                current = std::clamp(current, -current_limit, current_limit);
+                const float empty_cmd[2] = {LIFT_ID5_GRAVITY_EMPTY_CMD, LIFT_ID6_GRAVITY_EMPTY_CMD};
+                const float loaded_cmd[2] = {LIFT_ID5_GRAVITY_LOADED_CMD, LIFT_ID6_GRAVITY_LOADED_CMD};
+                const GantryState state = gantry_fsm.GetState();
+                float gravity_cmd = 0;
+                if (state == GantryState::LiftFirst || state == GantryState::Extend)
+                {
+                    gravity_cmd = empty_cmd[i]; // 第一次抬升和前伸：空载
+                }
+                else if (state == GantryState::LiftSecond || state == GantryState::Retract)
+                {
+                    gravity_cmd = loaded_cmd[i]; // 第二次抬升和后收：带载
+                }
+                else if (state == GantryState::Lower)
+                {
+                    // 下降卸载后，系数在 200 ms 内由 1 逐渐变为 0。
+                    const float loaded_factor = gantry_fsm.GetGravityLoadFactor();
+                    gravity_cmd = empty_cmd[i] + (loaded_cmd[i] - empty_cmd[i]) * loaded_factor;
+                }
+                current += gravity_cmd;
+                current = std::clamp(current, -16384.0f, 16384.0f);
             }
             const int16_t command = static_cast<int16_t>(current);
             gantry_watch.lift_command[i] = command;
@@ -239,6 +268,7 @@ extern "C" void gantry_task(void *argument)
         {
             dm_recovery_fsm.Force_Enable_On_Next_Check();
         }
+        Watchdog_RecordHeartbeat(WATCHDOG_TASK_GANTRY);
         osDelay(2);
     }
 }

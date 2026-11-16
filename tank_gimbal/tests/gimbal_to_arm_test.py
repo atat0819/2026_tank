@@ -188,10 +188,14 @@ with tempfile.TemporaryDirectory(prefix="gimbal_arm_") as directory:
     task_test = r'''
 #include <cassert>
 #include <cstdint>
+namespace BSP::REMOTE_CONTROL { struct RemoteController { enum { DOWN=2 }; }; }
+uint32_t g_watchdog_rearm_required=0;
 struct Remote {
     bool connected=true; uint8_t s1=1, s2=3; uint16_t keyboard=0x1234;
     bool isConnected() { return connected; }
     uint8_t get_s1() { return s1; } uint8_t get_s2() { return s2; }
+    float get_left_y() { return 0; } float get_left_x() { return 0; }
+    float get_right_y() { return 0; } float get_right_x() { return 0; }
     uint16_t get_keyboard() { return keyboard; }
 } remoteController;
 bool arm_remote_received=false, inject_new_frame=false, in_critical=false;

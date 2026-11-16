@@ -38,7 +38,7 @@ struct Rig
             }
         }
     }
-    void press() { right_raw = right_pressed = true; tick(); }
+    void press() { right_raw = right_pressed = true; tick(); tick(1000); }
     void release() { right_raw = right_pressed = false; tick(); }
     void lift(float delta) { angle_deg[0] += delta; angle_deg[1] -= delta; tick(); }
     void horizontal(float delta) { angle_deg[2] += delta; tick(); }
@@ -53,6 +53,62 @@ struct Rig
 
 int main()
 {
+    {
+        Rig r;
+        r.right_raw = r.right_pressed = true; r.tick();
+        r.tick(999); assert(r.f.GetState() == State::Idle);
+        r.tick(1); assert(r.f.GetState() == State::LiftFirst);
+    }
+    {
+        Rig r;
+        r.right_raw = r.right_pressed = true; r.tick(); r.tick(700);
+        r.right_raw = false; r.tick(); // 原始信号松开立即取消，不等待消抖
+        r.right_raw = true; r.tick(500); assert(r.f.GetState() == State::Idle);
+        r.release(); r.right_raw = r.right_pressed = true; r.tick();
+        r.tick(999); assert(r.f.GetState() == State::Idle);
+        r.tick(1); assert(r.f.GetState() == State::LiftFirst);
+    }
+    {
+        Rig r;
+        r.right_raw = r.right_pressed = true; r.tick(); r.tick(500);
+        r.enabled = false; r.tick(); r.enabled = true; r.tick(1000);
+        assert(r.f.GetState() == State::Idle); // 重新使能时仍按住，不启动
+        r.release(); r.press(); assert(r.f.GetState() == State::LiftFirst);
+    }
+    {
+        Rig r;
+        r.right_raw = r.right_pressed = true; r.tick(); r.tick(500);
+        r.feedback_ok = false; r.tick(); r.feedback_ok = true; r.tick(1000);
+        assert(r.f.GetState() == State::Idle); // 反馈恢复后仍按住，不启动
+        r.release(); r.press(); assert(r.f.GetState() == State::LiftFirst);
+    }
+    {
+        Rig r; r.now_ms = UINT32_MAX - 500;
+        r.right_raw = r.right_pressed = true; r.tick(); r.tick(999);
+        assert(r.f.GetState() == State::Idle);
+        r.tick(1); assert(r.f.GetState() == State::LiftFirst); // 毫秒计数回绕
+    }
+    {
+        Rig r;
+        assert(r.f.GetGravityLoadFactor() == 0);
+        r.press(); assert(r.f.GetGravityLoadFactor() == 0);
+        r.limit[3] = false; r.lift(1000); r.hit(0);
+        assert(r.f.GetGravityLoadFactor() == 0);
+        r.horizontal(-500); r.hit(1);
+        assert(r.f.GetGravityLoadFactor() == 1);
+        r.lift(1000); r.hit(2);
+        assert(r.f.GetGravityLoadFactor() == 1);
+        r.horizontal(500); r.limit[3] = true; r.tick();
+        assert(r.f.GetGravityLoadFactor() == 1);
+        r.angle_deg[0] -= 800; r.angle_deg[1] += 780; r.tick();
+        assert(r.f.GetGravityLoadFactor() == 1); // 一台尚未到 40%
+        r.angle_deg[1] += 20; r.tick();
+        assert(r.f.GetGravityLoadFactor() == 1);
+        r.tick(100); assert(std::abs(r.f.GetGravityLoadFactor() - .5f) < .001f);
+        r.angle_deg[0] += 10; r.tick(100); // 回弹不撤销切换
+        assert(r.f.GetGravityLoadFactor() == 0);
+        r.enabled = false; r.tick(); assert(r.f.GetGravityLoadFactor() == 0);
+    }
     {
         Rig r;
         assert(r.f.GetState() == State::Idle && !r.f.IsActive());
@@ -215,14 +271,15 @@ int main()
         r.current_a[0] = 0; r.tick(); // A transient must reset the full confirmation time.
         r.current_a[1] = -1;
         r.tick(); r.tick(99); assert(r.f.GetState() == State::Lower);
-        r.tick(1); assert(r.f.GetFault() == Fault::Stall && !r.f.IsActive());
+        r.tick(1); assert(r.f.GetState() == State::Lower && r.f.IsActive());
+        r.limit[4] = true; r.tick(); assert(r.f.GetState() == State::Idle);
     }
     {
         Rig r; r.lower(); r.lift(-1000);
         r.current_a[0] = 1; r.tick(); r.tick(100);
-        assert(r.f.GetFault() == Fault::Stall && !r.f.IsActive());
+        assert(r.f.GetState() == State::Lower && r.f.IsActive());
         r.current_a[0] = 0; r.tick();
-        assert(r.f.GetState() == State::Fault); // A mid-travel jam is not home.
+        assert(r.f.GetState() == State::Lower); // Only PD10 ends descent.
     }
     {
         Rig r; r.lower(); r.lift(-2000);
@@ -245,7 +302,7 @@ int main()
         r.current_a[0] = 0; r.release(); r.lower(); r.lift(-2000);
         r.current_a[0] = 1; r.tick(); r.tick(99);
         assert(r.f.GetState() == State::Lower);
-        r.tick(1); assert(r.f.GetFault() == Fault::Stall && !r.f.IsActive());
+        r.tick(1); assert(r.f.GetState() == State::Lower && r.f.IsActive());
     }
     {
         Rig r; r.lower(); r.tick(10000);

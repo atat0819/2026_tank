@@ -7,9 +7,9 @@ namespace BSP::Switch
 class MicroSwitch
 {
   public:
-    // 固定高电平按下、低电平松开；debounce_ms：按下/松开的消抖时间(ms)。
+    // 固定低电平按下、高电平松开；debounce_ms：按下/松开的消抖时间(ms)。
     MicroSwitch(GPIO_TypeDef *port, uint16_t pin, uint32_t debounce_ms = 20)
-        : port_(port), pin_(pin), debounce_ms_(debounce_ms), stable_level_(GPIO_PIN_RESET),
+        : port_(port), pin_(pin), debounce_ms_(debounce_ms), stable_level_(GPIO_PIN_SET),
           candidate_level_(stable_level_), last_change_ms_(0), has_sample_(false)
     {
     }
@@ -48,7 +48,7 @@ class MicroSwitch
 
     bool getPress() const
     {
-        return stable_level_ == GPIO_PIN_SET;
+        return stable_level_ == GPIO_PIN_RESET;
     }
 
   private:

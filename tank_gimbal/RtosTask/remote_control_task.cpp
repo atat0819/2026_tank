@@ -1,4 +1,5 @@
 #include "remote_control_task.hpp"
+#include "watchdog_heartbeat.h"
 #include "FreeRTOS.h"
 #include "task.h"
 #include "queue.h"
@@ -186,10 +187,19 @@ extern "C" void remote_control_task(void *argument)
         uint16_t keyboard;
         taskENTER_CRITICAL();
         remote_online = remoteController.isConnected();
-        arm_online = arm_remote_received && remote_online;
         s1 = remoteController.get_s1();
         s2 = remoteController.get_s2();
         keyboard = remoteController.get_keyboard();
+        // 看门狗复位后仅接受有效遥控双下解锁；已处于双下也可解锁。
+        if (g_watchdog_rearm_required && arm_remote_received && remote_online &&
+            s1 == BSP::REMOTE_CONTROL::RemoteController::DOWN &&
+            s2 == BSP::REMOTE_CONTROL::RemoteController::DOWN &&
+            !(remoteController.get_left_y() == -1 && remoteController.get_left_x() == -1 &&
+              remoteController.get_right_x() == -1 && remoteController.get_right_y() == -1))
+        {
+            g_watchdog_rearm_required = 0;
+        }
+        arm_online = arm_remote_received && remote_online && !g_watchdog_rearm_required;
         taskEXIT_CRITICAL();
         gimbal_to_arm.SendRemoteData(s1, s2, keyboard, arm_online);
         if (!remote_online)
@@ -211,6 +221,7 @@ extern "C" void remote_control_task(void *argument)
 
         // 无 IMU 绝对姿态，停止向视觉发送姿态；USB 接收接口保留。
 
+        Watchdog_RecordHeartbeat(WATCHDOG_TASK_REMOTE);
         vTaskDelay(2);
     }
 }

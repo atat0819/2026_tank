@@ -16,6 +16,7 @@ control = r'''
 #include "chassis/fsm/control_input_selector.hpp"
 #include "task.h"
 bool local_remote_received=false;
+volatile uint32_t g_watchdog_rearm_required=0;
 uint32_t local_remote_last_tick=0;
 uint16_t local_remote_keyboard=0;
 int16_t local_remote_mouse_x=0;
@@ -100,14 +101,14 @@ int main() {
     assert(applied==1 && attempts[1]==1 && lengths[1]==12);
     assert(snapshot.right_stick_x==0.5f && snapshot.mouse_x==-1234);
     assert(snapshot.vx==0.5f && snapshot.vy==-0.25f && snapshot.keyboard==0x1234);
-    auto input=GetControlInputSnapshot(now);
+    auto input=GetControlInputSnapshot();
     assert(input.source==ControlInputSource::GIMBAL && input.keyboard==0x1234);
     assert(input.wz==0.5f && input.yaw_offset_deg==0 && input.mouse_x==-1234);
-    for (int i=0;i<5;++i) assert(GetControlInputSnapshot(now).mouse_x==-1234);
+    for (int i=0;i<5;++i) assert(GetControlInputSnapshot().mouse_x==-1234);
     assert(gimbal_switch_last_tick==now && gimbal_yaw_last_tick==now);
-    assert(GetControlInputSnapshot(now+100).source==ControlInputSource::NONE);
+    now+=100; assert(GetControlInputSnapshot().source==ControlInputSource::NONE); now-=100;
     local_remote_received=true; local_remote_last_tick=now;
-    assert(GetControlInputSnapshot(now).source==ControlInputSource::LOCAL);
+    assert(GetControlInputSnapshot().source==ControlInputSource::LOCAL);
     local_remote_received=false;
     uint8_t reply[12]; memcpy(reply,active[1],12);
     assert(reply[0]==0x91 && reply[1]==0x78 && reply[2]==0x12 && reply[3]==0x34);
@@ -149,7 +150,7 @@ int main() {
     Chassis485_Parse(active[0],22);
     assert(snapshot.right_stick_x==0 && snapshot.mouse_x==0 && snapshot.s1==0 && snapshot.s2==0);
     assert(snapshot.vx==0 && snapshot.vy==0 && snapshot.keyboard==0);
-    assert(GetControlInputSnapshot(now).source==ControlInputSource::NONE);
+    assert(GetControlInputSnapshot().source==ControlInputSource::NONE);
     assert(!gimbal_switch_received && !gimbal_keyboard_received);
     board=0; ref.parse485(active[1],12);
     assert(!ref.isRefereeOnline() && ref.getCoolingValue()==1);
@@ -175,14 +176,14 @@ int main() {
     next_request(); assert(RS485_SendBoardData(-1.0f,-32768,0,0,3,3,0)==HAL_OK);
     board=1; Chassis485_Parse(active[0],22); assert(applied==old+1);
     assert(snapshot.right_stick_x==-1.0f && snapshot.mouse_x==-32768);
-    assert(GetControlInputSnapshot(now).wz==-1.0f);
+    assert(GetControlInputSnapshot().wz==-1.0f);
     next_request(); assert(RS485_SendBoardData(1.0f,32767,0,0,3,3,0)==HAL_OK);
     board=1; Chassis485_Parse(active[0],22); assert(applied==old+2);
     assert(snapshot.right_stick_x==1.0f && snapshot.mouse_x==32767);
-    assert(GetControlInputSnapshot(now).wz==1.0f);
+    assert(GetControlInputSnapshot().wz==1.0f);
     next_request(); assert(RS485_SendBoardData(0,0,0,0,3,3,0)==HAL_OK);
     board=1; Chassis485_Parse(active[0],22);
-    assert(GetControlInputSnapshot(now).mouse_x==0);
+    assert(GetControlInputSnapshot().mouse_x==0);
     // HAL 启动失败不能把链路锁在等待状态。
     next_request(); accept[0]=false;
     assert(RS485_SendBoardData(0,0,0,0,1,1,0)==HAL_ERROR);

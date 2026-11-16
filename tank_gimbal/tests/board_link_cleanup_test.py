@@ -45,5 +45,5 @@ assert "Referee485_Update(" in chassis_task
 assert "fdcan2.register_rx_callback" in chassis_task and "front_4340.Parse(frame)" in chassis_task
 assert "fdcan3.register_rx_callback" in chassis_task and "rear_6248.Parse(frame)" in chassis_task
 assert "fdcan1.register_rx_callback" in gimbal_task and "friction_motor.Parse(frame)" in gimbal_task
-assert "fdcan3.register_rx_callback" in gimbal_task and "gimbal_motor.Parse(frame)" in gimbal_task
+assert "fdcan3.register_rx_callback" in gimbal_task and "pitch_motor.Parse(frame)" in gimbal_task
 print("PASS: legacy CAN board link removed; RS485 and motor CAN routing retained")
