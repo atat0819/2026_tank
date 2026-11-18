@@ -126,7 +126,7 @@ void MX_FREERTOS_Init(void) {
       xTaskCreate(can_send_task, "CAN_Send_Task", 2048, NULL, osPriorityAboveNormal+2, &xCanSendHandle) != pdPASS ||
       xTaskCreate(gimbal_task, "Gimbal_Task", 1024, NULL, osPriorityAboveNormal+1, &xGimbalHandle) != pdPASS ||
       xTaskCreate(remote_control_task, "Remote_Control_Task", 512, NULL, osPriorityAboveNormal, &xRemoteHandle) != pdPASS ||
-      xTaskCreate(gantry_task, "Gantry_Task", 512, NULL, osPriorityAboveNormal, &xGantryHandle) != pdPASS ||
+      xTaskCreate(gantry_task, "Gantry_Task", 128, NULL, osPriorityAboveNormal, &xGantryHandle) != pdPASS ||
       xTaskCreate(watchdog_task, "Watchdog_Task", 128, NULL, osPriorityAboveNormal+3, NULL) != pdPASS)
   {
     Error_Handler();

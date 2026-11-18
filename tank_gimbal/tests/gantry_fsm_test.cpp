@@ -38,7 +38,7 @@ struct Rig
             }
         }
     }
-    void press() { right_raw = right_pressed = true; tick(); tick(1000); }
+    void press() { right_raw = right_pressed = true; tick(); tick(2000); }
     void release() { right_raw = right_pressed = false; tick(); }
     void lift(float delta) { angle_deg[0] += delta; angle_deg[1] -= delta; tick(); }
     void horizontal(float delta) { angle_deg[2] += delta; tick(); }
@@ -56,7 +56,7 @@ int main()
     {
         Rig r;
         r.right_raw = r.right_pressed = true; r.tick();
-        r.tick(999); assert(r.f.GetState() == State::Idle);
+        r.tick(1999); assert(r.f.GetState() == State::Idle);
         r.tick(1); assert(r.f.GetState() == State::LiftFirst);
     }
     {
@@ -65,7 +65,7 @@ int main()
         r.right_raw = false; r.tick(); // 原始信号松开立即取消，不等待消抖
         r.right_raw = true; r.tick(500); assert(r.f.GetState() == State::Idle);
         r.release(); r.right_raw = r.right_pressed = true; r.tick();
-        r.tick(999); assert(r.f.GetState() == State::Idle);
+        r.tick(1999); assert(r.f.GetState() == State::Idle);
         r.tick(1); assert(r.f.GetState() == State::LiftFirst);
     }
     {
@@ -84,7 +84,7 @@ int main()
     }
     {
         Rig r; r.now_ms = UINT32_MAX - 500;
-        r.right_raw = r.right_pressed = true; r.tick(); r.tick(999);
+        r.right_raw = r.right_pressed = true; r.tick(); r.tick(1999);
         assert(r.f.GetState() == State::Idle);
         r.tick(1); assert(r.f.GetState() == State::LiftFirst); // 毫秒计数回绕
     }
@@ -214,7 +214,9 @@ int main()
     }
     {
         Rig r; r.press(); r.angle_deg[0] += 500; r.angle_deg[1] -= 490; r.tick();
-        assert(r.f.GetScale() == .5f && r.f.GetTargetSpeed(0) == -r.f.GetTargetSpeed(1));
+        assert(r.f.GetScale() == .5f);
+        assert(r.f.GetTargetSpeed(0) > 0 && r.f.GetTargetSpeed(1) < 0);
+        assert(r.f.GetTargetSpeed(0) < -r.f.GetTargetSpeed(1)); // ID5 领先，减速等待 ID6。
     }
     {
         Rig r; r.limit[0] = true; r.press();

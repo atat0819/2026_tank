@@ -1,80 +1,127 @@
 #include "boards_communication_uart_485.hpp"
+#include "../../rs485_protocol.hpp"
+#include "../RtosTask/remote_control_task.hpp"
 #include "../user/core/HAL/UART/uart_hal.hpp"
+#include "FreeRTOS.h"
+#include "task.h"
+#include <math.h>
 #include <string.h>
 
-static_assert(sizeof(float) == 4, "RS485 protocol requires 4-byte float");
+static volatile bool remote_online = false;
+static volatile bool remote_received = false;
+static volatile uint32_t remote_receive_tick = 0;
+static volatile uint32_t remote_sample_tick = 0;
+static volatile float yaw_encoder_deg = 0;
+static volatile bool yaw_received = false;
+static volatile uint32_t yaw_receive_tick = 0;
+static Gimbal485RefereeData referee_data;
+static uint32_t referee_receive_tick = 0;
 
-static uint32_t last_send_tick = 0U;
-static volatile bool waiting_reply = false;
-
-void RS485_ReplyReceived(void)
+bool Gimbal485_RemoteOnline()
 {
-    waiting_reply = false;
+    taskENTER_CRITICAL();
+    const uint32_t now = HAL_GetTick();
+    const bool online = remote_received && remote_online &&
+                        now - remote_receive_tick < 100U && now - remote_sample_tick < 100U;
+    taskEXIT_CRITICAL();
+    return online;
 }
 
-// CRC16/MCRF4XX：初值 0xFFFF，反射多项式 0x8408，无最终异或。
-// 校验范围为字节 0..19，CRC 低字节在前；与项目裁判系统 CRC16 参数一致。
-static uint16_t Boards485_Crc16(const uint8_t *data, uint16_t size)
+void Gimbal485_UpdateYawFromISR(float angle_deg)
 {
-    uint16_t crc = 0xFFFF;
+    yaw_encoder_deg = angle_deg;
+    yaw_receive_tick = HAL_GetTick();
+    yaw_received = true;
+}
+
+void Gimbal485_GetRefereeData(Gimbal485RefereeData &data)
+{
+    taskENTER_CRITICAL();
+    data = referee_data;
+    data.age_ms = data.received ? HAL_GetTick() - referee_receive_tick : UINT32_MAX;
+    taskEXIT_CRITICAL();
+}
+
+// 发送：收到有效底盘帧后回复 Yaw 偏移角，正前方编码器零点为 24 度。
+void Gimbal485_Send()
+{
+    auto &uart3 = HAL::UART::get_uart_bus_instance().get_uart3();
+    if (uart3.get_handle()->gState != HAL_UART_STATE_READY)
+    {
+        return;
+    }
+
+    static uint8_t tx_frame[BoardLink::kYawSize];
+    const bool yaw_online = yaw_received && HAL_GetTick() - yaw_receive_tick < 100U;
+    const float yaw_offset = yaw_online ? BoardLink::yawOffsetDeg(yaw_encoder_deg) : NAN;
+    BoardLink::encodeYaw(tx_frame, yaw_offset);
+    HAL::UART::Data tx{tx_frame, sizeof(tx_frame)};
+    uart3.transmit_dma(tx);
+}
+
+// 解析底盘的 32 字节帧，直接将其中的 DBUS 原始数据交给遥控驱动。
+void Gimbal485_Parse(const uint8_t *data, uint16_t size)
+{
+    static uint8_t frame[BoardLink::kChassisSize];
+    static unsigned received = 0;
+    static uint16_t last_remote_sequence = 0;
+    static bool dbus_received = false;
+
+    if (data == nullptr)
+    {
+        return;
+    }
+
     for (uint16_t i = 0; i < size; ++i)
     {
-        crc ^= data[i];
-        for (uint8_t bit = 0; bit < 8; ++bit)
+        frame[received++] = data[i];
+        if (received < sizeof(frame))
         {
-            crc = (crc & 1U) ? (crc >> 1) ^ 0x8408U : crc >> 1;
+            continue;
         }
-    }
-    return crc;
-}
 
-HAL_StatusTypeDef RS485_SendBoardData(float right_stick_x, int16_t mouse_x,
-                                    float chassis_vx, float chassis_vy,
-                                    uint8_t s1, uint8_t s2,
-                                    uint16_t keyboard)
-{
-    auto &uart3_485 = HAL::UART::get_uart_bus_instance().get_uart3();
-    // RX DMA 可以同时挂起；只检查发送状态，避免覆盖上一帧仍在读取的缓冲区。
-    if (uart3_485.get_handle()->gState != HAL_UART_STATE_READY)
-    {
-        return HAL_BUSY;
-    }
-
-    const uint32_t now = HAL_GetTick();
-    const uint32_t age = now - last_send_tick;
-    if (waiting_reply)
-    {
-        if (age < 2U)
+        // 检查帧头和 CRC，失败时向后查找下一帧。
+        BoardLink::ChassisData chassis_data{};
+        if (!BoardLink::decodeChassis(frame, chassis_data))
         {
-            return HAL_BUSY;
+            memmove(frame, frame + 1, sizeof(frame) - 1);
+            received = sizeof(frame) - 1;
+            continue;
         }
-        waiting_reply = false;
+        received = 0;
+
+        if (chassis_data.remote_online && !BoardLink::dbusValid(chassis_data.dbus))
+        {
+            continue;
+        }
+
+        // 更新裁判系统数据和本次接收时间。
+        referee_data.cooling_value = chassis_data.cooling;
+        referee_data.heat_limit = chassis_data.heat_limit;
+        referee_data.heat_42mm = chassis_data.heat_42mm;
+        referee_data.referee_online = chassis_data.referee_online != 0U;
+        referee_receive_tick = HAL_GetTick();
+        referee_data.received = true;
+
+        // 底盘可能多次发送同一帧，只在序号变化时解析，避免重复累计鼠标位移。
+        const bool link_recovered = !remote_received || HAL_GetTick() - remote_receive_tick >= 100U;
+        if (chassis_data.remote_online)
+        {
+            if (!dbus_received || chassis_data.remote_sequence != last_remote_sequence || link_recovered)
+            {
+                remoteController.parseData(chassis_data.dbus);
+                remote_sample_tick = HAL_GetTick();
+                last_remote_sequence = chassis_data.remote_sequence;
+                dbus_received = true;
+            }
+        }
+        else
+        {
+            dbus_received = false;
+        }
+        remote_online = chassis_data.remote_online != 0U;
+        remote_receive_tick = HAL_GetTick();
+        remote_received = true;
+        Gimbal485_Send();
     }
-
-    static uint8_t tx_buffer[22];
-
-    // STM32H723 为小端，float 使用 IEEE754 单精度；逐字段拷贝避免结构体填充。
-    tx_buffer[0] = 0x78;
-    tx_buffer[1] = 0x91;
-    memcpy(&tx_buffer[2], &right_stick_x, sizeof(right_stick_x));
-    memcpy(&tx_buffer[6], &mouse_x, sizeof(mouse_x));
-    memcpy(&tx_buffer[8], &chassis_vx, sizeof(float));
-    memcpy(&tx_buffer[12], &chassis_vy, sizeof(float));
-    tx_buffer[16] = s1;
-    tx_buffer[17] = s2;
-    tx_buffer[18] = static_cast<uint8_t>(keyboard);
-    tx_buffer[19] = static_cast<uint8_t>(keyboard >> 8);
-    const uint16_t crc = Boards485_Crc16(tx_buffer, 20);
-    tx_buffer[20] = static_cast<uint8_t>(crc);
-    tx_buffer[21] = static_cast<uint8_t>(crc >> 8);
-
-    HAL::UART::Data tx{tx_buffer, sizeof(tx_buffer)};
-    waiting_reply = true;
-    if (!uart3_485.transmit_dma(tx))
-    {
-        waiting_reply = false;
-        return HAL_ERROR;
-    }
-    last_send_tick = now;
-    return HAL_OK;
 }

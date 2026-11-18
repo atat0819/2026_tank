@@ -7,6 +7,7 @@
 #include "cmsis_os.h"
 #include "../user/core/BSP/RemoteControl/DT7.hpp"
 #include "../user/core/BSP/version/vision_communication.hpp"
+#include "../communication_between_boards/boards_communication_uart_485.hpp"
 
 
 extern "C" {

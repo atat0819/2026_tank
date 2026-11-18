@@ -41,6 +41,11 @@ cases = [
     ("nan_speed", {**valid, "LIFT_ID5_SPEED_RAD_S": "std::numeric_limits<float>::quiet_NaN()"}),
     ("zero_home_stop_speed", {**valid, "HOME_STOP_SPEED_RAD_S": "0"}),
     ("zero_home_tolerance", {**valid, "LIFT_HOME_TOLERANCE_DEG": "0"}),
+    ("negative_sync_gain", {**valid, "LIFT_SYNC_KP": "-1"}),
+    ("nan_sync_gain", {**valid, "LIFT_SYNC_KP": "std::numeric_limits<float>::quiet_NaN()"}),
+    ("negative_sync_limit", {**valid, "LIFT_SYNC_MAX_SPEED_RATIO": "-.1f"}),
+    ("excessive_sync_limit", {**valid, "LIFT_SYNC_MAX_SPEED_RATIO": "1.01f"}),
+    ("nan_sync_limit", {**valid, "LIFT_SYNC_MAX_SPEED_RATIO": "std::numeric_limits<float>::quiet_NaN()"}),
 ]
 with tempfile.TemporaryDirectory(prefix="gantry_fsm_") as directory:
     work = Path(directory)
@@ -82,7 +87,7 @@ int main() {
         f.Update(true, true, true, true, true, false, false, false, false, false,
                  id5, id6, 0, 0, 0, 0, 0, 5);
         f.Update(true, true, true, true, true, false, false, false, false, false,
-                 id5, id6, 0, 0, 0, 0, 0, 1005);
+                 id5, id6, 0, 0, 0, 0, 0, 2005);
         assert((f.GetState() == GantryState::LiftFirst) == allowed);
         if (!allowed) assert(f.GetFault() == GantryFault::NotHome);
     };

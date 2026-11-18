@@ -28,6 +28,11 @@
 #include "usb_device.h"
 #include "iwdg.h"
 #include "watchdog_heartbeat.h"
+
+
+
+
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -63,6 +68,7 @@ const osThreadAttr_t defaultTask_attributes = {
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
+extern void gantry_task(void *argument);
 BaseType_t start_remote_control;
 BaseType_t start_can_send;
 BaseType_t start_up_stair;
@@ -71,6 +77,8 @@ TaskHandle_t xUpStairHandle;
 TaskHandle_t xRemoteHandle;
 TaskHandle_t xCanSendHandle;
 TaskHandle_t xUIHandle;
+TaskHandle_t xGantryHandle;
+
 
 static void watchdog_task(void *argument);
 
@@ -119,9 +127,10 @@ void MX_FREERTOS_Init(void) {
   start_remote_control = xTaskCreate(remote_task, "Remote_Control_Task", 256, NULL, osPriorityAboveNormal, &xRemoteHandle);
   xTaskCreate(ui_task, "UI_Task", 384, NULL, osPriorityNormal, &xUIHandle);
   start_up_stair = xTaskCreate(up_stair_task, "Up_Stair_Task", 512, NULL, osPriorityRealtime, &xUpStairHandle);
+  const BaseType_t start_gantry = xTaskCreate(gantry_task, "Gantry_Task", 512, NULL, osPriorityRealtime, &xGantryHandle);
   const BaseType_t start_watchdog = xTaskCreate(watchdog_task, "Watchdog_Task", 128, NULL, osPriorityRealtime+1, NULL);
   if (start_can_send != pdPASS || start_remote_control != pdPASS ||
-      start_up_stair != pdPASS || start_watchdog != pdPASS)
+      start_up_stair != pdPASS || start_gantry != pdPASS || start_watchdog != pdPASS)
   {
     Error_Handler();
   }

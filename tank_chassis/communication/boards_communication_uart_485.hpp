@@ -1,21 +1,19 @@
 #pragma once
 #include <stdint.h>
 
-// 云台 -> 底盘：78 91 + 18 字节数据 + CRC16，共 22 字节，不包含云台 IMU 数据。
-// 多字节字段为小端；2..5=归一化摇杆 X float，6..7=最新 DT7 鼠标 X int16。
-typedef struct Chassis485Data
-{
-    float right_stick_x;
-    int16_t mouse_x;
-    float vx;
-    float vy;
-    uint8_t s1;
-    uint8_t s2;
-    uint16_t keyboard;
-} Chassis485Data;
-
-// 从 UART lambda 调用，允许拆帧、粘帧和前导噪声；仅有效帧刷新数据并触发回复。
+// 底盘与云台的 RS485 收发入口，使用 USART3。
+void Chassis485_Send();
 void Chassis485_Parse(const uint8_t *data, uint16_t size);
+
+// 遥控接收回调保存有效的 18 字节原始帧，控制任务更新裁判数据。
+void Chassis485_UpdateRemote(const uint8_t *dbus);
+void Chassis485_UpdateReferee(uint16_t cooling_value, uint16_t heat_limit,
+                              uint16_t heat_42mm, uint8_t referee_online);
 void Chassis485_ResetRx();
-// 在底盘控制任务文件实现，ISR 内一次更新全部输入及心跳。
+
+// 收到有效 Yaw 后交给底盘控制文件保存，当前不参与跟随控制。
+struct Chassis485Data
+{
+    float yaw_offset_deg;
+};
 void Chassis485_ApplyData(const Chassis485Data &data);

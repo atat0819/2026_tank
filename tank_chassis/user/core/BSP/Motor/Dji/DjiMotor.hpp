@@ -59,8 +59,9 @@ template <uint8_t N> class DjiMotorBase : public MotorBase<N>
      * @param can_id can的初始id 比如3508与20066就是0x200
      * @param params 初始化转换国际单位的参数
      */
-    DjiMotorBase(uint16_t Init_id, const uint8_t (&recv_idxs)[N], uint32_t send_idxs, Parameters params)
-        : init_address(Init_id), params_(params)
+    DjiMotorBase(uint16_t Init_id, const uint8_t (&recv_idxs)[N], uint32_t send_idxs, Parameters params,
+                 HAL::FDCAN::FdcanDeviceId fdcan_device_id = HAL::FDCAN::FdcanDeviceId::HAL_Fdcan1)
+        : init_address(Init_id), fdcan_device_id_(fdcan_device_id), params_(params)
     {
         // 初始化 recv_idxs_ 和 send_idxs_
         for (uint8_t i = 0; i < N; ++i)
@@ -73,9 +74,10 @@ template <uint8_t N> class DjiMotorBase : public MotorBase<N>
   public:
     // 解析函数
     /**
-     * @brief 解析FDCAN数据
+     * @brief 解析CAN数据
      *
-     * @param frame 接收到的FDCAN帧
+     * @param RxHeader  接收数据的句柄
+     * @param pData     接收数据的缓冲区
      */
     void Parse(const HAL::FDCAN::Frame &frame) override
     {
@@ -111,21 +113,22 @@ template <uint8_t N> class DjiMotorBase : public MotorBase<N>
     }
 
     /**
-     * @brief               发送FDCAN数据
+     * @brief               发送Can数据
      *
-     * @return true         发送成功
-     * @return false        发送失败（发送FIFO满 / 总线错误）
+     * @param han           Can句柄
+     * @param pTxMailbox    邮
      */
     bool sendCAN()
     {
-        HAL::FDCAN::Frame frame = {};
+        // 修改此处以适应新的CAN接口
+        HAL::FDCAN::Frame frame;
         frame.id = send_idxs_;
         frame.dlc = 8;
         memcpy(frame.data, msd.data, 8);
         frame.is_extended_id = false;
         frame.is_remote_frame = false;
         
-        return HAL::FDCAN::get_fdcan_bus_instance().get_fdcan1().send(frame);
+        return HAL::FDCAN::get_fdcan_bus_instance().get_device(fdcan_device_id_).send(frame);
     }
 
   protected:
@@ -198,6 +201,7 @@ template <uint8_t N> class DjiMotorBase : public MotorBase<N>
     DjiMotorfeedback feedback_[N]; // 反馈数据
     uint8_t recv_idxs_[N];         // ID索引
     uint32_t send_idxs_;
+    HAL::FDCAN::FdcanDeviceId fdcan_device_id_;
     HAL::FDCAN::Frame msd;
 
 
@@ -244,11 +248,14 @@ template <uint8_t N> class GM3508 : public DjiMotorBase<N>
      *
      * @param Init_id 初始ID
      * @param recv_idxs_ 电机ID列表
+     * @param reduction_ratio 累计角度和速度的减速比，1 为转子端
      */
-    GM3508(uint16_t Init_id, const uint8_t (&recv_idxs)[N], uint32_t send_idxs)
+    GM3508(uint16_t Init_id, const uint8_t (&recv_idxs)[N], uint32_t send_idxs,
+           HAL::FDCAN::FdcanDeviceId fdcan_device_id = HAL::FDCAN::FdcanDeviceId::HAL_Fdcan1,
+           double reduction_ratio = 1.0)
         : DjiMotorBase<N>(Init_id, recv_idxs, send_idxs,
                           // 直接构造参数对象
-                          Parameters(1.0, 0.3 / 1.0, 16384, 20, 8192))
+                          Parameters(reduction_ratio, 0.3 / 1.0, 16384, 20, 8192), fdcan_device_id)
     {
     }
 };

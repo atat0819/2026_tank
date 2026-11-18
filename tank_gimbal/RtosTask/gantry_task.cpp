@@ -9,12 +9,13 @@
 #include "../feeder_fsm/motor_recovery_fsm.hpp"
 #include "../user/core/BSP/switch/switch.hpp"
 #include "../user/core/Alg/PID/pid.hpp"
+#include "can_send_task.hpp"
 #include <algorithm>
 #include <cmath>
 
 // FDCAN3：3508 物理 ID 5、6，反馈 ID 0x205、0x206。
 // 0x1FF 命令帧内槽位 1、2 对应物理 ID 5、6；setCAN() 传槽位 1、2。
-// 减速比 19：累计角度和速度均使用输出轴端单位。
+// 最后一个参数 19.2 为电机减速比（转子转数/输出轴转数），须与实物匹配；累计角度/速度已换算为输出轴单位。
 const uint8_t gantry_3508_motor_idxs[2] = {5, 6};
 BSP::Motor::Dji::GM3508<2> gantry_3508_motor(
     0x200, gantry_3508_motor_idxs, 0x1FF, HAL::FDCAN::FdcanDeviceId::HAL_Fdcan3, 19.2);
@@ -28,30 +29,46 @@ volatile GantryWatch gantry_watch{};
 namespace
 {
 Class_Gantry_FSM gantry_fsm;
+// 硬件配置：依次为第一次抬升、前伸、第二次抬升、后收、下降到底开关；仅在接线改变时修改端口。
+// MicroSwitch 默认低电平按下，按下/松开均需稳定 20 ms；构造函数可用第三参数单独指定消抖 ms。
 BSP::Switch::MicroSwitch limits[5] = {
     {GPIOE, GPIO_PIN_13}, {GPIOE, GPIO_PIN_9}, {GPIOA, GPIO_PIN_2},
     {GPIOA, GPIO_PIN_0}, {GPIOD, GPIO_PIN_10}
 };
-// 依次为 Kp、Ki、Kd、输出限幅、积分状态限幅、积分分离阈值。
-// 3508 输出轴速度误差 rad/s -> 原始电流指令；409.6 对应 0.5 A。
-// 以下为空载低速起始参数，尚未实机整定；Ki 按每次调用累加（周期 2 ms）。
-// 从转子端换算：速度环 Kp/Ki 乘 19，积分状态限幅除以 19，保持相同实际电流响应。
+// PID 六参数顺序：Kp、Ki、Kd、输出限幅、积分状态限幅、积分分离阈值；各轴分别整定。
+// Kp：当前误差的比例增益；增大增强修正，过大可能振荡。
+// Ki：误差累加量的增益；消除持续偏差，过大易积累过冲；Ki=0 才是关闭积分输出。
+// Kd：本次与上次误差差值的增益；抑制快速变化，也会放大反馈噪声；初期可置 0。
+// 输出限幅：PID 输出的正负绝对值上限；速度环单位为 C620 原始电流指令，角度环单位为 rad/s。
+// 积分状态限幅：限制 sum(error)，不是限制 Ki*sum(error)；填正值启用，0 表示不限制积分状态。
+// 积分分离阈值：正值时仅 |error| 小于该值才累加，超出时保留已有积分；0 表示始终允许累加。
+// 本 PID 不乘/除 dt：I=sum(error)，D=error-last_error；循环末尾 osDelay(2)，实际周期还包含计算/发送时间。
+// 改任务周期后须重新核对 Ki/Kd；现有全部 Kp/Ki/Kd 为 0，尚无闭环调节能力，不是已整定参数。
+// 速度环误差为输出轴 rad/s，输出为原始电流指令；标称 409.6 对应 0.5 A，16384 对应 20 A。
+// 积分状态按每次 rad/s 误差累加；分离阈值为 rad/s。正目标/正反馈均沿电机自身正转方向，不因反装把增益取负。
+// 速度环输出与重力补偿相加后还会统一限幅 ±16384；这里的 PID 限幅并不单独限制最终含补偿电流。
 ALG::PID::PID lift_move_pid[2] = {
-    {0.0f, 0.0f, 0, 16384.0f, 0.0f, 0}, // 3508 ID5 升降运动速度环
-    {0.0f, 0.0f, 0, 16384.0f, 0.0f, 0}  // 3508 ID6 升降运动速度环
+    {0.0f /* Kp */, 0.0f /* Ki */, 0 /* Kd */, 16384.0f /* 电流输出限幅 */, 0.0f /* 积分状态限幅 */, 0 /* 分离阈值 */}, // ID5：第一次/第二次抬升、下降
+    {0.0f /* Kp */, 0.0f /* Ki */, 0 /* Kd */, 16384.0f /* 电流输出限幅 */, 0.0f /* 积分状态限幅 */, 0 /* 分离阈值 */}  // ID6：同上，独立参数
 };
 
 // 位置保持角度外环：误差 rad -> 目标速度 rad/s；六参数顺序同上。
 // 输出限幅直接使用各轴速度上限，让 PID 在限幅时处理积分。
+// Kp 单位 1/s；Ki/Kd 使用上面的离散累加/差分定义；积分状态按每次 rad 误差累加，分离阈值单位 rad。
+// 第五项 100/19 或 10 是积分状态上限，不是最大保持角度；当前 Ki=0，因此该积分状态不产生输出。
+// 原有 100/19 积分上限是历史调参值，并非从电机实例自动换算，需按当前输出轴反馈实测整定。
+// 保持目标取状态切换时实际累计角度：ID5/6 用于前伸/后收保持，ID9 用于升降及完成后的保持。
 ALG::PID::PID hold_angle_pid[3] = {
-    {0.0f, 0.0f, 0, GantryTuning::LIFT_ID5_SPEED_RAD_S, 100.0f / 19.0f, 0}, // 3508 ID5
-    {0.0f, 0.0f, 0, GantryTuning::LIFT_ID6_SPEED_RAD_S, 100.0f / 19.0f, 0}, // 3508 ID6
-    {0.0f, 0.0f, 0, GantryTuning::DM_SPEED_RAD_S, 10, 0}        // DM ID9
+    {0.0f /* Kp */, 0.0f /* Ki */, 0 /* Kd */, GantryTuning::LIFT_ID5_SPEED_RAD_S /* 速度输出限幅 */, 100.0f / 19.0f /* 积分状态限幅 */, 0 /* 分离阈值 */}, // ID5
+    {0.0f /* Kp */, 0.0f /* Ki */, 0 /* Kd */, GantryTuning::LIFT_ID6_SPEED_RAD_S /* 速度输出限幅 */, 100.0f / 19.0f /* 积分状态限幅 */, 0 /* 分离阈值 */}, // ID6
+    {0.0f /* Kp */, 0.0f /* Ki */, 0 /* Kd */, GantryTuning::DM_SPEED_RAD_S /* 速度输出限幅 */, 10 /* 积分状态限幅 */, 0 /* 分离阈值 */} // DM ID9
 };
 
+// 位置保持速度内环：单位/六参数含义与 lift_move_pid 相同；只用于 ID5/6 前伸、后收时保持高度。
+// 先调稳速度内环，再整定保持角度外环；运动与保持使用不同实例，切换时未使用的 PID 会 reset。
 ALG::PID::PID lift_hold_pid[2] = {
-    {0.0f, 0.0f, 0, 16384.0f, 0.0f, 0}, // 3508 ID5 位置保持速度内环
-    {0.0f, 0.0f, 0, 16384.0f, 0.0f, 0}  // 3508 ID6 位置保持速度内环
+    {0.0f /* Kp */, 0.0f /* Ki */, 0 /* Kd */, 16384.0f /* 电流输出限幅 */, 0.0f /* 积分状态限幅 */, 0 /* 分离阈值 */}, // ID5 保持速度环
+    {0.0f /* Kp */, 0.0f /* Ki */, 0 /* Kd */, 16384.0f /* 电流输出限幅 */, 0.0f /* 积分状态限幅 */, 0 /* 分离阈值 */}  // ID6 保持速度环
 };
 
 bool Gantry_ConfigValid()
@@ -77,6 +94,7 @@ bool Gantry_ConfigValid()
 }
 }
 
+#if 0 // Gantry control moved to the chassis; preserve the original implementation.
 extern "C" void gantry_task(void *argument)
 {
     (void)argument;
@@ -91,7 +109,7 @@ extern "C" void gantry_task(void *argument)
         // 读取限位、遥控输入和三台电机反馈快照。
         float velocity[3];
         float lift_current_a[2];
-        double angle_deg[3];
+        float angle_deg[3];
         bool limit_pressed[5];
         for (unsigned i = 0; i < 5; ++i)
         {
@@ -108,8 +126,7 @@ extern "C" void gantry_task(void *argument)
             remoteController.get_s1() == BSP::REMOTE_CONTROL::RemoteController::MIDDLE &&
             remoteController.get_s2() == BSP::REMOTE_CONTROL::RemoteController::MIDDLE &&
             input_dispatcher.GetSource() == InputSource::KeyMouse;
-        const bool right_raw = remoteController.get_mouseRight();
-        const bool right_pressed = input_dispatcher.IsRightButtonHeld();
+        const bool start_key_pressed = remoteController.get_key(BSP::REMOTE_CONTROL::RemoteController::KEY_Z);
         bool feedback_ok = true;
         bool lift_feedback_ok = true;
         for (unsigned i = 0; i < 2; ++i)
@@ -137,8 +154,7 @@ extern "C" void gantry_task(void *argument)
         feedback_ok = feedback_ok && dm_ready;
         gantry_watch.control_enabled = control_enabled;
         gantry_watch.feedback_ok = feedback_ok;
-        gantry_watch.right_raw = right_raw;
-        gantry_watch.right_pressed = right_pressed;
+        gantry_watch.start_key_pressed = start_key_pressed;
         taskEXIT_CRITICAL();
 
         // 更新动作状态机及调试状态。
@@ -146,8 +162,8 @@ extern "C" void gantry_task(void *argument)
             control_enabled,
             feedback_ok,
             lift_feedback_ok, // 启动原点只依赖两台 3508，不等待 DM 使能
-            right_raw,
-            right_pressed,
+            start_key_pressed,
+            start_key_pressed,
             limit_pressed[0], // PE13：第一次抬升
             limit_pressed[1], // PE9：前伸
             limit_pressed[2], // PA2：第二次抬升
@@ -165,6 +181,7 @@ extern "C" void gantry_task(void *argument)
         gantry_watch.fault = gantry_fsm.GetFault();
         gantry_watch.progress = gantry_fsm.GetProgress();
         gantry_watch.scale = gantry_fsm.GetScale();
+        gantry_watch.lift_sync_error_deg = gantry_fsm.GetLiftSyncErrorDeg();
 
         // 计算保持速度、升降 PID 和 DM 阻尼力矩，发送 CAN。
         for (unsigned i = 0; i < 2; ++i)
@@ -188,8 +205,8 @@ extern "C" void gantry_task(void *argument)
             else if (gantry_fsm.IsKeeping(i)) // 3508 位置保持双环，升降 PID 清零
             {
                 // 累计角度和标定保留 deg，保持外环的角度误差转换为 rad。
-                const float hold_error_rad = static_cast<float>(
-                    (gantry_fsm.GetHoldAngle(i) - angle_deg[i]) * (3.14159265358979323846 / 180.0));
+                const float hold_error_rad =
+                    (gantry_fsm.GetHoldAngle(i) - angle_deg[i]) * (3.14159265358979323846f / 180.0f);
                 const float target = hold_angle_pid[i].UpDate(hold_error_rad, 0);
                 gantry_watch.target_velocity_rad_s[i] = target;
                 lift_move_pid[i].reset();
@@ -237,8 +254,8 @@ extern "C" void gantry_task(void *argument)
             }
             else if (gantry_fsm.IsKeeping(2)) // DM 位置保持
             {
-                const float hold_error_rad = static_cast<float>(
-                    (gantry_fsm.GetHoldAngle(2) - angle_deg[2]) * (3.14159265358979323846 / 180.0));
+                const float hold_error_rad =
+                    (gantry_fsm.GetHoldAngle(2) - angle_deg[2]) * (3.14159265358979323846f / 180.0f);
                 target = hold_angle_pid[2].UpDate(hold_error_rad, 0);
                 kd = DM_HOLD_KD;
             }
@@ -268,7 +285,45 @@ extern "C" void gantry_task(void *argument)
         {
             dm_recovery_fsm.Force_Enable_On_Next_Check();
         }
+/************************************************************************* */、
+//发送vofa数据
+const float vofa_data[] = {
+    // 三台电机累计角度
+    gantry_watch.angle_deg[0],                    // CH0：ID5 输出轴角度，deg
+    gantry_watch.angle_deg[1],                    // CH1：ID6 输出轴角度，deg
+    gantry_watch.angle_deg[2],                    // CH2：DM 角度，deg
+
+    // 目标速度与实际速度
+    gantry_watch.target_velocity_rad_s[0],        // CH3：ID5 目标速度，rad/s
+    gantry_watch.velocity_rad_s[0],               // CH4：ID5 实际速度，rad/s
+    gantry_watch.target_velocity_rad_s[1],        // CH5：ID6 目标速度，rad/s
+    gantry_watch.velocity_rad_s[1],               // CH6：ID6 实际速度，rad/s
+    gantry_watch.target_velocity_rad_s[2],        // CH7：DM 目标速度，rad/s
+    gantry_watch.velocity_rad_s[2],               // CH8：DM 实际速度，rad/s
+
+    // 升降电机输出
+    static_cast<float>(gantry_watch.lift_command[0]), // CH9：ID5 电流指令
+    static_cast<float>(gantry_watch.lift_command[1]), // CH10：ID6 电流指令
+    gantry_watch.lift_current_a[0],              // CH11：ID5 实测电流，A
+    gantry_watch.lift_current_a[1],              // CH12：ID6 实测电流，A
+
+    gantry_watch.lift_sync_error_deg,            // CH13：同步角差，deg
+    static_cast<float>(gantry_watch.state),      // CH14：状态机阶段
+    static_cast<float>(gantry_watch.fault)       // CH15：故障编号
+};
+
+vofa_sendN(vofa_data, 16);
+/**************************************************************************** */
+
         Watchdog_RecordHeartbeat(WATCHDOG_TASK_GANTRY);
-        osDelay(2);
+        osDelay(2); // 每轮延时 2 个系统 tick；当前 1 ms/tick 时为 2 ms，实际周期还含执行耗时；修改后重核 PID Ki/Kd
     }
+}
+
+#endif
+
+extern "C" void gantry_task(void *argument)
+{
+    (void)argument;
+    for (;;) { Watchdog_RecordHeartbeat(WATCHDOG_TASK_GANTRY); osDelay(2); }
 }

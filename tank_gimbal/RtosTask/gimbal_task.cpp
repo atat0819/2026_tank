@@ -6,7 +6,7 @@
 #include "main.h"
 #include "remote_control_task.hpp"
 #include "../communication_between_boards/input_dispatcher.hpp"
-#include "../communication_between_boards/refree_receive_uart_485.hpp"
+#include "../communication_between_boards/boards_communication_uart_485.hpp"
 #include "../user/core/Alg/fire_control/single_shot_heat_limiter.hpp"
 #include "../user/core/Alg/fire_control/friction_shot_detector.hpp"
 
@@ -109,17 +109,18 @@ bool is_keymouse = (input_dispatcher.GetSource() == InputSource::KeyMouse);
 
 // 毫秒时间戳用于热量冷却估算和摩擦轮开火检测；FSM 状态计时另用周期计数。
 const uint32_t now_tick_ms = HAL_GetTick();
-const auto &refree = Communication::GimbalRefree485::instance();
-// 首参数当前恒为离线；其余裁判热量/冷却数据用于记录和诊断，不改变该在线标志。
+Gimbal485RefereeData refree;
+Gimbal485_GetRefereeData(refree);
+// 只有通信未超时且裁判系统在线，才使用在线裁判数据。
 single_shot_heat_limiter.UpdateJudgeData(
-    refree.isRefereeOnline(),// 固定传 false：限制器走裁判离线时的本地热量/冷却估算逻辑。
-    refree.isDataReceived(),
-     refree.getCoolingValue(),
-    refree.getHeatLimit(),
-    refree.getHeat42mm(),
+    (refree.referee_online && refree.age_ms < 100U),
+    refree.received,
+    refree.cooling_value,
+    refree.heat_limit,
+    refree.heat_42mm,
     now_tick_ms);
 const bool heat_limit_bypassed = input_dispatcher.IsHeatLimitBypassed();
-const uint32_t referee_data_age_ms = refree.getDataAgeMs(now_tick_ms);
+
 
 Struct_Feeder_Input feeder_input = {};
 feeder_input.s1             = RemoteData.s1;
@@ -148,7 +149,7 @@ if (g_watchdog_rearm_required)
 }
 
 force_stop = 0;
-if (!remoteController.isConnected() || g_watchdog_rearm_required)
+if (!Gimbal485_RemoteOnline() || g_watchdog_rearm_required)
 {
     // 遥控器失联：不信任拨杆和滚轮数据，最高优先级强制停止。
     force_stop = 1;

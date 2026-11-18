@@ -1294,16 +1294,6 @@
           <GroupName>boards_communication</GroupName>
           <Files>
             <File>
-              <FileName>refree_receive_uart_485.cpp</FileName>
-              <FileType>8</FileType>
-              <FilePath>..\communication_between_boards\refree_receive_uart_485.cpp</FilePath>
-            </File>
-            <File>
-              <FileName>refree_receive_uart_485.hpp</FileName>
-              <FileType>5</FileType>
-              <FilePath>..\communication_between_boards\refree_receive_uart_485.hpp</FilePath>
-            </File>
-            <File>
               <FileName>boards_communication_uart_485.cpp</FileName>
               <FileType>8</FileType>
               <FilePath>..\communication_between_boards\boards_communication_uart_485.cpp</FilePath>

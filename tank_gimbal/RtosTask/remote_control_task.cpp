@@ -7,8 +7,7 @@
 #include "../user/core/HAL/UART/uart_hal.hpp"
 #include "../user/core/BSP/version/vision_communication.hpp"
 #include "../communication_between_boards/input_dispatcher.hpp"
-#include "../communication_between_boards/refree_receive_uart_485.hpp"
-#include "../communication_between_boards/gimbal_to_arm.hpp"
+#include "../communication_between_boards/boards_communication_uart_485.hpp"
 #include "gimbal_task.hpp"
 
 QueueHandle_t remoteDataQueue;
@@ -140,22 +139,14 @@ extern "C" void remote_control_task(void *argument)
         // 在这里添加接收数据处理。
     });
 
-    // UART3 — RS485 第一路，接收底盘的裁判数据回复。
+    // USART3：接收底盘的遥控器、键鼠和裁判系统数据。
     uart3_485.register_rx_callback([](const HAL::UART::Data &data) {
-        Communication::GimbalRefree485::instance().parse485(data.buffer, data.size);
+        Gimbal485_Parse(data.buffer, data.size);
     });
 
     // UART5 回调：DMA+空闲 → 遥控器解析
-    uart5.register_rx_callback([](const HAL::UART::Data &data) {
-        if (data.size == 18) {
-            remoteController.parseData(data.buffer);
-            remoteController.updateTimestamp();
-            arm_remote_received = true;
-        }
-    });
-
     // 启动接收
-    // UART3 板间接收区为 64 字节；static 保证 DMA 使用期间一直有效。
+    // USART3：接收底盘的遥控器、键鼠和裁判系统数据。
     static uint8_t uart2_rx_buffer[64];
     static uint8_t uart3_rx_buffer[64];
     HAL::UART::Data uart2_rx{uart2_rx_buffer, sizeof(uart2_rx_buffer)};
@@ -170,10 +161,6 @@ extern "C" void remote_control_task(void *argument)
         __HAL_DMA_DISABLE_IT(uart3_485.get_handle()->hdmarx, DMA_IT_HT);
     }
 
-    HAL::UART::Data uart5_rx{receivedata, sizeof(receivedata)};
-    uart5.receive_dma_idle(uart5_rx);
-    __HAL_DMA_DISABLE_IT(&hdma_uart5_rx, DMA_IT_HT);
-
     remoteController.SetDeadzone(66.0f);
 
 
@@ -181,27 +168,20 @@ extern "C" void remote_control_task(void *argument)
     {
         // 只在临界区内读取一份一致的遥控器快照；打包和 DMA 发送在任务中进行。
         bool remote_online;
-        bool arm_online;
         uint8_t s1;
         uint8_t s2;
-        uint16_t keyboard;
         taskENTER_CRITICAL();
-        remote_online = remoteController.isConnected();
+        remote_online = Gimbal485_RemoteOnline();
         s1 = remoteController.get_s1();
         s2 = remoteController.get_s2();
-        keyboard = remoteController.get_keyboard();
         // 看门狗复位后仅接受有效遥控双下解锁；已处于双下也可解锁。
-        if (g_watchdog_rearm_required && arm_remote_received && remote_online &&
+        if (g_watchdog_rearm_required && remote_online &&
             s1 == BSP::REMOTE_CONTROL::RemoteController::DOWN &&
-            s2 == BSP::REMOTE_CONTROL::RemoteController::DOWN &&
-            !(remoteController.get_left_y() == -1 && remoteController.get_left_x() == -1 &&
-              remoteController.get_right_x() == -1 && remoteController.get_right_y() == -1))
+            s2 == BSP::REMOTE_CONTROL::RemoteController::DOWN)
         {
             g_watchdog_rearm_required = 0;
         }
-        arm_online = arm_remote_received && remote_online && !g_watchdog_rearm_required;
         taskEXIT_CRITICAL();
-        gimbal_to_arm.SendRemoteData(s1, s2, keyboard, arm_online);
         if (!remote_online)
         {
             remote.chassis_vx = 0.0f;

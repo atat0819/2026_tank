@@ -1,4 +1,6 @@
 #include "fdcan_device_impl.hpp"
+#include "FreeRTOS.h"
+#include "task.h"
 
 namespace HAL::FDCAN
 {
@@ -63,7 +65,11 @@ bool FdcanDevice::send(const Frame &frame)
     tx_header.TxEventFifoControl = FDCAN_NO_TX_EVENTS;
     tx_header.MessageMarker = static_cast<uint8_t>(frame.mailbox);
 
-    return HAL_FDCAN_AddMessageToTxFifoQ(handle_, &tx_header, frame.data) == HAL_OK;
+    // FIFO 写入位置的读取、数据复制和提交必须作为一个整体执行。
+    taskENTER_CRITICAL();
+    const bool success = HAL_FDCAN_AddMessageToTxFifoQ(handle_, &tx_header, frame.data) == HAL_OK;
+    taskEXIT_CRITICAL();
+    return success;
 }
 
 bool FdcanDevice::receive(Frame &frame)

@@ -3126,11 +3126,26 @@
               <FileType>5</FileType>
               <FilePath>..\RtosTask\up_stair.hpp</FilePath>
             </File>
+            <File>
+              <FileName>gantry_task.cpp</FileName>
+              <FileType>8</FileType>
+              <FilePath>..\RtosTask\gantry_task.cpp</FilePath>
+            </File>
+            <File>
+              <FileName>gantry_task.hpp</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\RtosTask\gantry_task.hpp</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
           <GroupName>fsm</GroupName>
           <Files>
+            <File>
+              <FileName>gantry_fsm.cpp</FileName>
+              <FileType>8</FileType>
+              <FilePath>..\fsm\gantry_fsm.cpp</FilePath>
+            </File>
             <File>
               <FileName>chassis_fsm.cpp</FileName>
               <FileType>8</FileType>
@@ -3197,14 +3212,24 @@
           <GroupName>communication</GroupName>
           <Files>
             <File>
+              <FileName>chassis_to_arm.cpp</FileName>
+              <FileType>8</FileType>
+              <FilePath>..\communication\chassis_to_arm.cpp</FilePath>
+            </File>
+            <File>
+              <FileName>chassis_to_arm.hpp</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\communication\chassis_to_arm.hpp</FilePath>
+            </File>
+            <File>
               <FileName>boards_communication_uart_485.cpp</FileName>
               <FileType>8</FileType>
               <FilePath>..\communication\boards_communication_uart_485.cpp</FilePath>
             </File>
             <File>
-              <FileName>gimbal_refree_uart_485.cpp</FileName>
-              <FileType>8</FileType>
-              <FilePath>..\communication\gimbal_refree_uart_485.cpp</FilePath>
+              <FileName>boards_communication_uart_485.hpp</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\communication\boards_communication_uart_485.hpp</FilePath>
             </File>
             <File>
               <FileName>super_cupacitor.cpp</FileName>

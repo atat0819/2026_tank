@@ -214,6 +214,7 @@ static uint16_t startup_protect = 0; // 遥控有效且 Pitch 在线时累计的
                  !frame.is_remote_frame && (frame.data[0] & 0x0F) == 7)
         {
             yaw_motor.Parse(frame);
+            Gimbal485_UpdateYawFromISR(yaw_motor.getAngleDeg(1));
         }
     });
 
@@ -245,14 +246,11 @@ static uint16_t startup_protect = 0; // 遥控有效且 Pitch 在线时累计的
     });
 
 
-// 等待摇杆不再同时为 -1，最多 200 次、每次延时 1 tick；连接状态仍由主循环检查。
+// 启动时短暂等待有效的底盘遥控数据；摇杆 -1 是合法值，不用于判断失联。
 for (uint32_t wait = 0; wait < 200; wait++)
 {
     vTaskDelay(1);
-    if (!(remoteController.get_left_y() == -1
-        && remoteController.get_left_x() == -1
-        && remoteController.get_right_x() == -1
-        && remoteController.get_right_y() == -1))
+    if (Gimbal485_RemoteOnline())
     {
         break;  // 遥控器数据有效了，提前退出
     }
@@ -283,20 +281,16 @@ vTaskDelay(500); // 等电机上电完成
          int32_t mouse_delta_y = 0;
          remoteController.ConsumeMouseDelta(mouse_delta_x, mouse_delta_y);
 
-         if(!remoteController.isConnected() || g_watchdog_rearm_required ||   // 遥控器失联或看门狗复位后未解锁
-            (remoteController.get_left_y() == -1 // 或摇杆数据全-1（解析异常，数据不可信）
-         && remoteController.get_left_x() == -1
-         && remoteController.get_right_x() == -1
-         && remoteController.get_right_y() == -1)
-        )
+         if (!Gimbal485_RemoteOnline() || g_watchdog_rearm_required)
         {
             gimbal_remote_offline = 1;
             // 遥控安全门期间不使能，恢复后的首次正常检查补发 On。
             pitch_recovery_fsm.Force_Enable_On_Next_Check();
             remote_was_offline = true;
             RemoteData = {};
+            input_dispatcher.Update(0U, 0U, 0U, false, false);
             // 遥控失联仍发送完整快照，清零操作量，阻止底盘沿用旧速度或键盘。
-            RS485_SendBoardData(0.0f, 0, 0.0f, 0.0f, 0U, 0U, 0U);
+            // The chassis is now the RS485 master.
 
             ResetGimbalControlState();
             pitch_motor.ctrl_Mit(1, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); // Pitch
@@ -304,6 +298,7 @@ vTaskDelay(500); // 等电机上电完成
         }
          else {
         gimbal_remote_offline = 0;
+        taskENTER_CRITICAL();
                  RemoteData.chassis_vx = remoteController.get_left_y();
         RemoteData.chassis_vy = remoteController.get_left_x();
         RemoteData.gimbal_pitch = remoteController.get_right_y();
@@ -317,6 +312,7 @@ vTaskDelay(500); // 等电机上电完成
         RemoteData.mouse_left = remoteController.get_mouseLeft() ? 1 : 0;
         RemoteData.mouse_right = remoteController.get_mouseRight() ? 1 : 0;
         RemoteData.keyboard   = remoteController.get_keyboard();
+        taskEXIT_CRITICAL();
 
          // 输入调度 FSM：双中选择键鼠，其余档位选择遥控器；维护按键消抖及视觉右键状态。
          // 云台 FSM 随后结合视觉是否就绪/新鲜决定是否进入视觉控制。
@@ -342,18 +338,7 @@ vTaskDelay(500); // 等电机上电完成
 /******************************************************************** */
 // 每轮提交最新快照，收到回复后即可发送；无回复最多等待 2ms，未使用字段归零。
 // 仅发送操作输入，协议不包含云台 IMU 字段。
-const bool chassis_remote_mode = input_dispatcher.GetSource() == InputSource::Remote;
-const bool chassis_keymouse_mode = input_dispatcher.GetSource() == InputSource::KeyMouse;
-// 鼠标 X 与底盘直连接收机一致：发送最新 DT7 采样值，直到下一帧更新。
-// DMA 忙或启动失败时不排队旧采样，下次按最新状态重试；Pitch Y 仍单次消费。
-RS485_SendBoardData(
-                    chassis_remote_mode ? remoteController.get_right_x() : 0.0f,
-                    chassis_keymouse_mode ? RemoteData.mouse_x : 0,
-                    chassis_remote_mode ? RemoteData.chassis_vx : 0.0f,
-                    chassis_remote_mode ? RemoteData.chassis_vy : 0.0f,
-                    RemoteData.s1, RemoteData.s2,
-                    chassis_keymouse_mode ? input_dispatcher.GetKeyboardMask() : 0U);
-
+// Chassis transmits control data and the gimbal replies with yaw only.
  // tick 用于分频发送和周期任务调度。
  can2_tick++;/************************************************************************************** */
 
@@ -396,6 +381,8 @@ RS485_SendBoardData(
   {
       pitch_gimbal_fsm.ReAnchor(pitch_current_angle);
       ResetGimbalControlState();
+      mouse_delta_x = 0;
+      mouse_delta_y = 0; // 重连时不把失联期间的累计位移施加到新锚点。
       remote_was_offline = false;
   }
 
@@ -539,17 +526,17 @@ while (pitch_error < -kPi) pitch_error += kTwoPi;
         // 发送发生在有效控制分支；实际频率取决于任务周期及故障跳过，不是固定每 10 ms。
         
         
-            if ((can2_tick % 4) == 0)
-            {
-                vofa_send(
-                    pitch_target_angle,       // 通道 1：Pitch 目标角，rad
-                    pitch_current_angle,      // 通道 2：Pitch 选定反馈角，rad
-                    pitch_target_speed,              // 通道 3：Pitch 目标角速度，rad/s
-                    pitch_current_speed,       // 通道 4：Pitch 选定反馈角速度，rad/s
-                    pitch_target_angle,      // 通道 5：再次发送 Pitch 目标角，当前与通道 1 重复
-                    pitch_control_output      // 通道 6：Pitch 受限估算力矩，N*m（非实测）
-                );
-            }
+            // if ((can2_tick % 4) == 0)
+            // {
+            //     vofa_send(
+            //         pitch_target_angle,       // 通道 1：Pitch 目标角，rad
+            //         pitch_current_angle,      // 通道 2：Pitch 选定反馈角，rad
+            //         pitch_target_speed,              // 通道 3：Pitch 目标角速度，rad/s
+            //         pitch_current_speed,       // 通道 4：Pitch 选定反馈角速度，rad/s
+            //         pitch_target_angle,      // 通道 5：再次发送 Pitch 目标角，当前与通道 1 重复
+            //         pitch_control_output      // 通道 6：Pitch 受限估算力矩，N*m（非实测）
+            //     );
+            // }
         
 
          }
@@ -599,8 +586,8 @@ void SafetyCheck()
 }
 
 //开vofa软件的justfloat模式
-uint8_t send_str2[sizeof(float) * 11]; // 分配11个float空间（44字节，10数据+1帧尾）
-// 可变通道 JustFloat 发送：USB CDC-HS 路径，最多 10 个 float，另附 4 字节帧尾。
+uint8_t send_str2[sizeof(float) * 31]; // 30 个数据和 1 个帧尾，共 124 字节
+// 可变通道 JustFloat 发送：USB CDC-HS 路径，最多 30 个 float，另附 4 字节帧尾。
 // USB 未就绪或正在发送时直接跳过；与下方六通道 UART10 DMA 发送接口不同。
 void vofa_sendN(const float *data, uint8_t count)
 {
@@ -609,9 +596,9 @@ void vofa_sendN(const float *data, uint8_t count)
         return;
     }
 
-    if (count > 10)
+    if (count > 30)
     {
-        count = 10;
+        count = 30;
     }
 
     USBD_CDC_HandleTypeDef *hcdc = static_cast<USBD_CDC_HandleTypeDef*>(hUsbDeviceHS.pClassData);
@@ -621,7 +608,8 @@ void vofa_sendN(const float *data, uint8_t count)
     }
 
     memcpy(send_str2, data, sizeof(float) * count);
-    *((uint32_t*)&send_str2[sizeof(float) * count]) = 0x7F800000;
+    const uint32_t tail = 0x7F800000;
+    memcpy(&send_str2[sizeof(float) * count], &tail, sizeof(tail));
 
     CDC_Transmit_HS(send_str2, static_cast<uint16_t>(sizeof(float) * (count + 1)));
 }

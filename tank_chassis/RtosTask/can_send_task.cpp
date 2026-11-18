@@ -3,6 +3,7 @@
 #include "watchdog_heartbeat.h"
 #include "remote_task.hpp"
 #include "up_stair.hpp"
+#include "gantry_task.hpp"
 #include "FreeRTOS.h"
 #include "queue.h"
 #include "cmsis_os.h"
@@ -26,7 +27,7 @@
 #include "../user/core/HAL/UART/uart_hal.hpp"
 #include "../communication/super_cupacitor.hpp"
 #include "../communication/boards_communication_uart_485.hpp"
-#include "../communication/gimbal_refree_uart_485.hpp"
+
 #include "../user/core/APP/Referee/RM_RefereeSystem.h"
 #include "../user/core/Alg/UtilityFunction/SlopePlanning.hpp"
 #include "../fsm/chassis_keyboard_fsm.hpp"
@@ -74,27 +75,11 @@ static volatile bool gimbal_yaw_received = false;
 // UART ISR 已校验完整帧；控制任务读快照时关闭中断，保证所有字段属于同一帧。
 void Chassis485_ApplyData(const Chassis485Data &data)
 {
-    const uint32_t now = HAL_GetTick();
-    // Pitch 固定在车体上，相对 Yaw 偏角为 0。
-    gimbalChassis_communicate.yaw_offset_deg = 0.0f;
-    gimbalChassis_communicate.right_stick_x = data.right_stick_x;
-    gimbalChassis_communicate.mouse_x = data.s1 == 3U && data.s2 == 3U ? data.mouse_x : 0;
-    gimbalChassis_communicate.vx = data.vx;
-    gimbalChassis_communicate.vy = data.vy;
-    gimbalChassis_communicate.s1 = data.s1;
-    gimbalChassis_communicate.s2 = data.s2;
-    gimbal_keyboard = data.keyboard;
-    gimbal_yaw_last_tick = now;
-    gimbal_speed_last_tick = now;
-    gimbal_switch_last_tick = now;
-    gimbal_keyboard_last_tick = now;
-    const bool input_online = data.s1 != 0U && data.s2 != 0U;
-    gimbal_yaw_received = input_online;
-    gimbal_speed_received = input_online;
-    gimbal_switch_received = input_online;
-    gimbal_keyboard_received = input_online;
-    yaw_offset_updated = input_online;
-    gimbalChassisSpeedUpdated = input_online ? 1U : 0U;
+    yaw_offset_deg = data.yaw_offset_deg;
+    gimbalChassis_communicate.yaw_offset_deg = data.yaw_offset_deg;
+    gimbal_yaw_last_tick = HAL_GetTick();
+    gimbal_yaw_received = true;
+    yaw_offset_updated = true;
 }
 
 ControlInputSnapshot GetControlInputSnapshot()
@@ -118,8 +103,7 @@ ControlInputSnapshot GetControlInputSnapshot()
         (gimbal_keyboard_mode ? gimbal_keyboard_online :
          (gimbal_speed_received && now_tick - gimbal_speed_last_tick < 100U));
 
-    input.source = SelectControlInputSource(now_tick, local_online,
-        local_remote_last_tick, gimbal_online, gimbal_switch_last_tick);
+    input.source = local_online ? ControlInputSource::LOCAL : ControlInputSource::NONE;
     if (input.source == ControlInputSource::LOCAL) {
         // 本地 DBUS 摇杆是底盘坐标；同一帧提供档位、键盘和失联心跳。
         input.s1 = remoteData.s1;
@@ -356,6 +340,13 @@ extern "C" void can_send_task(void *argument)
    fdcan3.register_rx_callback([](const HAL::FDCAN::Frame &frame) {
        if (frame.id >= 0x07 && frame.id <= 0x08) {
            rear_6248.Parse(frame);
+       }
+       else if ((frame.id == 0x205 || frame.id == 0x206) && frame.dlc == 8 && !frame.is_extended_id && !frame.is_remote_frame) {
+           gantry_3508_motor.Parse(frame);
+       }
+       else if (frame.id == 0x09 && frame.dlc == 8 && !frame.is_extended_id && !frame.is_remote_frame && (frame.data[0] & 0x0f) == 9) {
+           gantry_dm4310_motor.Parse(frame);
+           gantry_watch.dm_status = frame.data[0] >> 4;
        }
    });
 /************************************************************************************** */
@@ -841,8 +832,8 @@ if (chassis_fsm.Get_Mode() == CHASSIS_STOP)
         }
         */
 
-        // 更新裁判回复快照；只有收到有效 RS485 请求后才由 RX ISR 发送。
-        Referee485_Update(
+        // 更新待发送的裁判数据，由 remote_task 调用 Chassis485_Send() 周期发送。
+        Chassis485_UpdateReferee(
             ext_power_heat_data_0x0201.shooter_barrel_cooling_value,   // 枪管冷却值
             ext_power_heat_data_0x0201.shooter_barrel_heat_limit,      // 枪管热量上限
             (heat_42mm = ext_power_heat_data_0x0202.shooter_id1_42mm_cooling_heat), // 最新转发热量
@@ -895,13 +886,13 @@ void vofa_send(float x1, float x2, float x3, float x4, float x5, float x6)
 
 void vofa_sendN(const float *data, uint8_t count)
 {
-    if (data == nullptr || count == 0 || count > 15)
+    if (data == nullptr || count == 0 || count > 20)
     {
         return;
     }
 
     // USB 异步发送：缓冲区必须持久有效，且忙时不能改写。
-    static uint8_t send_str2[sizeof(float) * 15 + 4];
+    static uint8_t send_str2[sizeof(float) * 20 + 4];
     const uint8_t frame_tail[4] = {0x00, 0x00, 0x80, 0x7F};
     // USB IRQ 优先级为 5；短临界区防止检查后被断连中断释放 pClassData。
     taskENTER_CRITICAL();

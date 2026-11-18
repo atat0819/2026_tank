@@ -12,6 +12,10 @@
 #include "../user/core/HAL/UART/uart_hal.hpp"
 #include "../user/core/APP/Referee/RM_RefereeSystem.h"
 #include "../communication/boards_communication_uart_485.hpp"
+#include "../communication/chassis_to_arm.hpp"
+#include "can_send_task.hpp"
+#include "../../rs485_protocol.hpp"
+
 
 // ================= 全局变量定义 =================
 // 1. IMU 相关
@@ -142,10 +146,11 @@ extern "C" void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t S
         auto &uart5 = HAL::UART::get_uart_bus_instance().get_uart5();
         if (huart == uart5.get_handle())
         {
-            uart5.receive_dma_idle(rx_data);
-            __HAL_DMA_DISABLE_IT(&hdma_uart5_rx, DMA_IT_HT);
-            rx_data.size = Size;  // 实际接收字节数
+            rx_data.size = Size;
             uart5.trigger_rx_callbacks(rx_data);
+            HAL::UART::Data next_rx{receivedata, sizeof(receivedata)};
+            if (uart5.receive_dma_idle(next_rx))
+                __HAL_DMA_DISABLE_IT(&hdma_uart5_rx, DMA_IT_HT);
         }
     }
     else if (huart->Instance == UART7) // HI14
@@ -310,15 +315,8 @@ extern "C" void remote_task(void *argument)
     uart5.register_rx_callback([](const HAL::UART::Data &data) {
         if (data.size == 18)
         {
-            const uint8_t *const b = data.buffer;
-            const uint16_t ch0 = (b[0] | (b[1] << 8)) & 0x07FFU;
-            const uint16_t ch1 = ((b[1] >> 3) | (b[2] << 5)) & 0x07FFU;
-            const uint16_t ch2 = ((b[2] >> 6) | (b[3] << 2) |
-                                  (b[4] << 10)) & 0x07FFU;
-            const uint16_t ch3 = ((b[4] >> 1) | (b[5] << 7)) & 0x07FFU;
-            // 四路摇杆必须落在 DBUS 合法区间；驱动内部会钳位，不能靠钳位结果判帧有效。
-            if (ch0 < 364U || ch0 > 1684U || ch1 < 364U || ch1 > 1684U ||
-                ch2 < 364U || ch2 > 1684U || ch3 < 364U || ch3 > 1684U)
+            // 两端使用同一套通道、拨杆和拨轮范围检查；通过后才更新遥控状态。
+            if (!BoardLink::dbusValid(data.buffer))
             {
                 return;
             }
@@ -339,6 +337,7 @@ extern "C" void remote_task(void *argument)
             local_remote_keyboard = static_cast<uint16_t>(data.buffer[14]) |
                                     (static_cast<uint16_t>(data.buffer[15]) << 8);
             local_remote_mouse_x = remoteController.get_mouseX();
+            Chassis485_UpdateRemote(data.buffer);
             local_remote_last_tick = HAL_GetTick();
             local_remote_received = true;
         }
@@ -416,6 +415,10 @@ extern "C" void remote_task(void *argument)
     {
         // 裁判系统掉线检测（超时1000ms无数据判定掉线，内部会更新RM_RefereeSystemDirFlag并重连DMA）
         RM_RefereeSystem::RM_RefereeSystemDir();
+        Chassis485_Send();
+        const ControlInputSnapshot input = GetControlInputSnapshot();
+        chassis_to_arm.SendRemoteData(input.s1, input.s2, input.keyboard,
+                                     input.source == ControlInputSource::LOCAL);
         Watchdog_RecordHeartbeat(WATCHDOG_TASK_REMOTE);
         osDelay(1);
     }

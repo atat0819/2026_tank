@@ -1,0 +1,673 @@
+任务与状态机参数说明
+工程：tank_gimbal；依据当前工作区源码整理；日期：2026-11-17
+
+阅读说明
+- 重点收录 RtosTask、feeder_fsm 及其直接使用的控制算法、通信和自定义驱动参数；按源文件分类。每项保留源码数值或表达式，并说明作用、单位和适用状态；行末 L 标注源码行号。
+- “当前使用”“默认”“保留路径/未调用”等状态以当前调用关系为准。类成员默认值不等于业务实际配置值；另有覆盖值时分别列出。
+- PID 元组按构造函数参数顺序注明含义；不同控制器的量纲以调用位置为准。固定协议参数和驱动限值仅说明源码当前配置，不代表实机验证或调参建议。
+- 已排除 CubeMX 生成的 Core、USB_DEVICE、.ioc、启动文件及工程配置参数；也不展开 HAL/CMSIS/FreeRTOS 第三方库内部参数和芯片寄存器定义。
+
+【文件：communication_between_boards/boards_communication_uart_485.cpp】
+float 序列化尺寸 sizeof(float) = 4 字节 // 静态断言；RS485 float 使用小端 IEEE754 单精度。
+等待底盘回复上限 age < 2U = 2 ms // 已发送且未收到有效回复时抑制下一次发送，超时后允许发送最新状态。
+tx_buffer[22] = 22 字节 // USART3 第一条 RS485 链路固定发送帧；DMA 未结束时不覆盖。
+帧头 tx_buffer[0..1] = {0x78, 0x91} // 云台发到底盘的帧同步标识。
+右摇杆X tx_buffer[2..5] = 4 字节 float // 归一化 -1..1，沿用 DT7 中值与死区；保留符号。
+最新鼠标X tx_buffer[6..7] = 2 字节 int16_t // 小端；保存最新 DT7 帧采样值，非累计增量。
+底盘平移 tx_buffer[8..11], tx_buffer[12..15] = {Vx:4字节float, Vy:4字节float} // 两个归一化遥控量。
+开关 tx_buffer[16], tx_buffer[17] = {S1:1字节, S2:1字节} // 原 DT7 开关编码。
+键盘 tx_buffer[18..19] = 2 字节 uint16_t // 小端键盘位掩码，高字节右移 8 位。
+CRC16 初始化/反射多项式/最终异或 = {0xFFFF, 0x8408, 0x0000} // CRC16/MCRF4XX；每字节迭代8位，判断最低位掩码0x01后右移1位。
+CRC16 覆盖/存放 = {起点0, 长度20, 低字节20, 高字节21} // CRC覆盖帧头及全部有效载荷，不含CRC本身。
+
+【文件：communication_between_boards/gimbal_to_arm.cpp】
+机械臂键盘模式 S1==3U && S2==3U = 双中 // 切入时同步已按住的F/G，必须先松开再计为新按下；其他开关组合清除计数与G翻转状态。
+F计数初次按下 f_count=1U / 上限 UINT16_MAX = {1, 65535} 次 // 窗口内按下沿递增并饱和，超过窗口不计入该轮。
+F待发送哨兵 f_pending==0U = 0 次 // 0表示无待发结果；上一轮结果待发时不覆盖它。
+帧头 tx[0..1] = {0x25, 0x44} // 云台发机械臂同步字。
+开关 tx[2..3] = {S1:1字节, S2:1字节} // 在线时发送原开关值。
+键盘/F结果 tx[4..5], tx[6..7] = {keyboard:uint16_t, f_pending:uint16_t} // 均小端，高字节右移8位。
+G翻转/遥控状态 tx[8], tx[9] = {G:0或1, 在线:1} // 离线帧tx[2..9]全部为0；帧头与CRC仍有效。
+CRC16 初始化/反射多项式/最终异或 = {0xFFFF, 0x8408, 0x0000} // MCRF4XX；每字节8位，最低位0x01决定是否异或。
+CRC16 覆盖/存放 = {起点0, 长度10, 低字节10, 高字节11} // CRC小端。
+
+【文件：communication_between_boards/gimbal_to_arm.hpp】
+KEY_DEBOUNCE_MS = 30 ms // F/G键原始状态稳定30ms才更新确认电平；只以按下沿计数/翻转。
+F_WINDOW_MS = 4000 ms // 从首次有效F按下沿起计数的时间窗口；到期结果待DMA成功启动后发布一次。
+KEY_F = 1U << 9 = 512（0x0200） // 机械臂F按键位，与DT7键盘协议一致。
+KEY_G = 1U << 10 = 1024（0x0400） // 机械臂G按键位。
+tx[12] = 12 字节 // UART7机械臂固定发送帧缓存；实际921600 baud、8N1由Core/Src/usart.c配置。
+
+【文件：communication_between_boards/HI14.cpp】
+HI14同步/尾标记 = {先行头0xA5, 缓存[52]=0x5A, 缓存[53]=0xA5} // 此实现完整接收长度55字节；编译存在，当前未接入UART回调。
+解析状态 hImu.Step = {0:找0xA5, 1:收54字节缓存} // 状态机编码；无CRC，仅命令和尾标记检查。
+欧拉角缓存偏移/字段宽度 = {Roll:32/4, Pitch:36/4, Yaw:40/4} 字节 // int32_t按STM32本机小端memcpy。
+角速度缓存偏移/字段宽度 = {GyrPitch:14/2, GyrRoll:16/2, GyrYaw:18/2} 字节 // int16_t本机小端。
+四元数缓存偏移/字段宽度 = {Qw:44/2, Qx:46/2, Qy:48/2, Qz:50/2} 字节 // int16_t本机小端。
+欧拉角换算 raw / 87.890625f = raw × 0.0113777778 // 原代码浮点角尺度；当前未用于控制，单位应结合实际HI14输出格式核实。
+角速度换算 raw × 0.0275f = 0.0275 / 原始计数 // 原代码陀螺尺度，现未用于控制。
+四元数换算 raw × 0.0001f = 0.0001 / 原始计数 // 无量纲四元数尺度。
+ErrCount复位阈值 = 20 次 // 错帧累计达到20清零；每一帧结束本来就回到Step=0，不构成20帧等待。
+ImuDataReady有效标志 = 1 // 任一有效帧后置1；当前无业务读取，不能代表当前工程具备有效IMU反馈。
+
+【文件：communication_between_boards/HI14.hpp】
+IMU_DATA_LEN = 54 字节 // 已列入Keil但当前无接收调用的旧HI14解析器；缓存不包含先行0xA5帧头。
+IMU_CMD_POS / IMU_EXPECTED_CMD = {4, 0x92} // 在54字节缓存中的命令字节位置与期望值。
+IMU_TAIL1_POS = IMU_DATA_LEN - 2 = 52 // 尾标记第一字节在缓存中的位置。
+IMU_TAIL2_POS = IMU_DATA_LEN - 1 = 53 // 尾标记第二字节在缓存中的位置。
+
+【文件：communication_between_boards/input_dispatcher.cpp】
+键鼠源条件 S1==MIDDLE && S2==MIDDLE = {S1:3, S2:3} // 仅双中执行R摩擦轮翻转、V热量旁路翻转及左右鼠标消抖；离开即复位键鼠状态。
+
+【文件：communication_between_boards/input_dispatcher.hpp】
+InputSource::{Remote, KeyMouse} = {0, 1} // 输入来源枚举；上电默认Remote，切出双中即恢复Remote。
+DEBOUNCE_THRESHOLD = 30 ms // R、V、鼠标左右键稳定达到30ms后确认，基于HAL_GetTick差值。
+IsVisionMode() = false（逻辑0） // 当前视觉控制入口固定关闭。
+
+【文件：communication_between_boards/refree_receive_uart_485.cpp】
+frame[12] = 12 字节 // USART3 底盘裁判回复流式重组缓存，支持拆帧与粘帧。
+帧头 frame[0..1] = {0x91, 0x78} // 与云台发送方向的帧头顺序相反。
+裁判有效载荷 frame[2..9] = 8 字节 // 延续旧CAN裁判数据区布局；本解析器未读取frame[9]。
+cooling_value_ frame[2..3] = 2 字节 uint16_t 大端 // 冷却数值；高字节左移8位。
+heat_limit_ frame[4..5] = 2 字节 uint16_t 大端 // 热量上限。
+heat_42mm_ frame[6..7] = 2 字节 uint16_t 大端 // 42 mm机构当前热量。
+referee_online_ frame[8] = {0:离线, 1:在线} // 大于1则整帧无效，不刷新本地数据及回复心跳。
+CRC16 初始化/反射多项式/最终异或 = {0xFFFF, 0x8408, 0x0000} // 每字节处理8位，最低位0x01决定是否异或；MCRF4XX。
+CRC16 覆盖/存放 = {起点0, 长度10, 低字节10, 高字节11} // CRC按小端保存。
+失配滑窗 frame+1, sizeof(frame)-1 = {移动1字节, 保留11字节} // 帧头/CRC/在线标志校验失败后逐字节重新同步。
+
+【文件：communication_between_boards/refree_receive_uart_485.hpp】
+getDataAgeMs 未收帧返回 UINT32_MAX = 4294967295 ms // 明确区分从未收到与正常有效帧年龄；帧年龄由调用方决定失联阈值。
+
+【文件：feeder_fsm/feeder_fsm.cpp】
+状态：当前输入映射只有STOP与SINGLE，没有返回CONTINUOUS；视觉fire指令不在本FSM触发来源中。SINGLE_SHOT_*计时和阈值的实际比较以本文件为准。
+s1/s2 合法数值范围 = [1, 3] // 任一拨杆不在该范围就STOP且无扳机，拒绝上电默认0。（L129）
+滚轮正向触发阈值 = >0.95f // 单发正向边沿触发；保留的连发模式同样以>0.95作为持续正向触发。（L204、L208）
+滚轮正向重新武装阈值 = fabs(scroll_value)<0.20f // 单发正向触发后须回到此中心区才可再次正向触发。（L213）
+滚轮反向触发阈值 = <-0.95f // 单发模式下触发一次手动退弹请求。（L218）
+滚轮反向重新武装阈值 = >-0.80f // 反向触发后须回到大于-0.80才再次允许退弹，形成反向滞回。（L223）
+Calculate_Single_Shot_Target = 当前累计电机角 + (-3060 deg) - 上一发有效残差 // 残差窗口来自SINGLE_SHOT_PHASE_CORRECTION_LIMIT，避免每发小偏差累积；不重复跨圈累计。（L73）
+
+【文件：feeder_fsm/feeder_fsm.hpp】
+状态：单发、反转、冷却参数当前使用；计时tick是gimbal_task每次调用维护的FSM周期计数，标称每周期5 ms，实际随任务耗时变化。FORWARD_SPEED仅在当前模式映射不可达的连发状态中输出。
+SINGLE_SHOT_ANGLE = -(60.0 * 51.0f) = -3060 deg // 发射一发的电机转子角；拨弹轮每槽60 deg、减速比51，负号为发射方向。（L162）
+MANUAL_REVERSE_ANGLE = 4.0f * 51.0f = +204 deg // 手动退弹对应拨弹轮输出轴+4 deg，换算为电机轴+204 deg。（L167）
+SINGLE_SHOT_FINISH_THRESHOLD = 50.0f // 单发正常到位及反转到位要求电机轴|目标-反馈|≤50 deg，还须满足转速条件。（L172）
+SINGLE_SHOT_FINISH_SPEED_RPM = 300.0f // 单发/反转正常到位要求|电机转速|≤300 RPM。（L175）
+SINGLE_SHOT_STALL_SPEED_RPM = 50.0f // 单发角误差仍大于50 deg时，|转速|≤50 RPM计入卡止提前结束。（L180）
+SINGLE_SHOT_STALL_TICKS = 10 // 角误差超窗且连续10个控制周期低速，即提前进入冷却；按5 ms估算约50 ms。（L181）
+SINGLE_SHOT_PHASE_CORRECTION_LIMIT = 100.0f // 冷却结束时实际角-目标角的残差绝对值≤100 deg才带入下一发作反向相位修正；超出清除。（L185）
+FORWARD_SPEED = 50.0f * 10.0f = 500.0 RPM // 连发状态保留输出；当前输入映射不选择连发，且任务的速度分支未使用该输出，而按固定3 Hz推进角度。（L189）
+SINGLE_SHOT_TIMEOUT_COUNT = 200 // 单发最多200个控制周期后转冷却，按5 ms约1 s。（L192）
+MANUAL_REVERSE_TIMEOUT_COUNT = 200 // 手动退弹最多200个控制周期后回STOP，按5 ms约1 s。（L193）
+SINGLE_SHOT_COOLDOWN_TICKS = 1000 // 冷却状态1000周期到期强制结束，按5 ms约5 s；扳机松开并满足抱角条件可以提前结束。（L199）
+SINGLE_SHOT_REMOTE_HOLD_TICKS = 30 // 冷却中最短抱角30周期，约150 ms；实际代码同时作用于遥控器和键鼠。（L204）
+SINGLE_SHOT_REMOTE_HOLD_TIMEOUT_TICKS = 60 // 扳机松开后，抱角累计60周期即允许退出，约300 ms；持续按住仍可等至总冷却上限。（L205）
+SINGLE_SHOT_SETTLE_THRESHOLD = 50.0f // 松扳机、最短抱角完成后，电机轴|角误差|≤50 deg才满足停稳角差条件。（L206）
+SINGLE_SHOT_SETTLE_SPEED_RPM = 40.0f // 与抱角角差条件同时要求|电机转速|≤40 RPM，才可在300 ms抱角超时前退出。（L207）
+
+【文件：feeder_fsm/friction_fsm.cpp】
+状态：当前使用；READY掉速立即回STARTING重新等待。三路输出始终同号。
+实际STARTING/READY目标 = -TARGET_SPEED = +4150 RPM // 三路摩擦轮均按正4150 RPM输出；与头文件负号命名值区分。（L99～L101、L115～L117）
+就绪条件 = 三轮各自转速≥-READY_SPEED_THRESHOLD = +4150 RPM // 每只轮独立比较实际带符号RPM，且STARTING计时须≥200周期。（L19～L21、L107～L108）
+s1/s2 合法数值范围 = [1, 3] // 遥控来源下非法拨杆值导致STOP，键鼠来源则先使用R键开关结果。（L27～L34）
+
+【文件：feeder_fsm/friction_fsm.hpp】
+状态：当前三路摩擦轮共同使用此配置，独立速度PID在gimbal_task.cpp。FSM的READY状态用于速度状态标记；当前拨弹准入没有调用Is_Ready作联锁。
+TARGET_SPEED = -4150.0f // 存储的速度常量为-4150 RPM，实际三路输出取负号，目标均为+4150 RPM。（L63）
+READY_SPEED_THRESHOLD = -4150.0f // 判断代码取相反数，要求左/右/下三路实测转速均≥+4150 RPM；不是绝对转速判定。（L64）
+STARTING_TIME_COUNT = 200 // STARTING至少保持200个FSM周期后且三轮均达标才READY；按5 ms估算约1 s。（L65）
+
+【文件：feeder_fsm/gantry_fsm.cpp】
+状态：当前执行的行程保护、分段减速和同步计算；以下为实现中直接写出的数值。
+ConfigValid 最小行程幅值 = 1e-3f // deg；任一升降段或 DM 伸缩行程小于此值，配置无效。
+第一减速进度阈值 = .5f // 当前段达到 50% 后，将速度档位降为 50%。
+第一减速速度比例 = .5f // 以公共基础速度为基准的 50% 速度档。
+第二减速进度阈值 = .85f // 当前段达到 85% 后，将速度档位降为 10%。
+第二减速速度比例 = .1f // 以公共基础速度为基准的 10% 速度档。
+初始速度档位 = 1 // 100% 基础速度；第二次抬升和下降不按行程切换档位，仍允许同步纠偏。
+同步误差角度换算 = 3.14159265358979323846f / 180.0f // 将输出轴角度差 deg 换成 rad，乘同步比例增益得到 rad/s。
+向上方向值 = +1.0f / -1.0f // 由各自 FIRST_DEG-HOME_DEG 符号选择，支持两台电机相反旋向共同上升。
+公共升降速度 = min(LIFT_ID5_SPEED_RAD_S, LIFT_ID6_SPEED_RAD_S) × scale_ // 两侧上限取较小值并乘当前档位，同步修正后仍受此公共上限限制。
+
+【文件：feeder_fsm/gantry_fsm.hpp】
+状态：龙门架当前配置；角度/行程为输出轴 deg，速度为 rad/s，电流补偿为 C620 原始指令。
+START_HOLD_MS = 2000 // ms：Z 键需连续按住的时间；越大越不易误触，松开立即取消计时
+CALIBRATED = true // 总标定开关：false 禁止动作；true 仍须行程/速度等校验通过，不代表 PID 已整定
+LIFT_ID5_HOME_DEG = 0.0f // deg：ID5 标定时底部角度，与 FIRST/SECOND 配对计算行程；不是写死的上电齐平原点
+LIFT_ID6_HOME_DEG = 0.0f // deg：ID6 标定时底部角度；两台 HOME 数值不必相同
+LIFT_ID5_FIRST_DEG = 0.0f // deg：ID5 第一次抬升开关触发位置；FIRST-HOME 的符号决定 ID5 向上方向
+LIFT_ID6_FIRST_DEG = 0.0f // deg：ID6 第一次抬升开关触发位置；允许 FIRST-HOME 与 ID5 异号
+LIFT_ID5_SECOND_DEG = 0.0f // deg：ID5 第二次抬升开关触发位置；SECOND-FIRST 为第二段，SECOND-HOME 为完整下降行程的反向
+LIFT_ID6_SECOND_DEG = 0.0f // deg：ID6 第二次抬升开关触发位置；填总端点，不是第二段单独的角度增量
+DM_RETRACT_DEG = 0.0f // deg：4310 后收开关触发时的累计角度；与 EXTEND 在同一反馈坐标下标定
+DM_EXTEND_DEG = 0.0f // deg：4310 前伸开关触发时的累计角度；EXTEND-RETRACT 决定前伸方向和行程，差值不能为 0
+LIFT_ID5_SPEED_RAD_S = 0.0f / 180.0f * 3.1415926f // ID5 输出轴速度上限；增大加快动作，也增大到位制动需求；0 禁止启动
+LIFT_ID6_SPEED_RAD_S = 0.0f / 180.0f * 3.1415926f // ID6 输出轴速度上限；传动相同一般与 ID5 填相同幅值；0 禁止启动
+DM_SPEED_RAD_S = 0.0f / 180.0f * 3.1415926f // 4310 前伸/后收及保持速度上限；换算后须 >0 且 <=30 rad/s
+LIFT_FIRST_TIMEOUT_MS = 30000 // 第一次抬升等 PE13 的最长时间，当前 30 s
+EXTEND_TIMEOUT_MS = 60000 // 4310 前伸等 PE9 的最长时间，当前 60 s
+LIFT_SECOND_TIMEOUT_MS = 30000 // 第二次抬升等 PA2 的最长时间，当前 30 s
+RETRACT_TIMEOUT_MS = 60000 // 4310 后收等 PA0 的最长时间，当前 60 s
+LOWER_TIMEOUT_MS = 30000 // 下降等 PD10 的最长时间，当前 30 s，包含卸载后的剩余下降
+TRAVEL_MARGIN = 0.20f // 无量纲 (0,1)：本段进度小于 -20% 或大于 120% 判 Travel；越大允许的越界越多
+LIFT_MISMATCH = 0.10f // 无量纲 (0,1)：两台本段归一化进度差超过 10 个百分点判 LiftMismatch；不是同步增益或实测机械容差
+LIFT_SYNC_KP = 1.0f // 1/s，>=0：同步角差 rad 乘此值得到纠偏 rad/s；越大纠偏越强，过大可能振荡；0 禁用，初始值待实测
+LIFT_SYNC_MAX_SPEED_RATIO = 0.20f // 无量纲 [0,1]：纠偏上限=当前公共速度×此值；0 禁用，0.2 最多让等待侧降速 20%，1 允许降至停住
+HOME_STOP_SPEED_RAD_S = 0.4f / 19.0f // 输出轴 rad/s，>0：两侧速度绝对值均不超过此值才可记原点/启动；现值约 0.0211，越大越易将运动判为静止
+LIFT_HOME_TOLERANCE_DEG = 20.0f // 输出轴 deg，>0：启动时各自相对本次上电原点允许 ±20 deg；越大越容易放行未到底的位置
+LIFT_ID5_GRAVITY_EMPTY_CMD = 0.0f // ID5 空载支撑指令：第一次抬升/前伸保持，以及卸载后的下降；0 表示无补偿
+LIFT_ID6_GRAVITY_EMPTY_CMD = 0.0f // ID6 空载支撑指令：单独整定其方向和大小，不要求与 ID5 同号或同幅值
+LIFT_ID5_GRAVITY_LOADED_CMD = 0.0f // ID5 带载支撑指令：第二次抬升一开始、后收保持、下降卸载前使用
+LIFT_ID6_GRAVITY_LOADED_CMD = 0.0f // ID6 带载支撑指令：按该侧实际承重整定；过大可能上窜，过小由速度环补足
+LOWER_UNLOAD_PROGRESS = 0.40f // 无量纲 (0,1)：两侧都走完各自下降行程的 40% 才开始卸载；减小会更早切换，不检测真实接触
+LOWER_UNLOAD_BLEND_MS = 200 // ms，>0：带载补偿线性切至空载补偿的时间；越大越平缓，但载荷已卸下时额外支撑持续更久
+DM_MOVE_KD = 1.0f // Nm/(rad/s)，(0,5]：前伸/后收速度误差乘此值产生力矩；越大响应越强，也更易放大速度噪声
+DM_HOLD_KD = 1.0f // Nm/(rad/s)，(0,5]：4310 位置保持时的速度阻尼，配合 hold_angle_pid[2]；独立于运动 KD 整定
+DM_TORQUE_LIMIT_NM = 0.15f // Nm，(0,3]：前伸/后收/保持共用的力矩绝对值上限；当前 0.15 为空载起始值，过小会跟不上目标
+
+【文件：feeder_fsm/gimbal_fsm.cpp】
+状态：当前Pitch使用本FSM；视觉与连续角分支为保留能力，Pitch调用方禁用视觉并关闭normalize_angle。
+INPUT_DEADBAND = 0.01f // 遥控|摇杆|严格大于0.01才累加角目标或生成速度目标，等于阈值不动作。（L7、L229～L244）
+MOUSE_ANGLE_DEADBAND = 2.0f // 键鼠|累计位移|严格大于2 pixel才将本次位移乘mouse_angle_scale累加目标；等于阈值忽略。（L8、L222～L225）
+PI = 3.14159265358979323846f // 视觉最近圈对齐及普通角归一化的半圈rad常量。（L9）
+FULL_CIRCLE_RAD = 2.0f * PI // 一整圈2π rad；normalize_angle启用且continuous_angle关闭时普通角归一至[-π,π)。（L10、L419～L429）
+向外边界判定 = 反馈≥max且命令>0，或反馈≤min且命令<0 // 等于边界即保护；目标保护与最终力矩保护共用此方向约定，0命令允许。（L311～L313）
+限位拦截输出 = 0.0f N*m // 下限负力矩始终置0，上限正力矩仅limit_upper_torque非0才置0；朝内力矩放行。（L333～L340）
+
+【文件：feeder_fsm/gimbal_fsm.hpp】
+状态：下列为结构体源码默认值，不是Pitch最终配置；Pitch在can_send_task.cpp逐项覆盖。FSM统一使用rad、rad/s，头文件mouse比例旁的deg注释不代表运行时单位。
+Struct_Gimbal_FSM_Config.angle_step 默认 = 0.0f // 单位归一化摇杆每次更新的角增量rad；Pitch覆盖为0.11 deg对应rad。（L33）
+Struct_Gimbal_FSM_Config.speed_scale 默认 = 0.0f // 速度模式单位摇杆对应rad/s；Pitch覆盖为95 deg/s。（L34）
+Struct_Gimbal_FSM_Config.mouse_speed_scale 默认 = 0.2f // 当前未读取的鼠标速度比例，FSM不使用该默认值计算任何速度。（L35）
+Struct_Gimbal_FSM_Config.mouse_angle_scale 默认 = 0.02f // 每像素目标角增量的默认数值，实际运算量纲rad/pixel；Pitch覆盖为0.013 deg/pixel对应rad值。（L36）
+Struct_Gimbal_FSM_Config.min_angle/max_angle 默认 = (0.0f, 0.0f) // 默认限位边界rad；Pitch覆盖为34.2/67.9 deg对应rad。（L37～L38）
+Struct_Gimbal_FSM_Config.limit_angle 默认 = 0U // 默认不做实际反馈边界保护；Pitch覆盖为1启用。（L39）
+Struct_Gimbal_FSM_Config.limit_upper_torque 默认 = 1U // 默认在启用limit_angle后于上界拦正力矩；Pitch覆盖为0。（L40）
+Struct_Gimbal_FSM_Config.limit_target_angle 默认 = 1U // 默认与limit_angle一起打开时直接把目标夹入min/max；Pitch覆盖为0。（L41）
+Struct_Gimbal_FSM_Config.normalize_angle 默认 = 0U // 默认不对普通目标归一化/视觉目标按最近圈对齐。（L42）
+Struct_Gimbal_FSM_Config.continuous_angle 默认 = 0U // 默认不保留连续圈数；仅normalize_angle启用时参与普通目标是否折返的选择。（L43）
+
+【文件：feeder_fsm/imu_feedback_fsm.hpp】
+状态：Keil工程列有本头文件，但当前业务源文件无包含/实例/调用；这些参数当前不参与Pitch反馈选择，不能写为生效保护。
+MAX_JUMP_RAD = 45.0f * 3.14159265358979323846f / 180.0f // 相邻有效IMU姿态最大允许跳变45 deg；Yaw先按2π取最短角差，Pitch直接比较。（L11、L34～L39）
+RECOVERY_STABLE_MS = 100U // IMU健康后连续稳定100 ms才从编码器备份恢复IMU。（L12、L63）
+Yaw差值折返周期 = 2.0f * 3.14159265358979323846f // std::remainder用2π rad处理Yaw跨±π；不用于Pitch。（L35）
+
+【文件：feeder_fsm/motor_recovery_fsm.hpp】
+状态：当前Pitch和龙门架等调用本FSM；首次无反馈检查可立即请求On，随后依间隔重试；从离线恢复在线的首检查也请求一次On，健康连续在线时不重复发。
+ENABLE_RETRY_MS = 100U // 同一离线周期两次自动MIT On请求最小间隔100 ms；用HAL tick无符号差处理回绕。（L12、L48～L53）
+
+【文件：RtosTask/can_send_task.cpp】
+状态：当前负责 Pitch 编码器闭环和电机反馈分发；Yaw ID7 仅接收反馈，无 Yaw 使能/控制输出。PID 六元组含义同 gimbal_task.cpp。Pitch 视觉就绪与新鲜标志固定 false，实际不能切入视觉控制。
+kPi = 3.14159265358979323846f // 弧度圆周率，用于角度换算及 Pitch 误差折返。（L37）
+kTwoPi = 2.0f * kPi // 2π rad，一整圈；误差超过 ±π 时加减该值。（L38、L463～L464）
+DEG_TO_RAD = kPi / 180.0f // deg 转 rad 的比例，180 deg 对应 π rad。（L39）
+J4340_TORQUE_LIMIT_NM = 27.0f // 主控对 MIT 合成估算力矩限 ±27 N*m；若被限幅则改为 Kd=0、直接发送受限力矩。（L40、L502～L523）
+PITCH_MAX_SPEED_RAD_S = 95.0f * DEG_TO_RAD // Pitch 最大目标角速度 95 deg/s，内部约 1.6580628 rad/s；同时是角度 PID 的输出幅值上限。（L41）
+PITCH_REMOTE_ANGLE_MIT_KD = 1.3f // 遥控角度模式的电机 MIT 速度反馈增益，力矩=1.3×速度误差+前馈，单位 N*m/(rad/s)。（L42）
+PITCH_REMOTE_SPEED_MIT_KD = 1.3f // 遥控直接速度模式的 MIT 速度反馈增益，单位 N*m/(rad/s)。（L43）
+PITCH_KEYMOUSE_MIT_KD = 1.3f // 键鼠角度模式的 MIT 速度反馈增益，与遥控器独立配置。（L44）
+PITCH_ENCODER_HORIZONTAL_RAD = 46.7f * DEG_TO_RAD // 原始 Pitch 编码器水平标定角 46.7 deg；重力补偿先从反馈减该角。（L45、L469）
+pitch_remote_angle_encoder_pid = (32.0f, 0.015f, 0.0f, 95.0f*DEG_TO_RAD, 1000.0f, 100.0f) // 遥控角误差 rad 转目标 rad/s；输出限 ±95 deg/s、Σ误差限 ±1000、|误差|<100 rad 才积分。（L66）
+pitch_keymouse_angle_encoder_pid = (26.5f, 0.0f, 0.0f, 95.0f*DEG_TO_RAD, 1000.0f, 100.0f) // 键鼠角误差 rad 转目标 rad/s；输出限 ±95 deg/s、Σ误差限 ±1000、积分分离阈值 100 rad。（L70）
+pitch_gravity_ff = (0.0f, 0.0f) // Gravity 构造的（力矩幅值 N*m、相位 rad）；当前幅值为 0，重力补偿计算虽调用但输出恒零。（L72～L73）
+yaw_motor = J4310<1>(0, {7}, {7}, HAL_Fdcan1) // 一台 J4310，接收基址 0、接收/发送偏移均 7，标准 ID7，FDCAN1；仅反馈使用。（L97～L98）
+pitch_motor = J4340<1>(0, {8}, {8}, HAL_Fdcan1) // 一台 J4340，逻辑槽 1 对应接收/发送标准 ID8，实际 FDCAN1；L273 的 FDCAN3 注释过时。（L101～L102）
+osDelay 启动等待 = 1000 // CAN 任务初始化前等待 1000 个 CMSIS-OS tick；当前 1 kHz tick 对应 1 s。（L170）
+pitch_gimbal_fsm_config.angle_step = DegreesToRadians(0.11f) // 遥控归一化摇杆每次 FSM 更新最多累加 0.11 deg；是每次调用增量，不是固定 deg/s。（L176）
+pitch_gimbal_fsm_config.speed_scale = PITCH_MAX_SPEED_RAD_S // 遥控速度模式单位摇杆对应 95 deg/s。（L177）
+pitch_gimbal_fsm_config.mouse_speed_scale = DegreesToRadians(0.2f) // 预留比例为 0.2 deg/s/pixel，但当前 FSM 不读取该字段。（L178）
+pitch_gimbal_fsm_config.mouse_angle_scale = DegreesToRadians(0.013f) // 键鼠 Pitch 有符号累计 Y 位移每像素改变目标 0.013 deg。（L179）
+pitch_gimbal_fsm_config.min_angle = DegreesToRadians(34.2f) // 原始编码器下界 34.2 deg；在下界及以下收回负向角目标并拦截负力矩。（L180）
+pitch_gimbal_fsm_config.max_angle = DegreesToRadians(67.9f) // 原始编码器上界 67.9 deg；在上界及以上收回向外角目标，正力矩是否拦截另由 limit_upper_torque 决定。（L181）
+pitch_gimbal_fsm_config.limit_angle = 1U // 启用基于实际编码器位置的外向目标保护和最终方向力矩保护。（L182）
+pitch_gimbal_fsm_config.limit_upper_torque = 0U // 上界允许正力矩支撑或制动；下界负力矩仍拦截，上界向外目标仍收回。（L183）
+pitch_gimbal_fsm_config.limit_target_angle = 0U // 关闭对所有目标直接夹入 [min,max] 的额外夹紧；实际越界反馈保护仍启用。（L186）
+pitch_gimbal_fsm_config.normalize_angle = 0U // FSM 不将 Pitch 角目标按 ±π 归一；任务随后仍将位置误差折返至 [-π,+π]。（L187、L463～L464）
+pitch_gimbal_fsm_config.continuous_angle = 0U // 不启用连续角保留；当前 normalize_angle=0，因此本标志不触发折返。（L188）
+摇杆异常判据 = 四通道同时等于 -1 // 初始化等待及运行安全门使用的无效输入组合；满足时运行分支发送 Pitch 全零 MIT 指令。（L252～L255、L286～L302）
+初始化遥控等待上限 = 200 次 × vTaskDelay(1) // 最多等待约 200 ms 的延时，非四通道同时 -1 时提前退出；主循环另做连接检查。（L249～L255）
+vTaskDelay 电机上电等待 = 500 // 初次 Pitch 使能后的 500 tick 等待，1 kHz tick 下对应 500 ms。（L274）
+startup_protect 上限 = 500 // 前 500 次有效遥控分支且 Pitch 在线的更新强制 FSM STOP；掉线不累计，不能等同固定 500 ms。（L405～L412）
+pitch_input.vision_ready / vision_fresh = (false, false) // 当前纯编码器 Pitch 禁止视觉接管；右键本身不会使该轴进入视觉控制。（L431～L432）
+Pitch MIT 固定位置/Kp = (0.0f, 0.0f) // 正常发送 ctrl_Mit(slot1,0,v_ref,0,Kd,tau_ff)，不用电机内部位置环，主控角度 PID 生成速度。（L537）
+Pitch 安全门 MIT 命令 = (槽1, 位置0.0f, 速度0.0f, Kp0.0f, Kd0.0f, 力矩0.0f) // 遥控失联、四摇杆异常或看门狗等待解锁时直接发送零输出。（L302）
+pitch_motor.isConnected 实参 = (1, 8) // 1 是配置中的逻辑电机槽，8 是蜂鸣器标识；第二实参不是超时时间。（L363）
+FDCAN1 接收分发 ID = (8, 7) // ID8 交 Pitch 解析；ID7 仅在标准数据帧、DLC8、数据低半字节为7时交 Yaw。（L209～L216）
+FDCAN2 接收 ID 范围 = [0x201, 0x204] // 四只拨弹/摩擦 3508 反馈交 friction_motor。（L222）
+FDCAN3 接收 ID = (0x205, 0x206, 9) // 两只龙门架3508反馈及DM4310反馈路由；DM9须标准数据帧且DLC8。（L231～L239）
+DM 反馈有效长度/状态掩码 = (8, 0x0F, 右移4位) // DLC8、首字节低4位核对电机号，首字节高4位读取DM状态。（L213～L214、L235～L240）
+VOFA 发送分频 = can2_tick % 4 == 0 // 有效遥控分支每4个调度拍尝试一次UART10 DMA；执行/故障分支会改变实际发送频率。（L542）
+vTaskDelay 主循环参数 = 1 // 每轮相对延时1个FreeRTOS tick；当前tick下延时1 ms，实际控制周期含执行耗时。（L560）
+send_str2 缓冲区 = sizeof(float) * 11 = 44 字节 // 最多10路4字节float加4字节帧尾，USB和UART封装共用本缓冲。（L602）
+vofa_sendN 最大通道数 = 10 // USB CDC-HS 可变通道封装超过10路即截断；当前全工程没有实际调用。（L612～L626）
+VOFA JustFloat 帧尾 = 0x7F800000 // 32位值按小端写为00 00 80 7F，供USB与UART接收端确定帧尾。（L624、L648）
+vofa_send 通道/帧长 = (6, sizeof(float)*7=28 字节) // UART10 DMA固定六通道；当前依次为目标角rad、反馈角rad、目标速度rad/s、反馈速度rad/s、重复目标角rad、受限估算力矩N*m。（L544～L550、L650）
+
+【文件：RtosTask/gantry_task.cpp】
+状态：当前龙门架任务；PID 各轴独立。Kp/Ki/Kd 为 0 的闭环尚未整定。
+gantry_3508_motor 模板轴数 = 2 // 两台升降电机。
+gantry_3508_motor_idxs = {5, 6} // FDCAN3 上两台升降 3508 的物理 ID。
+gantry_3508_motor 反馈基址 / 命令帧 ID = 0x200 / 0x1FF // 反馈帧为 0x205、0x206；0x1FF 命令中的槽位 1、2 对应物理 ID5、ID6。
+gantry_3508_motor 减速比 = 19.2 // 转子转数/输出轴转数；该实例角度和速度已换算为输出轴量，不要重复换算。
+gantry_dm4310_motor 模板轴数 / Init_id / 反馈ID / 控制ID = 1 / 0x00 / {9} / {9} // FDCAN3 龙门架伸缩电机；对象内部逻辑通道为 1。
+limits[5] = {PE13, PE9, PA2, PA0, PD10} // 依次对应首次抬升、前伸、第二次抬升、后收、下降到底；低电平有效，默认消抖 20 ms。
+lift_move_pid[0].Kp = 0.0f // ID5 升降运动速度环比例增益；误差单位 rad/s，输出 C620 原始电流指令。
+lift_move_pid[0].Ki = 0.0f // ID5 升降运动速度环积分增益；乘每次调用的误差累加量，0 关闭积分输出。
+lift_move_pid[0].Kd = 0 // ID5 升降运动速度环微分增益；乘相邻调用的误差差值，0 关闭微分输出。
+lift_move_pid[0].输出限幅 = 16384.0f // ID5 升降运动速度环输出绝对值上限，单位 C620 原始电流指令。
+lift_move_pid[0].积分状态限幅 = 0.0f // ID5 积分状态 sum(error) 的限幅，按 rad/s 误差逐次累加；0 表示不限制，不是关闭积分。
+lift_move_pid[0].积分分离阈值 = 0 // ID5 积分分离阈值，单位 rad/s；正值时仅误差绝对值小于此值才累加，0 不分离。
+lift_move_pid[1].Kp = 0.0f // ID6 升降运动速度环比例增益；误差单位 rad/s，输出 C620 原始电流指令。
+lift_move_pid[1].Ki = 0.0f // ID6 升降运动速度环积分增益；乘每次调用的误差累加量，0 关闭积分输出。
+lift_move_pid[1].Kd = 0 // ID6 升降运动速度环微分增益；乘相邻调用的误差差值，0 关闭微分输出。
+lift_move_pid[1].输出限幅 = 16384.0f // ID6 升降运动速度环输出绝对值上限，单位 C620 原始电流指令。
+lift_move_pid[1].积分状态限幅 = 0.0f // ID6 积分状态 sum(error) 的限幅，按 rad/s 误差逐次累加；0 表示不限制，不是关闭积分。
+lift_move_pid[1].积分分离阈值 = 0 // ID6 积分分离阈值，单位 rad/s；正值时仅误差绝对值小于此值才累加，0 不分离。
+hold_angle_pid[0].Kp = 0.0f // ID5 位置保持角度外环比例增益；误差单位 rad，输出 rad/s。
+hold_angle_pid[0].Ki = 0.0f // ID5 位置保持角度外环积分增益；乘每次调用的误差累加量，0 关闭积分输出。
+hold_angle_pid[0].Kd = 0 // ID5 位置保持角度外环微分增益；乘相邻调用的误差差值，0 关闭微分输出。
+hold_angle_pid[0].输出限幅 = GantryTuning::LIFT_ID5_SPEED_RAD_S // ID5 位置保持角度外环输出绝对值上限，单位 rad/s。
+hold_angle_pid[0].积分状态限幅 = 100.0f / 19.0f // ID5 积分状态 sum(error) 的限幅，按 rad 误差逐次累加；0 表示不限制，不是关闭积分。
+hold_angle_pid[0].积分分离阈值 = 0 // ID5 积分分离阈值，单位 rad；正值时仅误差绝对值小于此值才累加，0 不分离。
+hold_angle_pid[1].Kp = 0.0f // ID6 位置保持角度外环比例增益；误差单位 rad，输出 rad/s。
+hold_angle_pid[1].Ki = 0.0f // ID6 位置保持角度外环积分增益；乘每次调用的误差累加量，0 关闭积分输出。
+hold_angle_pid[1].Kd = 0 // ID6 位置保持角度外环微分增益；乘相邻调用的误差差值，0 关闭微分输出。
+hold_angle_pid[1].输出限幅 = GantryTuning::LIFT_ID6_SPEED_RAD_S // ID6 位置保持角度外环输出绝对值上限，单位 rad/s。
+hold_angle_pid[1].积分状态限幅 = 100.0f / 19.0f // ID6 积分状态 sum(error) 的限幅，按 rad 误差逐次累加；0 表示不限制，不是关闭积分。
+hold_angle_pid[1].积分分离阈值 = 0 // ID6 积分分离阈值，单位 rad；正值时仅误差绝对值小于此值才累加，0 不分离。
+hold_angle_pid[2].Kp = 0.0f // DM ID9 位置保持角度外环比例增益；误差单位 rad，输出 rad/s。
+hold_angle_pid[2].Ki = 0.0f // DM ID9 位置保持角度外环积分增益；乘每次调用的误差累加量，0 关闭积分输出。
+hold_angle_pid[2].Kd = 0 // DM ID9 位置保持角度外环微分增益；乘相邻调用的误差差值，0 关闭微分输出。
+hold_angle_pid[2].输出限幅 = GantryTuning::DM_SPEED_RAD_S // DM ID9 位置保持角度外环输出绝对值上限，单位 rad/s。
+hold_angle_pid[2].积分状态限幅 = 10 // DM ID9 积分状态 sum(error) 的限幅，按 rad 误差逐次累加；0 表示不限制，不是关闭积分。
+hold_angle_pid[2].积分分离阈值 = 0 // DM ID9 积分分离阈值，单位 rad；正值时仅误差绝对值小于此值才累加，0 不分离。
+lift_hold_pid[0].Kp = 0.0f // ID5 位置保持速度内环比例增益；误差单位 rad/s，输出 C620 原始电流指令。
+lift_hold_pid[0].Ki = 0.0f // ID5 位置保持速度内环积分增益；乘每次调用的误差累加量，0 关闭积分输出。
+lift_hold_pid[0].Kd = 0 // ID5 位置保持速度内环微分增益；乘相邻调用的误差差值，0 关闭微分输出。
+lift_hold_pid[0].输出限幅 = 16384.0f // ID5 位置保持速度内环输出绝对值上限，单位 C620 原始电流指令。
+lift_hold_pid[0].积分状态限幅 = 0.0f // ID5 积分状态 sum(error) 的限幅，按 rad/s 误差逐次累加；0 表示不限制，不是关闭积分。
+lift_hold_pid[0].积分分离阈值 = 0 // ID5 积分分离阈值，单位 rad/s；正值时仅误差绝对值小于此值才累加，0 不分离。
+lift_hold_pid[1].Kp = 0.0f // ID6 位置保持速度内环比例增益；误差单位 rad/s，输出 C620 原始电流指令。
+lift_hold_pid[1].Ki = 0.0f // ID6 位置保持速度内环积分增益；乘每次调用的误差累加量，0 关闭积分输出。
+lift_hold_pid[1].Kd = 0 // ID6 位置保持速度内环微分增益；乘相邻调用的误差差值，0 关闭微分输出。
+lift_hold_pid[1].输出限幅 = 16384.0f // ID6 位置保持速度内环输出绝对值上限，单位 C620 原始电流指令。
+lift_hold_pid[1].积分状态限幅 = 0.0f // ID6 积分状态 sum(error) 的限幅，按 rad/s 误差逐次累加；0 表示不限制，不是关闭积分。
+lift_hold_pid[1].积分分离阈值 = 0 // ID6 积分分离阈值，单位 rad/s；正值时仅误差绝对值小于此值才累加，0 不分离。
+Gantry_ConfigValid 补偿幅值 / 最终升降电流限幅 = 16384.0f / ±16384.0f // C620 原始指令；补偿和 PID 相加后再次限幅。
+Gantry_ConfigValid: DM_SPEED_RAD_S 上界 = 30 // rad/s；当前任务的软件校验边界，驱动 J4310 实际编码范围另见 DmMotor.hpp。
+Gantry_ConfigValid: DM_MOVE_KD / DM_HOLD_KD 上界 = 5 // Nm/(rad/s)；KD 要求有限且 >0。
+Gantry_ConfigValid: DM_TORQUE_LIMIT_NM 上界 = 3 // Nm；当前任务软件限制，驱动 J4310 协议量程另见 DmMotor.hpp。
+dm_ready 反馈状态码 = 1 // DM 在线且高四位状态为 1 才认为已使能，参与启动和运行反馈门控。
+保持角差 deg→rad = 3.14159265358979323846f / 180.0f // 3508 和 DM 角度保持外环的输入换算系数。
+活动时 ctrl_Mit 的 p_des / MIT Kp / t_ff = 0 / 0 / 0 // 位置保持在主控外环完成，DM MIT 用 KD 速度阻尼形成力矩。
+osDelay = 2 // 系统 tick；当前 1 kHz tick 下延时 2 ms，实际任务周期另含执行耗时，影响离散 PID Ki/Kd。
+
+【文件：RtosTask/gimbal_task.cpp】
+状态：当前拨弹和三路摩擦轮任务生效；所有 PID 六元组依次是（Kp、Ki、Kd、输出绝对上限、未乘 Ki 的积分状态绝对上限、积分分离误差阈值），积分/微分均按调用次数计算。热量在线标志实际取 refree.isRefereeOnline()，不是注释中的固定 false。当前 FSM 不会选择连发，连发两组 PID 和 3 Hz 仅属于编译保留路径。
+chassis_motor_idxs = {1, 2, 3, 4} // 3508 逻辑槽依次分配拨弹、左摩擦、右摩擦、下摩擦，决定反馈及电流命令槽位。（L14）
+friction_motor 模板电机数 = 4 // 同一对象管理一只拨弹轮和三只摩擦轮，不是四只摩擦轮。（L16）
+friction_motor 反馈基址/电流发送 ID = (0x200, 0x200) // 接收基址加电机偏移得到 0x201～0x204，四路电流合在标准 ID 0x200 发送。（L16）
+friction_motor 总线 = HAL_Fdcan2 // 拨弹和三摩擦轮实际接 FDCAN2。（L16）
+feeder_angle_pid = (3.6f, 0.0f, 1.3f, 10000.0f, 1000.0f, 100.0f) // 单发/反转/冷却位置外环：电机多圈角误差 deg 转 RPM；输出限 ±10000 RPM、Σ误差限 ±1000、|误差|<100 deg 积分。（L54）
+feeder_speed_pid = (3.6f, 0.0f, 0.6f, 16384.0f, 1000.0f, 100.0f) // 单发/反转/冷却速度内环：RPM 转 DJI 原始电流命令；输出限 ±16384、Σ误差限 ±1000、|误差|<100 RPM 积分。（L55）
+feeder_angle_pid_speed = (2.5f, 0.00f, 0.0f, 5000.0f, 1000.0f, 100.0f) // 连发保留路径的位置外环，deg 转 RPM；输出限 ±5000 RPM，其余两限值分别为 Σ误差 1000、误差阈值 100 deg。（L57）
+feeder_stop_pid = (0.0f, 0.00f, 0.0f, 20000.0f, 1000.0f, 100.0f) // 已构造但当前从未调用；不能把此输出限 ±20000 视为实际停机制动值。（L59）
+feeder_speed_pid_speed = (1.0f, 0.00f, 0.0f, 5000.0f, 1000.0f, 100.0f) // 连发保留路径的速度内环，RPM 转 DJI 原始命令；输出限 ±5000，Σ误差限 1000，积分分离阈值 100 RPM。（L63）
+left_friction_pid = (37.0f, 0.13f, 0.0f, 16384.0f, 1000.0f, 100.0f) // 左摩擦轮速度 PID，RPM 转 DJI 原始命令；输出限 ±16384，Σ误差限 ±1000，|误差|<100 RPM 才累加积分。（L65）
+right_friction_pid = (37.0f, 0.13f, 0.0f, 16384.0f, 1000.0f, 100.0f) // 右摩擦轮独立速度 PID；六参数及量纲与左轮相同，历史积分独立。（L66）
+bottom_friction_pid = (37.0f, 0.13f, 0.0f, 16384.0f, 1000.0f, 100.0f) // 下摩擦轮独立速度 PID；六参数及量纲与左轮相同，历史积分独立。（L67）
+FRICTION_STOP_DEADBAND_RPM = 80.0f // 停机时严格处在 (-80,+80) RPM 内返回零电流，等于边界仍制动。（L70、L447）
+FRICTION_BRAKE_KP = 6.0f // 停机主动制动 output=-6×实际 RPM；单位为 DJI 原始命令/RPM。（L72、L452）
+FRICTION_BRAKE_MAX_OUTPUT = 6000.0f // 主动制动的最终原始电流命令限 ±6000。（L73）
+FRICTION_REVERSE_BRAKE_LIMIT = 2500.0f // 正常速度 PID 输出暂时与目标转向相反时，反向制动命令再限 ±2500；不限制同向加速。（L75、L350～L388）
+FEEDER_STATIC_FF_OUTPUT = 3200.0f // 单发或冷却抱角中，低速大角差且 PID 与目标速度同向时叠加的原始电流前馈幅值。（L77）
+FEEDER_FF_MIN_ERROR_DEG = 275.0f // |电机轴角误差|必须严格大于 275 deg 才允许静摩擦前馈。（L78、L236）
+FEEDER_FF_MAX_SPEED_RPM = 500.0f // |拨弹电机转速|必须严格小于 500 RPM 才允许上述前馈。（L79、L237）
+FEEDER_SINGLE_OUTPUT_LIMIT = 16384.0f // 叠加单发静摩擦前馈后总电流命令再限 ±16384。（L80）
+hz_to_rotor_angle_per_frame 调用频率 = 3.0f // 编译保留的连发分支固定按 3 发/s 推进角目标，忽略 FSM 的 FORWARD_SPEED 数值；当前模式映射不可进入该分支。（L273）
+feeder_target_angle 推进符号 = -1 // 连发保留路径以减角为发射方向；按当前机械常数每帧减 45.9 deg。（L273）
+vTaskDelay 参数 = 5 // 任务每轮相对延时 5 个 FreeRTOS tick；1 kHz tick 时延时 5 ms，实际周期还含执行耗时。（L410）
+slots_per_rotation = 6.0f // 一圈拨弹轮有六个弹位，用于发射频率到电机转角的换算。（L435）
+angle_per_slot = 360.0f / 6.0f = 60.0 deg // 每发在拨弹轮输出轴推进 60 deg；360 为一整圈角度常数。（L436）
+reduction_ratio = 51.0f // 每个拨弹轮输出轴角度对应 51 倍电机转子角，单发为 3060 deg。（L437）
+control_period = 0.005f // 频率转帧角增量公式写死的 5 ms，不读取实际任务耗时；角增量=fire_hz×60×51×0.005 deg。（L438～L440）
+
+【文件：RtosTask/remote_control_task.cpp】
+receivedata[18] = 18 字节 // UART5 DT7 DMA+Idle接收缓存；仅长度等于18时调用DT7解析并更新时间戳。
+remoteController(100) = 100 ms // 遥控器在线检测阈值；达到100ms未更新判失联。
+remoteDataQueue=xQueueCreate(1,sizeof(RemoteData_t)) = 1 项 // 最新遥控器快照队列，使用xQueueOverwrite写入。
+uart2_rx_buffer[64] / uart3_rx_buffer[64] = {64, 64} 字节 // USART2/USART3两路RS485 DMA+Idle缓存；USART2业务回调当前预留。
+remoteController.SetDeadzone(66.0f) = 66 原始通道计数 // 覆盖RemoteController构造默认0；严格|坐标|<66归零，对应约10%满量程。
+看门狗重解锁 S1==DOWN && S2==DOWN = {S1:2, S2:2} // 还须已收到18字节帧、遥控在线；解锁后g_watchdog_rearm_required置0。
+全轴无效排除条件 left_y==left_x==right_x==right_y==-1 = {-1, -1, -1, -1} // 四轴全归一化下限时禁止双下重解锁；不是通用DBUS合法性校验。
+遥控失联安全量 = {Vx:0.0, Vy:0.0, 云台Yaw:0.0, Pitch:0.0, S1:0, S2:0} // 写入遥控队列；本段未清除其他RemoteData_t字段。
+失联电流命令 setCAN(0,id) = {拨弹槽1:0, 左摩擦槽2:0, 右摩擦槽3:0, 下摩擦槽4:0} // 对friction_motor四槽发送0原始电流，sendCAN提交FDCAN2组帧。
+vTaskDelay(2) = 2 RTOS tick // 遥控任务循环让步时间；不是任务完整周期，毫秒换算取决于configTICK_RATE_HZ。
+
+【文件：user/core/Alg/ADRC/adrc.cpp】
+状态：编译保留未调用；具体wc、w0、b0、H、输出max无当前业务实例数值。两阶LADRC的std::clamp返回值均未赋回U，因此现实现中的构造输出max不实际限制返回输出。
+一阶LSEF/ESO增益 = KP=wc，Beta1=2.0f*w0，Beta2=w0² // 固定2来自二阶观测器特征多项式；H按秒积分，控制输出=(KP*(target-Z1)-Z2)/b0。（L13～L27）
+二阶LSEF增益 = KP=wc²，KD=2.0f*wc // 固定2形成二阶控制律，输出=(KP*(V1-Z1)+KD*(V2-Z2)-Z3)/b0。（L45～L49）
+二阶ESO增益 = Beta1=3.0f*w0，Beta2=3.0f*w0²，Beta3=w0³ // 固定3来自三阶观测器特征多项式，具体带宽由调用方提供。（L54～L56）
+二阶TD阻尼系数 = 2 // fh=-R²*(V1-input)-2*R*V2，R由构造传入，H为离散积分周期。（L67～L69）
+
+【文件：user/core/Alg/ADRC/AdrcBase.hpp】
+状态：ADRC实现列入Keil编译，当前未见FirstLADRC/SecondLADRC业务对象或调用；H、wc、w0、b0由带参构造传入，没有当前生效的数值调参。
+AdrcBase.H/wc/w0/b0 默认 = (0.0f, 0.0f, 0.0f, 0.0f) // 基类默认采样周期s、控制带宽、观测带宽及模型输入增益均为0；派生带参构造会覆盖，不能直接视为可运行控制配置。（L26）
+
+【文件：user/core/Alg/Feedforward/Feedforward.cpp】
+状态：源码列入Keil编译；只有Uphill力到力矩转换实现，当前未实例化/调用。S是调用方轮半径m，无源码固定默认值。
+Omni_ForceToTorque 轮序符号/倍率 = (-√2, +√2, +√2, -√2) // 四轮各自torque=倍率×force×S，N转N*m，适配此库约定的全向轮布置。（L12～L15）
+Mecanum_ForceToTorque 轮序符号 = (-1, -1, +1, +1) // 四轮各自torque=符号×force×S，N转N*m。（L27～L30）
+steering_ForceToTorque 轮序符号 = (+1, +1, +1, +1) // 四轮各自torque=force×S，N转N*m。（L42～L45）
+
+【文件：user/core/Alg/Feedforward/Feedforward.hpp】
+状态：当前仅Gravity被can_send_task实例化，参数(0 N*m,0 rad)使重力前馈输出恒零。Uphill、Acceleration、Velocity、Friction、GimbalFullCompensation、DOB、UDE均未见业务实例/调用；其默认配置和常量仅作编译保留说明。
+MY_PI = 3.141592653589 // 上坡前馈将坡度deg转rad的圆周率。（L6）
+g = 9.80665 // 标准重力加速度m/s²，上坡总力=m*g*sin(坡度rad)。（L7、L91）
+Uphill角度换算分母 = 180.0 // 坡度deg乘π/180转rad，分配系数的三次多项式仍使用原始deg。（L90）
+Uphill.sqrt2 = sqrtf(2.0f) // 全向轮45 deg力矩换算中的√2；当前没有上坡前馈对象。（L170）
+Friction.deadband_ 默认 = 0.0f // 默认硬符号补偿，target=0时零输出；传正死区则区内按target/deadband线性过渡。（L347～L378）
+GimbalFullCompensation.kJ 默认 = 0.0f // 惯量前馈系数默认0，使基于参考速度差分的加速度补偿为零。（L414）
+GimbalFullCompensation.dt 默认 = 0.001f // 期望速度差分与内部低通设计使用1 ms周期。（L414）
+GimbalFullCompensation.viscousfriction/coulombfriction 默认 = (0.0f, 0.0f) // 默认粘性与库仑摩擦补偿系数均0，不产生摩擦前馈。（L414～L415）
+GimbalFullCompensation.friction_deadzone 默认 = 3.0f // 期望速度绝对值小于3时按比例缩小摩擦补偿；此类接口原注释速度单位RPM。（L415）
+GimbalFullCompensation.acc_lpf 配置 = (50.0f, control_dt, 0.70710678f) // 参考加速度二阶低通截止50 Hz、周期由dt给定、阻尼比≈1/√2。（L421）
+GimbalFullCompensation.deadzone 最小值 = 0.001f // 传入摩擦死区≤0.001时以0.001计算，防止除零；单位同参考速度。（L435）
+GimbalFullCompensation.friction_scale 上限 = 1.0f // min(|ref_velocity|/deadzone,1)，达到死区外才使用完整粘性和库仑补偿。（L437～L447）
+DOB.dt_ 默认 = 0.001f // 扰动观测差分及Q滤波默认周期1 ms；名义模型a、b没有默认，必须由调用方给出。（L548）
+DOB.cutoff_hz_ 默认 = 35.0f // 等效输入扰动的Q二阶低通截止35 Hz。（L549）
+DOB.output_limit_ 默认 = 300.0f // 补偿输出限±300，量纲与模型输入一致；≤0表示不限制。（L550、L670～L681）
+DOB.gain_ 默认 = 1.0f // 补偿=-gain×滤波后的等效输入扰动，默认全量反向补偿。（L551、L616）
+DOB.damping_ratio_ 默认 = 0.70710678f // Q二阶低通阻尼比≈1/√2，ConfigureQ默认值相同。（L552、L629）
+UDE.dt_ 默认 = 0.001f // 不确定性估计器速度差分和加速度低通默认周期1 ms；a、b必须调用方给出。（L721）
+UDE.cutoff_hz_ 默认 = 35.0f // 测量差分加速度的二阶低通截止35 Hz。（L722）
+UDE.output_limit_ 默认 = 300.0f // 不确定性补偿命令限±300，单位与模型输入一致。（L723、L785～L791）
+UDE.gain_ 默认 = 0.3f // 等效输入扰动反向补偿的默认比例0.3。（L724、L781～L784）
+UDE.acc_lpf 阻尼比 = 0.70710678f // UDE内部加速度二阶低通阻尼比固定≈1/√2。（L736）
+
+【文件：user/core/Alg/Filter/Filter.cpp】
+状态：编译保留算法，当前没有业务滤波对象。下列为内部固定常量、初始协方差及设计边界。
+SECOND_ORDER_LPF_PI = 3.141592653589f // 二阶低通双线性变换中tan(π*fc*Ts)的圆周率。（L6、L193）
+clampRatio 合法区间/回退值 = ([0.0f, 1.0f], 0.5f) // 一阶低通输入权重必须在0～1，越界回退0.5；0保持旧输出、1直接跟随。（L10）
+KalmanFilter.P_last 初始 = 1000.0f // 初始估计误差协方差，决定启动时测量权重；不是运行反馈遥测初值。（L42）
+KalmanFilter.A/H = (1.0f, 1.0f) // A=1为恒值状态模型；H虽设为1但filter公式没有引用该成员。（L44、L47）
+Kalman协方差收缩因子 = 1.0f-kg // P_now=(1-kg)*P_mid，1是单位观测模型的常数。（L27）
+TDFilter 阻尼系数 = 2.0f // fh=-R²*(v1-input)-2R*v2，二阶临界阻尼形式，R与H由构造/设置传入。（L76）
+二阶低通Nyquist上界 = 0.5f / sample_period_s // 截止频率须严格小于半采样率，且fc、Ts、阻尼比均为正；不合条件则直通。（L179～L188）
+二阶低通直通系数 = (b0,b1,b2,a1,a2)=(1.0f,0.0f,0.0f,0.0f,0.0f) // 无效参数或默认fc=0时输出等于输入。（L184～L188）
+二阶低通设计系数 = k=tan(π*fc*Ts)，n=1/(1+2ζk+k²)，b=(k²n,2k²n,k²n)，a=(2(k²-1)n,(1-2ζk+k²)n) // 固定1、2来自二阶双线性变换，实际系数随fc/Ts/ζ计算。（L193～L203）
+
+【文件：user/core/Alg/Filter/Filter.hpp】
+状态：Filter.cpp列入编译，当前业务无任何滤波器实例/调用；此处为算法库构造默认值，不能当作当前Pitch或摩擦轮反馈滤波配置。
+KalmanFilter.T_Q 默认 = 0.0001f // 一维Kalman过程噪声协方差，单位为输入量纲平方。（L21）
+KalmanFilter.T_R 默认 = 0.0001f // 一维Kalman测量噪声协方差，单位为输入量纲平方。（L21）
+TDFilter.init_R 默认 = 100.0f // 线性跟踪微分器速度/带宽参数，进入-R²*(v1-input)-2R*v2。（L41）
+TDFilter.init_H 默认 = 0.01f // 跟踪微分器积分步长0.01 s，只有实例实际按同周期调用才匹配。（L41）
+LPFFilter.ratio 默认 = 0.5f // 一阶低通当前输入权重0.5，历史输出权重1-ratio。（L57）
+LMFFilter.limit_ratio 默认 = 1.0f // 相邻输入与上次输出差值绝对值大于1时丢弃新值，单位随输入。（L74）
+SecondOrderLPFFilter.cutoff_frequency_hz 默认 = 0.0f // 0 Hz触发直通系数，不进行低通衰减。（L102）
+SecondOrderLPFFilter.sample_period_s 默认 = 0.001f // 二阶低通默认设计采样周期1 ms。（L103）
+SecondOrderLPFFilter.damping_ratio 默认 = 0.70710678f // 二阶低通默认阻尼比≈1/√2，构造及configure/Configure默认一致。（L104、L107、L117）
+
+【文件：user/core/Alg/fire_control/fire_control.cpp】
+状态：Keil列入编译，但当前全工程无HeatLimitedFireControl实例/业务调用；以下是连发规划器源码默认配置，当前拨弹不使用其频率规划。不得与当前单发限制器100 heat/发配置混淆。
+kPlanPeriodMs = 100U // 规划时间每100 ms推进一次，以HAL实际时间差计数。（L11）
+kMinPositive = 0.001f // 单发热量/机械频率的最小有效正值及规划除法分母保护阈值。（L13）
+FireControlConfig.projectile_heat = 40.0f // 保留连发规划器默认40 heat/发，当前未接入，不覆盖单发限制器的100。（L30）
+FireControlConfig.max_fire_hz = 3.0f // 保留连发规划器的机械频率上限3 Hz。（L31）
+FireControlConfig.safety_reserve_shots = 3.0f // 保留3发对应热量预算，默认120 heat；准入还要求额外容纳至少1发，默认共160 heat。（L32、L133～L135）
+FireControlConfig.referee_timeout_ms = 500U // 裁判数据年龄≤500 ms才算新鲜；大于500 ms禁止规划。（L33、L289～L290）
+FireControlConfig.max_plan_ticks = 300U // 一次前馈频率规划最多300个100 ms tick，即30 s；之后转可持续冷却频率。（L34）
+规划时间尺度 = 10.0f tick/s // n=ceil((10*m-a)/(d*c_limit-a))，计划频率=(10*m-a)/(d*n)+a/d；100 ms时间尺度的代数换算。（L224、L243）
+planned_ticks 最小值 = 1U // 算得0个周期时改为1个100 ms规划周期，随后还受max_plan_ticks约束。（L232～L239）
+规划输出范围 = [0.0f, config_.max_fire_hz] // 前馈计划及冷却可持续频率a/d都夹在零到机械频率上限。（L244、L271～L273）
+
+【文件：user/core/Alg/fire_control/friction_shot_detector.hpp】
+状态：当前gimbal_task只监测左摩擦轮电流绝对值；外部未强停且至少一个摩擦轮目标非0时启用。只有单发热量限制器判断裁判离线时，检测事件才补记本地热量。
+TRIGGER_CURRENT_A = 8.0f // 启动忽略期结束后，已武装且|左轮电流|≥8 A确认一次发射，并解除武装。（L21）
+RELEASE_CURRENT_A = 5.5f // 已解除武装且|左轮电流|≤5.5 A时重新武装，形成电流滞回。（L22）
+STARTUP_IGNORE_MS = 250U // 每次从未启用转为启用后前250 ms忽略启动电流；达到250 ms开始检测。（L23）
+
+【文件：user/core/Alg/fire_control/single_shot_heat_limiter.cpp】
+状态：当前gimbal_task默认构造并使用此单发限制器；在线且收到自洽裁判数据时使用裁判实时热量、冷却率及上限，离线沿用最近有效限制参数并本地冷却。实际射击记账来自离线左轮电流事件，不是在FSM进入单发时直接记账。以下默认值未被自定义构造配置覆盖。
+kMinPositive = 0.001f // projectile_heat和default_heat_limit必须严格大于0.001才认配置有效；热量上限过小也用默认值恢复。（L10、L77、L186～L187）
+kShotHeatSafetyReserve = 15.0f // 下一发后预测热量须≤heat_limit-15 heat；L99～L100的减20示例注释与实际值不符。（L12、L101～L103）
+SingleShotHeatConfig.projectile_heat = 100.0f // 本地确认一发增加100 heat，热量准入也按下一发100计算。（L16）
+SingleShotHeatConfig.default_heat_limit = 20000.0f // 尚无有效裁判上限时采用20000 heat，不能当作赛场裁判上限。（L17）
+SingleShotHeatConfig.default_cooling_rate = 2000.0f // 尚无有效裁判冷却率时采用2000 heat/s；后续离线保留最近有效值。（L18）
+SingleShotHeatConfig.initial_heat = 0.0f // 启动时本地估算热量配置为0 heat。（L19）
+冷却时间换算 = 0.001f s/ms // 每次按elapsed_ms×0.001×cooling_rate扣热量，估算热量下限为0。（L166～L169）
+裁判有效热量基本边界 = heat_limit>0U 且 current_heat<=heat_limit // 还须配置有效、已收数据及裁判在线才覆盖本地估算；异常在线热量退回本地离线路径。（L59～L64）
+配置非负要求 = default_cooling_rate>=0.0f，initial_heat>=0.0f // 允许零冷却率/零初始热量；无效配置即使热量旁路也不允许开火。（L93～L95、L188～L189）
+
+【文件：user/core/Alg/FSM/alg_fsm.hpp】
+状态：当前拨弹、摩擦、Pitch状态机基类使用；状态计时实际步长由业务调用周期决定，基类不带毫秒换算。
+STATUS_MAX = 10 // 每个Class_FSM可存储的最大状态槽数，Status数组长度；不是状态超时。（L20、L52）
+Class_FSM::Init 初始状态默认 = 0 // 调用方未显式传初始编号时从第0状态开始；当前业务各FSM显式选择STOP。（L54）
+
+【文件：user/core/Alg/PID/pid.cpp】
+状态：当前拨弹、摩擦、Pitch及龙门架PID共用算法。具体增益在各任务构造对象处，算法内部无固定采样周期。
+积分分离关闭值 = 0.0f // 第6参数为0时始终允许积分；非0时仅|error|严格小于该值才累加。（L29）
+积分限幅关闭边界 = integral_limit_<=0.0f // 第5参数正值才把未乘Ki的Σerror限在±limit内，不能将它误解为积分输出幅值。（L34～L36）
+PID离散比例 = P=Kp*e，I=Ki*Σe，D=Kd*(e-e_previous) // 积分不乘dt、微分不除dt；调整任务周期会改变Ki/Kd的实际时间效果。（L24、L31、L40、L43）
+PID输出范围 = [-max, +max] // 第4参数设置对称输出限幅；输出饱和且误差继续向外时执行Σe-=e回退，再按积分状态上限夹紧。（L8、L49～L58）
+
+【文件：user/core/BSP/buzzer/buzzer.hpp】
+setMotorOnline有效报警ID = 1..8 // 头文件被MotorBase包含，但isConnected中的调用现被注释，没有活动电机报警更新。
+电机离线位掩码 = 1U << (motor_id-1U) = bit0..bit7 // 每个报警编号占1位，8位离线掩码。
+电机蜂鸣PWM目标 = TIM12 / CHANNEL_2 // helper首次调用才HAL_TIM_PWM_Start；当前业务未调用此helper。
+电机蜂鸣CCR = {存在离线位:125, 全在线:0} // 若启用则结合TIM12周期产生约4kHz蜂鸣；原始CCR值，无量纲。
+
+【文件：user/core/BSP/Common/StateWatch/buzzer_manager.cpp】
+有效电机报警ID = 1..8 // 短鸣次数等于电机报警编号；这是报警编号而非CAN ID。
+requestRemoteRing特殊ID = 0xFF（255） // 处理规则为响500ms、静音500ms。
+requestCommunicationRing特殊ID = 0xFE（254） // 处理规则为2次长鸣，每次500ms，中间100ms，结束200ms。
+requestIMURing实际特殊ID = 0xFE（254） // 与注释所写0xFD矛盾；若被调用会按板间通信的两声长鸣处理。
+processRing IMU分支ID = 0xFD（253） // 分支设计为响1000ms、静音1000ms；当前requestIMURing不会提交此值。
+板间通讯鸣叫次数 = 2 次 // processRing对0xFE的固定次数，属于语义重复次数而非普通循环计数。
+controlBuzzer关闭CCR值 = 0 // 旧实现访问htim6/TIM_CHANNEL_3；TIM6是基本定时器，无此PWM通道，且当前未发现update调用触发。
+
+【文件：user/core/BSP/Common/StateWatch/buzzer_manager.hpp】
+MAX_QUEUE_SIZE = 12 项 // 蜂鸣请求队列容量；相同报警ID去重，满队列直接丢请求。当前只发现遥控离线入队，没有update调用。
+RING_INTERVAL_MS = 500 ms // 距上一轮processRing完成不足500ms时不处理新请求。
+BUZZER_PWM_VALUE = 238 // 旧蜂鸣管理器开启时设置CCR原始值；调用目标为htim6/TIM_CHANNEL_3。
+SHORT_BEEP_MS = 100 ms // 电机报警单次短鸣时长。
+LONG_BEEP_MS = 500 ms // 遥控器/板间通讯单次长鸣时长。
+LONGLONG_BEEP_MS = 1000 ms // 预留IMU超长鸣时长。
+BETWEEN_BEEP_MS / AFTER_BEEP_MS = {100, 200} ms // 电机/板间重复鸣叫间隔与结束停顿。
+
+【文件：user/core/BSP/Common/StateWatch/state_watch.cpp】
+超时判定 TimeThreshold_ >= timeout_ms_ = 达到阈值即OFFLINE // 低于阈值为ONLINE；HAL_GetTick单位ms。
+回绕上界常量 = 0xFFFFFFFF = 4294967295 // 回绕分支计算now+(0xFFFFFFFF-last)，源码此公式比标准无符号差值少1 tick。
+
+【文件：user/core/BSP/Common/StateWatch/state_watch.hpp】
+Status::{OFFLINE, ONLINE} = {1, 0} // 此处在线=0、离线=1，不能按普通bool直接解释。
+StateWatch默认timeout_ms_ = 100 ms // 参数构造可覆盖；初始化状态为OFFLINE，首个CheckStatus会重新按时间差判断。
+
+【文件：user/core/BSP/IMU/HI12_imu.hpp】
+HI12_float::offset = 6 字节 // 旧HI12浮点解析器载荷起点；当前无业务实例，注释掉的HI12_int不计入有效实现参数。
+HI12_float接收帧长度/载荷长度 = {82, 76} 字节 // rx_buffer[82]；仅接受长度字节[2]=76、[3]=0。
+HI12浮点数据分量数 = {acc:3, gyro:3, angle:3, quaternion:4} // acc/gyro按XYZ，angle按roll/pitch/yaw，quaternion按WXYZ。
+加速度载荷偏移/绝对偏移 = {{12,16,20},{18,22,26}} 字节 // 每项4字节小端float，单位g。
+角速度载荷偏移/绝对偏移 = {{24,28,32},{30,34,38}} 字节 // 每项4字节float，单位°/s。
+欧拉角载荷偏移/绝对偏移 = {{48,52,56},{54,58,62}} 字节 // 每项4字节float，单位°。
+四元数载荷偏移/绝对偏移 = {{60,64,68,72},{66,70,74,78}} 字节 // 每项4字节float，无量纲。
+GetGyroRPM换算 gyro[index]/6.0f = 除6 // °/s→rpm，360°/60s=6。
+GetPitch_180 / GetYaw_360偏移 = {angle[1]+90.0, angle[2]+180.0} 度 // 仅做角度平移，不做区间夹取。
+GetAddYaw跨圈阈值/一圈 = {±180, 360} 度 // 内部输入先angle[2]+180，再按跨零累加；仅调用时更新累计值。
+
+【文件：user/core/BSP/IMU/HI12Base.hpp】
+HI12Base(timeThreshold=100) = 100 ms // 旧HI12头文件列入Keil项目组，当前无业务包含/实例；此阈值不作用于当前控制。
+R4 / Init16 / Uint16 / Init32拷贝长度 = {4, 2, 2, 4} 字节 // R4本机小端float；整数读取后分别bswap16/bswap32。
+HI12包头字节 = {0x5A, 0xA5} // [0..1]检查帧头。
+HI12长度字段位置 = {低字节:2, 高字节:3, 高字节左移8位} // payload_len=Length1+(Length2<<8)。
+HI12 CRC字段位置 = {低字节:4, 高字节:5, 高字节左移8位} // 接收CRC按小端组合。
+HI12 CRC初始化/多项式/最高位判断 = {0x0000, 0x1021, 0x8000} // 非反射CRC16；字节左移8并每字节左移处理8位。
+HI12 CRC覆盖 = {帧首0..3共4字节, payload起点6长payload_len字节} // 跳过[4..5]接收CRC本身。
+
+【文件：user/core/BSP/Motor/Dji/DjiMotor.hpp】
+PI = 3.14159265358979323846 // 电机rpm→rad/s转换的圆周率常量。
+Parameters::deg_to_rad / rad_to_deg = {0.017453292519611, 1/0.017453292519611≈57.2957795142} // 单圈角度单位换算。
+DjiMotorBase默认fdcan_device_id = HAL_Fdcan1（枚举0） // 当前摩擦/拨弹组覆写为FDCAN2，龙门架组覆写为FDCAN3。
+DJI发送frame.dlc / msd拷贝长度 = {8, 8} 字节 // 经典标准CAN数据帧；每帧四个int16_t电流槽。
+setCAN原始电流打包槽位 = {槽id数据高字节:(id-1)*2, 低字节:(id-1)*2+1} // 每槽2字节大端；高字节右移8位，槽号不是物理反馈偏移。
+DjiMotorfeedback布局 = {angle:0..1, velocity:2..3, current:4..5, temperature:6, unused:7} // 8字节反馈，前三项int16_t并做16位字节交换。
+累计角度跨圈阈值/一圈 = {±180, 360} 度 // 超过半圈按跨零处理；累计增量再乘1/reduction_ratio。
+GM3508默认参数(rr,tc,fmc,mc,er) = {1.0, 0.3/1.0=0.3, 16384, 20, 8192} // 当前在用；依次为减速比、Nm/A、反馈原始满量程、电流A、编码器计数/圈；摩擦/拨弹组rr=1。
+GM3508龙门架覆盖reduction_ratio = 19.2 // 龙门架ID5/6累计角度和速度输出端换算；其余参数保持同GM3508默认。
+GM3508 encoder_to_deg=360/8192 = 0.0439453125 度/计数 // 单圈角angle_Deg仍是转子单圈角，并未除减速比。
+GM3508 encoder_to_rpm / deg_to_real = {rr=1:1, rr=19.2:0.0520833333333} // 两项均1/rr，分别换算转速和累计角度。
+GM3508 rpm_to_radps=2*PI/(60*rr) = {rr=1:0.104719755120, rr=19.2:0.00545415391248} (rad/s)/原始rpm // 龙门架输出轴rad/s，摩擦/拨弹转子rad/s。
+GM3508 feedback_to_current_coefficient=20/16384 = 0.001220703125 A/原始计数 // ±16384对应±20A；此处是换算比例，不自动限制发出的原始电流。
+GM3508 current_to_torque_coefficient=0.3/16384*20 = 0.0003662109375 N·m/原始计数 // 驱动公式未额外乘reduction_ratio；19.2覆写不改变此力矩系数。
+GM2006参数(rr,tc,fmc,mc,er) = {36.0, 0.18/36.0=0.005, 16384, 10, 8192} // 头文件保留型号，当前无实例；不能用于解释在用GM3508。
+GM2006派生系数 = {deg/计数:0.0439453125, rpm比例:1/36≈0.0277777778, rad/s每原始rpm:0.00290888209, A/计数:0.0006103515625, N·m/计数:0.0000030517578125} // 未实例化型号的源码换算值。
+GM6020参数(rr,tc,fmc,mc,er) = {1.0, 0.7*1.0=0.7, 16384, 3, 8192} // 头文件保留型号，当前无实例。
+GM6020派生系数 = {deg/计数:0.0439453125, rpm比例:1, rad/s每原始rpm:0.104719755120, A/计数:0.00018310546875, N·m/计数:0.000128173828125} // 未实例化型号的源码换算值。
+
+【文件：user/core/BSP/Motor/DM/DmMotor.hpp】
+非有限MIT命令替代值 = 0.0f // ClampMitCommandValue将NaN/Inf替换为0，再按对应字段上下限夹取。
+UnwrapNearestAngle::kPi / kTwoPi = {3.14159265358979323846, 2*kPi≈6.28318530718} rad // 与参考角差超过±π时加减2π，取最近等效角。
+Model::{MIT, ANGLEVELOCITY, VELOCITY} = {0, 1, 2} // 控制协议模式枚举；当前任务主要使用MIT。
+Parameters::{VelMode, PosVelMode} = {0x200, 0x100} // 速度模式、位置速度模式的CAN ID加偏移；实现中使用相同数值字面量。
+Parameters::rad_to_deg = 1/0.017453292519611 ≈ 57.2957795142 度/rad // 电机反馈rad→度换算。
+DMMotorBase/J4310/J4340/S2325默认fdcan_device_id = HAL_Fdcan2（枚举1） // 当前Yaw/Pitch实例显式覆写为FDCAN1，龙门架J4310覆写为FDCAN3。
+DM反馈字段位宽 = {id:4, err:4, position:16, velocity:12, torque:12, T_Mos:8, T_Rotor:8} bit // 当前接收8字节协议定义；温度输出取T_Mos。
+DM反馈字节偏移 = {id/err:0, position:1..2, velocity:3及4高4位, torque:4低4位及5, T_Mos:6, T_Rotor:7} // 位置高字节左移8；速度高字节左移4；力矩高4位左移8。
+DM半字节提取掩码/位移 = {0x0F, 4, 8} // [0]低4位ID/高4位错误码，速度/力矩跨字节拆分。
+MIT命令位宽 = {position:16, velocity:12, KP:12, KD:12, torque:12} bit // 16位量整数域0..65535；12位量整数域0..4095。
+MIT量化整数上限 (1<<bits)-1 = {16位:65535, 12位:4095} // 编码先夹取再按区间线性缩放并截断；解码按相同区间恢复。
+MIT命令8字节布局 = {P:0..1, V:2及3高4位, KP:3低4位及4, KD:5及6高4位, T:6低4位及7} // 大端位域打包；低半字节使用0x0F掩码。
+DM所有发送frame.dlc / data缓存 = {8, 8} 字节 // 经典标准CAN数据帧。
+角度速度模式ID = 0x100 + send_idxs_[id-1] // 当前无任务调用；位置float占0..3，速度float占4..7，本机小端各4字节。
+速度模式ID = 0x200 + send_idxs_[id-1] // 当前无任务调用；速度float占0..3，4..7清0，本机小端。
+使能On命令 = {0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFC} // ID根据MIT/角度速度/速度模式加0/0x100/0x200。
+失能Off命令 = {0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFD} // 末字节0xFD表示失能。
+清错ClearErr命令 = {0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFB} // 末字节0xFB表示清错。
+J4310 P_MIN/P_MAX = {-3.14, +3.14} rad // 当前Yaw ID7、龙门架ID9在用；这是驱动编解码范围，不是机械安全限位。
+J4310 V_MIN/V_MAX = {-10.0, +10.0} rad/s // 当前源码量程，不能套用旧文档的±30或其他型号值。
+J4310 T_MIN/T_MAX = {-7.0, +7.0} N·m // 当前源码量程；主控最终MIT扭矩还会被本驱动夹取至此范围。
+J4310 KP_MIN/KP_MAX / KD_MIN/KD_MAX = {{0.0,500.0},{0.0,5.0}} // MIT电机侧位置、速度反馈增益的编码范围。
+J4340 P_MIN/P_MAX / V_MIN/V_MAX = {{-3.14,+3.14}rad, {-10.0,+10.0}rad/s} // 当前Pitch ID8在用。
+J4340 T_MIN/T_MAX = {-27.0, +27.0} N·m // 当前源码及主控Pitch限幅一致；需与实物驱动设置匹配。
+J4340 KP_MIN/KP_MAX / KD_MIN/KD_MAX = {{0.0,500.0},{0.0,5.0}} // 当前Pitch电机侧MIT增益编码范围。
+S2325参数(P,V,T,KP,KD) = {{-3.14159,+3.14159}rad, {-50,+50}rad/s, {-10,+10}N·m, {0,500}, {0,5}} // 保留型号，当前无实例；不代表在用J4310/J4340量程。
+在用DM量化步长 = {P:6.28/65535≈0.0000958266575rad, V:20/4095≈0.00488400488rad/s, J4310T:14/4095≈0.00341880342N·m, J4340T:54/4095≈0.0131868132N·m, KP:500/4095≈0.122100122, KD:5/4095≈0.00122100122} // 按源码端点与位宽推导，不是传感器实测精度。
+DM速度rpm换算 = velocity_Rad × 60/(2*3.14159265358979323846) ≈ velocity_Rad × 9.54929658551 // rad/s→rpm。
+DM累计角度跨圈阈值/一圈 = {±180, 360} 度 // 根据转成度的反馈做半圈跨零补偿。
+
+【文件：user/core/BSP/Motor/LK/Lk_motor.hpp】
+LK4005参数(rr,tc,fmc,mc,er) = {10.0, 0.06, 4096, 2.7, 65536.0} // 头文件被gimbal_task.hpp包含，当前无LK4005实例；依次为减速比、Nm/A、反馈原始满量程、电流A、编码器计数/圈。
+Parameters::deg_to_rad / rad_to_deg = {0.017453292519611, 1/0.017453292519611≈57.2957795142} // LK角度单位换算。
+LK4005 encoder_to_deg=360/65536 = 0.0054931640625 度/计数 // 未实例化驱动参数。
+LK4005 encoder_to_rpm / deg_to_real = {0.1, 0.1} // 两项均1/10；单圈angle_Deg本身未除减速比。
+LK4005 rpm_to_radps=2*π/(60*10) ≈ 0.0104719755120 (rad/s)/原始rpm // 源码按rpm字段解释速度，当前无活动业务。
+LK4005 feedback_to_current_coefficient=2.7/4096 = 0.0006591796875 A/原始计数 // 未实例化驱动参数。
+LK4005 current_to_torque_coefficient=10*0.06/4096*2.7 = 0.0003955078125 N·m/原始计数 // LK公式含减速比，与DJI公式不同。
+LK反馈8字节布局 = {cmd:0, temperature:1, current:2..3, velocity:4..5, angle:6..7} // current/velocity为int16_t，angle为uint16_t，均小端。
+LK sendCAN(frame.dlc, memcpy长度) = {8, 8} 字节 // 标准经典CAN数据帧；当前发送函数仅处理两个指定帧ID。
+LK固定路由 = {0x141→FDCAN2, 0x142→FDCAN1} // 保留LK实现路由；当前Yaw/Pitch用DM驱动，不能据此描述当前电机接线。
+ctrl_Position角度比例 / 命令 = {angle*100, 0xA4} // 输入整型角度转0.01°协议量；speed小端在[2..3]，32位角量在[4..7]。
+ctrl_Torque原始限幅 / 命令 = {[-2048,+2048], 0xA1} // 原始力矩命令小端放[4..5]；motor_index有效范围1..N。
+LK On / Off / ClearErr命令 = {0x88, 0x81, 0x9B} // 命令在[0]，其余7字节清0。
+LK拆包掩码/位移 = {0xFF, 8, 16, 24} // 小端16/32位数据逐字节提取。
+LK多圈跨零阈值/一圈 = {±180.0, 360.0} 度 // 仅allow_accumulate为true时累加；驱动默认false且当前未实例化。
+
+【文件：user/core/BSP/Motor/MotorBase.hpp】
+MotorBase(timeThreshold=100) = 100 ms // 所有当前DJI/DM电机继承的在线阈值；上层驱动构造没有覆盖它。
+逻辑通道有效范围 id>0 && id<=N = 1..N // 对象内部从1编号；与物理CAN ID及报警编号不同。
+首帧门控 feedback_received_[slot] = false→true // 未收到过该逻辑槽反馈时isConnected固定false，即使tick年龄小于100ms。
+getAddAngleRad换算 = add_angle × (3.14159265358979323846 / 180.0) = add_angle × 0.0174532925199433 // 内部累计角度为度，读取时转弧度并保留多圈。
+getOfflineStatus全部在线返回值 = 0 // 否则返回首个离线逻辑槽1..N；此接口本身不刷新超时判断。
+
+【文件：user/core/BSP/RemoteControl/DT7.cpp】
+四摇杆extractBits(startBit,length) = {(ch0右X):(0,11), (ch1右Y):(11,11), (ch2左X):(22,11), (ch3左Y):(33,11)} // 起始位按DBUS小端位流计算；单通道11位。
+开关extractBits(startBit,length) = {S1:(46,2), S2:(44,2)} // 两个开关各2位；当前解析器不拒绝0档位。
+滚轮data[16..17] = 2 字节int16_t小端 // 原始值减1024后套用同一死区与归一化。
+鼠标字段偏移 = {X:6..7, Y:8..9, Z:10..11, 左键:12, 右键:13} // 三轴int16_t小端；左右键把任意非零字节视为按下。
+键盘data[14..15] = 2 字节uint16_t位掩码 // 小端；高字节左移8位。
+归一化 discreteAxis(value,tolerance) = (value-0)/660.0f // 当前五轴容差实参全部0；对[-1,+1]饱和。
+位提取字节宽度/掩码 = {8 bit, 0x01} // startBit除8与模8定位字节和位，逐位重组。
+ConsumeMouseDelta中断恢复条件 primask==0U = 0 // 仅调用前中断开放时才重新开放；X/Y按DT7帧累计后单次消费，非鼠标采样保持。
+
+【文件：user/core/BSP/RemoteControl/DT7.hpp】
+RemoteController(timeThreshold=100) = 100 ms // 构造默认离线阈值；当前remoteController实例显式也传100。
+构造deadzone(0.0f) = 0 原始计数 // 构造默认无死区；任务启动后覆盖为66。
+SwitchPosition::{UP, MIDDLE, DOWN} = {1, 3, 2} // DT7开关两位编码；0不是正常档位。
+Keyboard低8位 = {W:1<<0=0x0001, S:1<<1=0x0002, A:1<<2=0x0004, D:1<<3=0x0008, SHIFT:1<<4=0x0010, CTRL:1<<5=0x0020, Q:1<<6=0x0040, E:1<<7=0x0080} // DBUS键盘掩码。
+Keyboard高8位 = {R:1<<8=0x0100, F:1<<9=0x0200, G:1<<10=0x0400, Z:1<<11=0x0800, X:1<<12=0x1000, C:1<<13=0x2000, V:1<<14=0x4000, B:1<<15=0x8000} // R摩擦轮、V热量旁路；F/G发机械臂，其余作用见控制任务。
+CHANNEL_VALUE_MAX / MID / MIN = {1684, 1024, 364} 原始计数 // 四摇杆通道夹取范围，中值两侧均660；滚轮没有调用mapChannelValue夹取。
+PROTOCOL_LENGTH = 18 字节 // DBUS协议长度定义；实际任务也独立以18检查长度。
+DeadzoneCompensation判定 |value| < deadzone = 严格小于阈值归零 // |value|等于66仍保留；阈值单位为减中值后的原始通道计数。
+
+【文件：user/core/BSP/switch/switch.hpp】
+MicroSwitch(debounce_ms=20) = 20 ms // 五个龙门架限位均使用此默认值；按下/释放及首次采样都需稳定达到20ms。
+MicroSwitch有效/释放电平 = {GPIO_PIN_RESET:0, GPIO_PIN_SET:1} // 固定低电平按下；构造默认稳定状态为高电平释放，GPIO配置由外部负责。
+
+【文件：user/core/BSP/version/vision_communication.cpp】
+视觉float尺寸 sizeof(float) = 4 字节 // 小端IEEE754单精度静态断言，角度rad、速度rad/s、加速度rad/s²。
+视觉帧头[0..1] = {'S'=0x53, 'P'=0x50} // 双向共享帧同步字。
+视觉mode位置 = [2]，1 字节 // 原样保存视觉模式，不校验枚举值；当前未用于切入视觉控制。
+TX四元数偏移/宽度 = {[3..18], 16字节, WXYZ共4项} // 每项4字节float。
+TX角度/速度/弹速偏移 = {Yaw:19, YawVel:23, Pitch:27, PitchVel:31, BulletSpeed:35} // 五项各4字节float；协议函数存在但当前停止发送姿态。
+TX bullet_count偏移/宽度 = {[39..40], 2字节uint16_t小端} // 高字节右移8位。
+RX目标字段偏移 = {Yaw:3, YawVel:7, YawAcc:11, Pitch:15, PitchVel:19, PitchAcc:23} // 六项各4字节float。
+RX物理幅值限制 = {|Yaw|≤6.28318530718rad, |Pitch|≤1.57079632679rad} // 约±360°和±90°；六个float都须有限数，速度与加速度无额外幅值限制。
+视觉CRC初始化/反射多项式/最终异或 = {0xFFFF, 0x8408, 0x0000} // MCRF4XX，按最低位0x01判断并右移，每字节8位。
+TX CRC覆盖/存放 = {起点0, 长度41, 低字节41, 高字节42} // 小端CRC。
+RX CRC覆盖/存放 = {起点0, 长度27, 低字节27, 高字节28} // 校验通过且物理检查通过才更新last_rx_tick。
+USB发送空闲TxState值 = 0 // 仅CDC类数据有效且TxState==0时允许覆盖发送缓存，忙时放弃本次发送。
+
+【文件：user/core/BSP/version/vision_communication.hpp】
+DATA_TIMEOUT_MS = 1000 ms // IsDataFresh要求已收有效帧且年龄严格小于1000ms；当前业务没有调用该查询，也未启用视觉控制。
+TX_FRAME_SIZE = 43 字节 // 电控→视觉USB CDC-HS发送缓存；SendToVision当前无业务调用。
+RX_FRAME_SIZE = 29 字节 // 视觉→电控流式接收缓存；USB_Receive_Callback实际调用ParseRxData。
+
+【文件：user/core/HAL/FDCAN/impl/fdcan_bus_impl.cpp】
+FDCAN1/2/3实例过滤器槽与FIFO = {{0,FIFO0},{0,FIFO0},{0,FIFO0}} // 每个外设独立使用标准过滤器槽0与FIFO0，新消息回调最终由can_send_task接收。
+
+【文件：user/core/HAL/FDCAN/impl/fdcan_device_impl.cpp】
+标准掩码滤波FilterID1 / FilterID2 = {0x000, 0x000} // 零掩码接收全部标准ID；非匹配标准/扩展帧也接收，远程帧拒收。
+发送格式 = {FDCAN_CLASSIC_CAN, BRS_OFF, NO_TX_EVENTS} // 经典CAN、关闭速率切换、不写TX事件；ID类型由frame标志选择。
+发送MessageMarker截取宽度 = 8 bit // static_cast<uint8_t>(frame.mailbox)保留低8位，非传统bxCAN邮箱号。
+
+【文件：user/core/HAL/FDCAN/impl/fdcan_device_impl.hpp】
+FdcanDevice默认filter_index / fifo = {0, FDCAN_RX_FIFO0} // 默认标准过滤器槽0，接收FIFO0。
+
+【文件：user/core/HAL/FDCAN/interface/fdcan_bus.hpp】
+FdcanDeviceId::{HAL_Fdcan1, HAL_Fdcan2, HAL_Fdcan3, MAX_DEVICES} = {0, 1, 2, 3} // 总线内部数组索引，不能当作FDCAN外设数字编号或物理CAN ID。
+
+【文件：user/core/HAL/FDCAN/interface/fdcan_device.cpp】
+to_dlc_code长度上限 = 8 字节 // 输入长度0..8原样作为DLC，超过8按8编码。
+to_data_length无效DLC返回值 = 0 // DLC超过FDCAN_DLC_BYTES_8（8）返回0；不支持CAN FD的12..64字节。
+
+【文件：user/core/HAL/FDCAN/interface/fdcan_device.hpp】
+Frame::data[8] / dlc范围 = {8字节, 0..8} // 自有FDCAN封装只承载经典CAN；标准ID11位、扩展ID29位由is_extended_id选择。
+
+【文件：user/core/HAL/UART/impl/uart_device_impl.cpp】
+transmit_byte单字节发送长度/超时 = {1 字节, 100 ms} // HAL_UART_Transmit阻塞接口默认固定100ms；业务板间通信使用DMA接口，不使用此超时。
+receive_byte单字节接收长度/超时 = {1 字节, 100 ms} // HAL_UART_Receive阻塞接口；普通receive/transmit使用中断接口，DMA接口另行显式启动。
+
+【文件：user/core/HAL/UART/interface/uart_bus.hpp】
+UartDeviceId::{HAL_Uart1, HAL_Uart5, HAL_Uart7, HAL_Uart10, HAL_Uart2, HAL_Uart3, MAX_DEVICES} = {0, 1, 2, 3, 4, 5, 6} // 自有串口设备索引；2号索引对应UART7机械臂，并非USART2。
+
+【文件：YAW_Auto_Controller-main/yaw_auto_lqr_eso_controller.c】
+状态：Keil列入编译，但当前全工程无业务实例/调用；YawAutoLqrEsoConfig_t没有源码默认初始化，J/B/LQR增益、补偿门限、力矩限幅及开关均需调用方赋值，不能把同目录MATLAB/说明文档数值当作当前固件生效参数。本节只列C实现固定边界及数值约定。
+YAW_AUTO_LQR_ESO_MIN_J = 1.0e-6f // 名义惯量必须严格大于1e-6 kg*m²，才允许建立状态空间/ESO输入增益。（L18、L86、L196）
+YAW_AUTO_LQR_ESO_MIN_DT_S = 1.0e-5f // 允许离散计算周期下界10 us，等于边界可用；更小退回默认周期。（L19、L65）
+YAW_AUTO_LQR_ESO_MAX_DT_S = 0.05f // 允许离散计算周期上界50 ms，等于边界可用；更大退回默认周期。（L20、L65）
+YAW_AUTO_LQR_ESO_DEFAULT_DT_S = 0.001f // 超出周期区间时采用1 ms计算周期。（L21、L66）
+库仑平滑最小有效速度 = 1.0e-6f // coulomb_smooth_rad_s≤1e-6 rad/s时库仑前馈关闭，避免omega_ref除以近零。（L141）
+ESO最小有效输入增益 = 1.0e-6f // 观测器b0≤1e-6时不由z3换算补偿力矩，避免除以近零。（L155）
+ESO输入增益/观测器系数 = b0=1.0f/J，beta=(3.0f*w0,3.0f*w0²,w0³) // 名义惯量与观测带宽生成三阶ESO系数；固定3来自特征多项式。（L99～L103）
+tau_meas_lpf_alpha 合法使用范围 = [0.0f, 1.0f] // 配置系数先夹入该区间；0保持首帧反馈力矩，1直接跟随，用于偏置积分而非ESO输入。（L272～L277）
+可选对称限幅关闭值 = limit<=0.0f // 角误差积分限幅、ESO补偿限幅、偏置限幅均遵循此约定；非正值不是限输出为0。（L41～L45、L287～L288、L321～L322）
+ESO门限关闭值 = limit<=0.0f // 速度/目标加速度门限非正时该条件直接放行，正值才要求|量|≤门限。（L73～L77）
+角度死区关闭值 = deadband<=0.0f // 正死区内角误差置0，死区外扣除阈值保持连续；非正值直接使用误差。（L52～L59）
+ESO带宽下限 = 0.0f // 非正配置带宽折为0，观测器不更新；eso_enable为0同样不启用。（L87、L98、L119～L120）
+功能开关关闭编码 = 0U // eso_enable、eso_comp_enable、torque_slew_enable均以0关闭、非0启用；源码没有默认配置对象。（L87、L310、L350）
+硬力矩限幅启用条件 = torque_min_nm<torque_max_nm // 满足时夹入[min,max] N*m；相等或倒置不做硬限幅，具体边界由调用方提供。（L338～L345）
+软力矩/变化率启用条件 = torque_soft_limit_nm>0.0f，torque_slew_rate_nm_s>0.0f // 软限幅为对称±limit，变化率还须开关非0，每周期最大变化=rate*dt。（L329、L350～L356）

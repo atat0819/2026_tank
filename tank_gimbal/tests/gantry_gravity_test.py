@@ -26,7 +26,7 @@ struct FSM {
     bool IsMoving(unsigned) const { return active && moving; }
     bool IsKeeping(unsigned) const { return active && !moving && state!=GantryState::Idle; }
     float GetTargetSpeed(unsigned) const { return 0; }
-    double GetHoldAngle(unsigned) const { return 0; }
+    float GetHoldAngle(unsigned) const { return 0; }
     GantryState GetState() const { return state; }
     float GetGravityLoadFactor() const { return factor; }
 } gantry_fsm;
@@ -68,6 +68,7 @@ int main() {
 with tempfile.TemporaryDirectory(prefix='gantry_gravity_') as directory:
     cpp, exe = Path(directory) / 'test.cpp', Path(directory) / 'test.exe'
     cpp.write_text(code, encoding='utf-8')
-    subprocess.run(['g++', '-std=c++17', '-Wall', '-Wextra', '-Werror', str(cpp), '-o', str(exe)], check=True)
+    subprocess.run(['g++', '-std=c++17', '-Wall', '-Wextra', '-Werror', '-Wdouble-promotion',
+                    str(cpp), '-o', str(exe)], check=True)
     subprocess.run([str(exe)], check=True)
 print('PASS: signed gravity, motion/hold, blending, total limits and zero output')
