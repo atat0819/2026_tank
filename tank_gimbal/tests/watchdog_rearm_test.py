@@ -20,27 +20,24 @@ class WatchdogRearmTest(unittest.TestCase):
 #define taskEXIT_CRITICAL() ((void)0)
 namespace BSP::REMOTE_CONTROL { struct RemoteController { enum { DOWN = 2 }; }; }
 struct Controller {
-    bool connected = false; uint8_t s1 = 0, s2 = 0; float axis = 0;
-    bool isConnected() { return connected; }
+    uint8_t s1 = 0, s2 = 0;
     uint8_t get_s1() { return s1; } uint8_t get_s2() { return s2; }
-    float get_left_x() { return axis; } float get_left_y() { return axis; }
-    float get_right_x() { return axis; } float get_right_y() { return axis; }
-    uint16_t get_keyboard() { return 0; }
 } remoteController;
-bool arm_remote_received = false;
+bool rs485_online = false;
+bool Gimbal485_RemoteOnline() { return rs485_online; }
 volatile uint32_t g_watchdog_rearm_required = 1;
 bool step() {
-    bool remote_online, arm_online; uint8_t s1, s2; uint16_t keyboard;
+    bool remote_online; uint8_t s1, s2;
 BRANCH
-    return arm_online;
+    return remote_online && !g_watchdog_rearm_required;
 }
 int main() {
     remoteController.s1 = remoteController.s2 = 2;
     assert(!step() && g_watchdog_rearm_required);
-    remoteController.connected = true; assert(!step() && g_watchdog_rearm_required);
-    arm_remote_received = true; remoteController.axis = -1;
+    rs485_online = true;
+    remoteController.s2 = 1;
     assert(!step() && g_watchdog_rearm_required);
-    remoteController.axis = 0; remoteController.s1 = 1;
+    remoteController.s2 = 2; remoteController.s1 = 1;
     assert(!step() && g_watchdog_rearm_required);
     remoteController.s1 = 2; assert(step() && !g_watchdog_rearm_required);
     remoteController.s1 = 1; assert(step() && !g_watchdog_rearm_required);
@@ -56,13 +53,12 @@ int main() {
         pitch = (ROOT / "RtosTask/can_send_task.cpp").read_text(encoding="utf-8-sig")
         gantry = (ROOT / "RtosTask/gantry_task.cpp").read_text(encoding="utf-8-sig")
         fire = (ROOT / "RtosTask/gimbal_task.cpp").read_text(encoding="utf-8-sig")
-        remote = (ROOT / "RtosTask/remote_control_task.cpp").read_text(encoding="utf-8-sig")
-        self.assertIn("if (!g_watchdog_rearm_required && !g_watchdog_reset_detected)", pitch)
-        self.assertIn("if(!remoteController.isConnected() || g_watchdog_rearm_required", pitch)
+        self.assertIn("const bool remote_enabled = yaw_mouse.online && !g_watchdog_rearm_required;", pitch)
+        pitch_lock = pitch.split("if (!remote_enabled ||", 1)[1].split("\n         else", 1)[0]
+        self.assertIn("pitch_motor.Off(1, BSP::Motor::DM::MIT);", pitch_lock)
         self.assertIn("configured && remote_online && !g_watchdog_rearm_required", gantry)
-        self.assertIn("if (!remoteController.isConnected() || g_watchdog_rearm_required)", fire)
+        self.assertIn("if (!Gimbal485_RemoteOnline() || g_watchdog_rearm_required)", fire)
         self.assertIn("if (g_watchdog_rearm_required)", fire)
-        self.assertIn("arm_remote_received && remote_online && !g_watchdog_rearm_required", remote)
 
 
 if __name__ == "__main__":

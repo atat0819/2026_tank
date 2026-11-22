@@ -198,7 +198,7 @@ void Class_Up_Stair_FSM::Refresh_Target()
                                       ? TARGET_ANGLE_RAD[i]
                                       : HOME_ANGLE_RAD[i];
 
-        // 目标角按机械区间转换；右前跨 ±π，初始角 -110° 展开为 250°。
+        // 目标角按各自的机械区间展开；左前目标角 -136° 展开为 224°。
         const float target = To_Control_Angle(i, raw_target);
         if (target_angle_[i] != target)
         {
@@ -393,7 +393,7 @@ void Class_Up_Stair_FSM::Update(float current_left_angle,
  * 获取指定电机的目标控制角度。
  *
  * 返回的是经过 To_Control_Angle() 处理后的目标角度。
- * 左前返回原始目标角；右前初始角 -110° 展开为 250°，目标角保持 128.35°。
+ * 左前初始位为 110°，上台阶目标位 -136° 展开为 224°。
  * 无效 ID 返回 0。
  */
 float Class_Up_Stair_FSM::Get_Target_Angle(uint8_t id) const
@@ -427,7 +427,7 @@ float Class_Up_Stair_FSM::Get_Current_Angle(uint8_t id) const
  * 获取指定电机用于位置 PID 的连续反馈角度。
  *
  * 与 Get_Current_Angle() 的区别是：这里返回的是经过跨 ±π 接缝展开后的值。
- * 电机 2 的机械区间跨接缝，原始反馈 -110°时此函数返回 250°。
+ * 左前原始反馈为 -170° 时，此函数返回 190°。
  */
 float Class_Up_Stair_FSM::Get_Position_Feedback(uint8_t id) const
 {

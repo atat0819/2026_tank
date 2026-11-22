@@ -60,9 +60,9 @@ ALG::PID::PID lift_move_pid[2] = {
 // 原有 100/19 积分上限是历史调参值，并非从电机实例自动换算，需按当前输出轴反馈实测整定。
 // 保持目标取状态切换时实际累计角度：ID5/6 用于前伸/后收保持，ID9 用于升降及完成后的保持。
 ALG::PID::PID hold_angle_pid[3] = {
-    {0.0f /* Kp */, 0.0f /* Ki */, 0 /* Kd */, GantryTuning::LIFT_ID5_SPEED_RAD_S /* 速度输出限幅 */, 100.0f / 19.0f /* 积分状态限幅 */, 0 /* 分离阈值 */}, // ID5
-    {0.0f /* Kp */, 0.0f /* Ki */, 0 /* Kd */, GantryTuning::LIFT_ID6_SPEED_RAD_S /* 速度输出限幅 */, 100.0f / 19.0f /* 积分状态限幅 */, 0 /* 分离阈值 */}, // ID6
-    {0.0f /* Kp */, 0.0f /* Ki */, 0 /* Kd */, GantryTuning::DM_SPEED_RAD_S /* 速度输出限幅 */, 10 /* 积分状态限幅 */, 0 /* 分离阈值 */} // DM ID9
+    {0.0f /* Kp */, 0.0f /* Ki */, 0 /* Kd */, 10.0f /* 速度输出限幅 */, 100.0f / 19.0f /* 积分状态限幅 */, 0 /* 分离阈值 */}, // ID5
+    {0.0f /* Kp */, 0.0f /* Ki */, 0 /* Kd */, 10.0f /* 速度输出限幅 */, 100.0f / 19.0f /* 积分状态限幅 */, 0 /* 分离阈值 */}, // ID6
+    {0.0f /* Kp */, 0.0f /* Ki */, 0 /* Kd */, 10.0f /* 速度输出限幅 */, 10 /* 积分状态限幅 */, 0 /* 分离阈值 */} // DM ID9
 };
 
 // 位置保持速度内环：单位/六参数含义与 lift_move_pid 相同；只用于 ID5/6 前伸、后收时保持高度。
@@ -85,7 +85,7 @@ bool Gantry_ConfigValid()
     if (!std::isfinite(LOWER_UNLOAD_PROGRESS) || LOWER_UNLOAD_PROGRESS <= 0 ||
         LOWER_UNLOAD_PROGRESS >= 1 || LOWER_UNLOAD_BLEND_MS == 0)
         return false;
-    if (DM_SPEED_RAD_S > 30 ||
+    if (DM_EXTEND_SPEED_RAD_S > 30.0f || DM_RETRACT_SPEED_RAD_S > 30.0f ||
         !std::isfinite(DM_MOVE_KD) || DM_MOVE_KD <= 0 || DM_MOVE_KD > 5 ||
         !std::isfinite(DM_HOLD_KD) || DM_HOLD_KD <= 0 || DM_HOLD_KD > 5 ||
         !std::isfinite(DM_TORQUE_LIMIT_NM) || DM_TORQUE_LIMIT_NM <= 0 ||
@@ -104,7 +104,6 @@ extern "C" void gantry_task(void *argument)
     gantry_watch.configured = configured;
     while (!dm_motor_control_ready) { Watchdog_RecordHeartbeat(WATCHDOG_TASK_GANTRY); osDelay(2); }
     MotorRecoveryFSM dm_recovery_fsm;
-    dm_recovery_fsm.Init(HAL_GetTick());
     for(;;)
     {
         // 读取限位、遥控输入和三台电机反馈快照。
@@ -123,6 +122,9 @@ extern "C" void gantry_task(void *argument)
         const ControlInputSnapshot input = GetControlInputSnapshot();
         taskENTER_CRITICAL();
         const uint32_t now_ms = HAL_GetTick();
+        const bool dm_control_allowed = !EvaluateStairModePolicy(
+            input.s1, input.s2, input.source != ControlInputSource::NONE && !g_watchdog_rearm_required,
+            input.keyboard_online).zero_all_torque;
         const bool control_enabled = configured && input.source == ControlInputSource::LOCAL &&
             input.keyboard_online && input.s1 == 3U && input.s2 == 3U && !g_watchdog_rearm_required;
         const bool start_key_pressed = (input.keyboard & BSP::REMOTE_CONTROL::RemoteController::KEY_Z) != 0;
@@ -144,13 +146,13 @@ extern "C" void gantry_task(void *argument)
         }
         angle_deg[2] = gantry_dm4310_motor.getAddAngleDeg(1);
         velocity[2] = gantry_dm4310_motor.getVelocityRads(1);
-        const bool dm_online = gantry_dm4310_motor.isConnected(1, 9);
+        const uint8_t dm_status = gantry_dm4310_motor.getDriveStatus(1);
+        const bool dm_online = dm_status != BSP::Motor::DM::UNKNOWN_DRIVE_STATUS;
         gantry_watch.online[2] = dm_online;
         gantry_watch.angle_deg[2] = angle_deg[2];
         gantry_watch.velocity_rad_s[2] = velocity[2];
-        feedback_ok = feedback_ok && dm_online && std::isfinite(velocity[2]);
-        const bool dm_ready = gantry_watch.online[2] && gantry_watch.dm_status == 1;
-        feedback_ok = feedback_ok && dm_ready;
+        const bool dm_ready = dm_status == 1U;
+        feedback_ok = feedback_ok && dm_ready && std::isfinite(velocity[2]);
         gantry_watch.control_enabled = control_enabled;
         gantry_watch.feedback_ok = feedback_ok;
         gantry_watch.start_key_pressed = start_key_pressed;
@@ -241,7 +243,7 @@ extern "C" void gantry_task(void *argument)
         gantry_3508_motor.sendCAN();
         gantry_watch.target_velocity_rad_s[2] = 0;
         gantry_watch.dm_torque_command_nm = 0;
-        if (gantry_fsm.IsActive())   
+        if (dm_control_allowed && dm_ready && gantry_fsm.IsActive())
         {
             float target = 0;
             float kd = 0;
@@ -269,21 +271,16 @@ extern "C" void gantry_task(void *argument)
         else  // 非活动状态下清零输出并复位 PID
         {
             hold_angle_pid[2].reset();
-            gantry_dm4310_motor.ctrl_Mit(1, 0, 0, 0, 0, 0);
+            if (dm_control_allowed)
+                gantry_dm4310_motor.ctrl_Mit(1, 0, 0, 0, 0, 0);
         }
-
-        // 处理 DM 使能重试；停机仅发送上面的零力矩指令，不主动失能。
-        const bool enable = control_enabled && gantry_fsm.GetState() != GantryState::Fault;
-        // 等待初始反馈时允许请求使能；运行中掉线由 FSM 锁存故障，禁止自动续跑。
-        if (enable)
-        {
-            if (dm_recovery_fsm.Should_Enable(dm_ready, now_ms))
-                gantry_dm4310_motor.On(1, BSP::Motor::DM::MIT);
-        }
-        else
-        {
-            dm_recovery_fsm.Force_Enable_On_Next_Check();
-        }
+/******************************************************************************** */
+        // 驱动启停只看遥控安全条件和反馈状态；机构动作由 gantry_fsm 决定。
+        const auto dm_request = dm_recovery_fsm.Update(dm_control_allowed, dm_status, now_ms);
+        if (dm_request == MotorRecoveryFSM::Request::Off)
+            gantry_dm4310_motor.Off(1, BSP::Motor::DM::MIT);
+        else if (dm_request == MotorRecoveryFSM::Request::On)
+            gantry_dm4310_motor.On(1, BSP::Motor::DM::MIT);
 /************************************************************************* */
 //发送vofa数据
 const float vofa_data[] = {
@@ -311,7 +308,7 @@ const float vofa_data[] = {
     static_cast<float>(gantry_watch.fault)       // CH15：故障编号
 };
 
-vofa_sendN(vofa_data, 15);
+//vofa_sendN(vofa_data, 15);
 /**************************************************************************** */
 
         Watchdog_RecordHeartbeat(WATCHDOG_TASK_GANTRY);

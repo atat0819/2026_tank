@@ -79,8 +79,10 @@ int main()
 
     const Class_Up_Stair_Behind_Motor_FSM::Config header_angles =
         Class_Up_Stair_Behind_Motor_FSM::Config::WithAngleConstants();
-    assert(near(header_angles.angle_end_rad[0], deg(94.7f)));
-    assert(near(header_angles.angle_start_rad[1], deg(4.66f)));
+    assert(near(header_angles.angle_start_rad[0], deg(30.0f)));
+    assert(near(header_angles.angle_end_rad[0], deg(93.1f)));
+    assert(near(header_angles.angle_start_rad[1], deg(5.7f)));
+    assert(near(header_angles.angle_end_rad[1], deg(69.0f)));
     assert(near(header_angles.pitch_target_deg, Class_Up_Stair_Behind_Motor_FSM::IMU_PITCH_TARGET_DEG));
     for (int i = 0; i < 2; ++i)
     {
@@ -94,35 +96,33 @@ int main()
                 Class_Up_Stair_Behind_Motor_FSM::RETRACT_POSITION_TOLERANCE_RAD));
     assert(Class_Up_Stair_Behind_Motor_FSM(header_angles).Is_Config_Valid());
 
-    // The latest measured flat-chassis stops replace the earlier calibration.
     Class_Up_Stair_Behind_Motor_FSM calibrated(header_angles);
-    // Both flat-chassis readings must be valid before either leg can move.
-    assert(calibrated.Is_Angle_Valid(1U, deg(94.7f)));
-    assert(calibrated.Is_Angle_Valid(2U, deg(4.47f)));
+    assert(near(calibrated.Get_Extension_Target_Angle(1U), deg(32.5f)));
+    assert(near(calibrated.Get_Extension_Target_Angle(2U), deg(66.5f)));
+    assert(near(calibrated.Get_Shortening_Target_Angle(1U), deg(90.6f)));
+    assert(near(calibrated.Get_Shortening_Target_Angle(2U), deg(8.2f)));
+    // Feedback tolerance extends 1.5 degrees past each mechanical endpoint.
     assert(calibrated.Is_Angle_Valid(1U, deg(28.6f)));
-    assert(calibrated.Is_Angle_Valid(1U, deg(91.4f)));
-    assert(calibrated.Is_Angle_Valid(2U, deg(5.6f)));
-    assert(calibrated.Is_Angle_Valid(2U, deg(68.4f)));
+    assert(calibrated.Is_Angle_Valid(1U, deg(94.5f)));
+    assert(calibrated.Is_Angle_Valid(2U, deg(4.3f)));
+    assert(calibrated.Is_Angle_Valid(2U, deg(70.4f)));
     assert(!calibrated.Is_Angle_Valid(1U, deg(28.4f)));
-    assert(calibrated.Is_Angle_Valid(1U, deg(91.6f)));
-    assert(calibrated.Is_Angle_Valid(2U, deg(5.4f)));
-    assert(!calibrated.Is_Angle_Valid(2U, deg(68.6f)));
-    assert(!calibrated.Is_Angle_Valid(1U, deg(95.3f)));
-    assert(!calibrated.Is_Angle_Valid(2U, deg(3.9f)));
+    assert(!calibrated.Is_Angle_Valid(1U, deg(94.7f)));
+    assert(!calibrated.Is_Angle_Valid(2U, deg(4.1f)));
+    assert(!calibrated.Is_Angle_Valid(2U, deg(70.6f)));
     calibrated.Update(true, true, true, true, 0, 0, deg(60), deg(40), 0U);
     calibrated.Update(true, true, true, true, 0, 0, deg(60), deg(40), 4000U);
-    // Inside the former return buffer, normal effort is no longer reduced.
-    calibrated.Update(true, true, true, true, 0, 0, deg(93.7f), deg(5.47f), 4001U);
+    // Shortening remains possible just inside the 91.6/7.2 degree cutoff.
+    calibrated.Update(true, true, true, true, 0, 0, deg(91.5f), deg(7.3f), 4001U);
     assert(near(calibrated.Limit_Torque(1U, 3), 3));
     assert(near(calibrated.Limit_Torque(2U, -3), -3));
     // Near each endpoint, suppress outward effort while allowing return effort.
-    calibrated.Update(true, true, true, true, 0, 0, deg(94.3f), deg(4.87f), 4002U);
+    calibrated.Update(true, true, true, true, 0, 0, deg(91.7f), deg(7.1f), 4002U);
     assert(near(calibrated.Limit_Torque(1U, 3), 0));
     assert(near(calibrated.Limit_Torque(1U, -3), -3));
     assert(near(calibrated.Limit_Torque(2U, -3), 0));
     assert(near(calibrated.Limit_Torque(2U, 3), 3));
-    calibrated.Update(true, true, true, true, 0, 0,
-                      deg(94.7f), deg(4.47f), 4002U);
+    calibrated.Update(true, true, true, true, 0, 0, deg(94.5f), deg(4.3f), 4002U);
     assert(calibrated.Is_Motor_Controllable(1U));
     assert(calibrated.Is_Motor_Controllable(2U));
     assert(near(calibrated.Limit_Torque(1U, 3), 0));
@@ -137,21 +137,22 @@ int main()
     assert(near(calibrated.Limit_Torque(1U, -3), -3));
     assert(near(calibrated.Limit_Torque(2U, -3), 0));
     assert(near(calibrated.Limit_Torque(2U, 3), 3));
-    calibrated.Update(true, true, true, true, 0, 0, deg(93.26f), deg(5.6f), 4002U);
-    assert(calibrated.Is_Motor_Controllable(1U));
-    assert(calibrated.Is_Motor_Controllable(2U));
-    assert(near(calibrated.Limit_Torque(1U, 3), 3));
+    // Extension cuts outward effort at 31.5/67.5 degrees.
+    calibrated.Update(true, true, true, true, 0, 0, deg(31.6f), deg(67.4f), 4003U);
     assert(near(calibrated.Limit_Torque(1U, -3), -3));
-    assert(near(calibrated.Limit_Torque(2U, -3), -3));
     assert(near(calibrated.Limit_Torque(2U, 3), 3));
-    // The fully extended ends also block outward effort and allow departure.
+    calibrated.Update(true, true, true, true, 0, 0, deg(31.4f), deg(67.6f), 4003U);
+    assert(near(calibrated.Limit_Torque(1U, -3), 0));
+    assert(near(calibrated.Limit_Torque(1U, 3), 3));
+    assert(near(calibrated.Limit_Torque(2U, 3), 0));
+    assert(near(calibrated.Limit_Torque(2U, -3), -3));
     calibrated.Update(true, true, true, true, 0, 0,
                       header_angles.angle_start_rad[0], header_angles.angle_end_rad[1], 4003U);
     assert(near(calibrated.Limit_Torque(1U, -3), 0));
     assert(near(calibrated.Limit_Torque(1U, 3), 3));
     assert(near(calibrated.Limit_Torque(2U, 3), 0));
     assert(near(calibrated.Limit_Torque(2U, -3), -3));
-    calibrated.Update(true, true, true, true, 0, 0, deg(28.6f), deg(68.4f), 4003U);
+    calibrated.Update(true, true, true, true, 0, 0, deg(28.6f), deg(70.4f), 4003U);
     assert(calibrated.Is_Motor_Controllable(1U));
     assert(calibrated.Is_Motor_Controllable(2U));
     assert(near(calibrated.Limit_Torque(1U, -3), 0));
@@ -170,15 +171,15 @@ int main()
     assert(near(calibrated.Get_Position_Target_Angle(1U), header_angles.retract_target_rad[0]));
     assert(near(calibrated.Get_Position_Target_Angle(2U), header_angles.retract_target_rad[1]));
     // One out-of-range rear angle disables the entire retract operation.
-    calibrated.Update(true, true, true, true, 0, 0, deg(95.3f), deg(6), 6005U, true);
+    calibrated.Update(true, true, true, true, 0, 0, deg(94.7f), deg(7.5f), 6005U, true);
     assert(near(calibrated.Limit_Torque(1U, 3), 0));
     assert(near(calibrated.Limit_Torque(2U, 3), 0));
 
     // Feedback tolerance must not permit a position target past a hard stop.
     Class_Up_Stair_Behind_Motor_FSM::Config outside_target = header_angles;
-    outside_target.retract_target_rad[0] = deg(94.9f);
+    outside_target.retract_target_rad[0] = deg(93.3f);
     Class_Up_Stair_Behind_Motor_FSM outside_target_fsm(outside_target);
-    assert(outside_target_fsm.Is_Angle_Valid(1U, deg(94.9f)));
+    assert(outside_target_fsm.Is_Angle_Valid(1U, deg(93.3f)));
     outside_target_fsm.Update(true, true, true, true, 0, 0, deg(60), deg(40), 0U, true);
     assert(outside_target_fsm.Get_State() == UP_STAIR_BEHIND_MOTOR_DISABLED);
 

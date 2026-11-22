@@ -32,7 +32,7 @@ inline void UpdateStairCommand(StairCommand &command, bool control_enabled,
 }
 
 struct StairModePolicy {
-  bool zero_all_torque;              // 双下、失联或非法档位：四电机零力矩
+  bool zero_all_torque;              // 双下、失联或非法档位：禁止机构电机输出力矩
   bool control_fault;                // 失联或非法档位：异常安全停车
   bool front_hold_enabled;           // 是否允许前 4340 保持初始/目标位置
   bool rear_attitude_enabled;        // 是否允许后 6248 运行姿态控制
@@ -53,7 +53,7 @@ inline StairModePolicy EvaluateStairModePolicy(uint8_t s1, uint8_t s2,
     return {true, true, false, false, false, false};
   }
 
-  // 双下是操作者主动请求的正常零力矩状态，不属于遥控器异常。
+  // 双下是主动停车，区分于遥控器链路或档位异常。
   if (s1 == DOWN && s2 == DOWN) {
     return {true, false, false, false, false, false};
   }

@@ -28,6 +28,7 @@ struct ChassisData
     uint16_t heat_limit;
     uint16_t heat_42mm;
     uint8_t referee_online;
+    bool yaw_mouse_active;
 };
 
 inline uint16_t crc16(const uint8_t *data, unsigned size)
@@ -69,14 +70,25 @@ inline bool dbusValid(const uint8_t *data)
            wheel >= 364U && wheel <= 1684U;
 }
 
-// 底盘 -> 云台：91 78 + DBUS[18] + 在线标志[2] + 裁判数据[6] + 序号[2] + CRC[2]。
+inline bool dbusKeymouse(const uint8_t *data)
+{
+    return (data[5] & 0xf0U) == 0xf0U;
+}
+
+inline bool dbusYawMouseActive(const uint8_t *data)
+{
+    return dbusKeymouse(data) && data[13] != 0U;
+}
+
+// 底盘 -> 云台：91 78 + DBUS[18] + 标志[2] + 裁判数据[6] + 序号[2] + CRC[2]。
+// 字节 20：bit0 遥控在线，bit1 本帧鼠标 X 分配给相机 Yaw。
 // 多字节整数使用小端顺序；CRC 覆盖前 30 字节，低字节在前。
 inline void encodeChassis(uint8_t *frame, const ChassisData &data)
 {
     frame[0] = 0x91;
     frame[1] = 0x78;
     memcpy(frame + 2, data.dbus, kDbusSize);
-    frame[20] = data.remote_online;
+    frame[20] = data.remote_online ? (data.yaw_mouse_active ? 3U : 1U) : 0U;
     frame[21] = data.referee_online;
     put16(frame + 22, data.cooling);
     put16(frame + 24, data.heat_limit);
@@ -88,11 +100,13 @@ inline void encodeChassis(uint8_t *frame, const ChassisData &data)
 inline bool decodeChassis(const uint8_t *frame, ChassisData &data)
 {
     if (frame[0] != 0x91 || frame[1] != 0x78 ||
-        get16(frame + 30) != crc16(frame, 30) || frame[20] > 1U || frame[21] > 1U)
+        get16(frame + 30) != crc16(frame, 30) ||
+        frame[20] > 3U || frame[20] == 2U || frame[21] > 1U)
         return false;
 
     memcpy(data.dbus, frame + 2, kDbusSize);
-    data.remote_online = frame[20];
+    data.remote_online = frame[20] & 1U;
+    data.yaw_mouse_active = (frame[20] & 2U) != 0U;
     data.referee_online = frame[21];
     data.cooling = get16(frame + 22);
     data.heat_limit = get16(frame + 24);

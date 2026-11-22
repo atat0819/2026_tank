@@ -36,14 +36,13 @@ float ClampMitCommandValue(float v,float lo,float hi) { return v<lo?lo:v>hi?hi:v
 }
 CONSTANTS
 PIDS
-enum class InputSource { Remote, KeyMouse };
-struct { InputSource source=InputSource::Remote;
-    InputSource GetSource() { return source; }
-} input_dispatcher;
+bool is_keymouse=false;
 struct {
     float velocity=0,kd=0,ff=0;
+    int frames=0;
     void ctrl_Mit(int slot,float position,float speed,float kp,float damping,float torque) {
         assert(slot==1 && position==0 && kp==0);
+        ++frames;
         velocity=speed; kd=damping; ff=torque;
     }
 } pitch_motor;
@@ -51,7 +50,7 @@ Class_Gimbal_FSM pitch_gimbal_fsm;
 Struct_Gimbal_FSM_Config pitch_gimbal_fsm_config;
 float pitch_target_speed=0,pitch_current_speed=0,pitch_error=0,pitch_control_output=0;
 float pitch_current_angle=0.8f;
-void step(bool pitch_motor_online=true,float pitch_gravity_output=0) {
+void step(bool pitch_motor_ready=true,float pitch_gravity_output=0) {
 BLOCK
 }
 void init(unsigned status,bool mouse=false,float angle=0.8f) {
@@ -64,7 +63,7 @@ void init(unsigned status,bool mouse=false,float angle=0.8f) {
     pitch_current_angle=angle;
     pitch_gimbal_fsm.Update_Angle_Limit(angle,angle);
     pitch_remote_angle_encoder_pid.reset(); pitch_keymouse_angle_encoder_pid.reset();
-    input_dispatcher.source=mouse?InputSource::KeyMouse:InputSource::Remote;
+    is_keymouse=mouse;
     pitch_current_speed=0; pitch_error=0;
 }
 bool near(float a,float b) { return std::fabs(a-b)<0.00001f; }
@@ -95,13 +94,15 @@ int main() {
     pitch_gimbal_fsm.Update(input,0.8f); step();
     assert(near(pitch_motor.velocity,-0.5f*PITCH_MAX_SPEED_RAD_S) && pitch_motor.kd==PITCH_REMOTE_SPEED_MIT_KD);
     assert(pitch_remote_angle_encoder_pid.getOutput()==0);
-    // STOP/offline must remove Kd as well as feedforward, even while moving.
+    // While enabled, STOP sends zero MIT. Motion requires an enabled drive.
     init(GIMBAL_STATUS_STOP);
     pitch_current_speed=1; step(true,2);
     assert(pitch_motor.velocity==0 && pitch_motor.kd==0 && pitch_motor.ff==0);
     init(GIMBAL_STATUS_ANGLE);
-    pitch_error=1; pitch_current_speed=-1; step(false,2);
-    assert(pitch_motor.velocity==0 && pitch_motor.kd==0 && pitch_motor.ff==0);
+    pitch_error=1; pitch_current_speed=-1;
+    const int previous_frames=pitch_motor.frames;
+    step(false,2);
+    assert(pitch_motor.frames==previous_frames && pitch_control_output==0);
     // Lower endpoint: positive target speed can still request negative braking torque.
     init(GIMBAL_STATUS_ANGLE,false,34.2f*DEG_TO_RAD);
     pitch_error=0.01f; pitch_current_speed=1; step();

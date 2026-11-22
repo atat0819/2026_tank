@@ -1,7 +1,7 @@
 $ErrorActionPreference = 'Stop'
 
 $source = Get-Content -Raw (Join-Path $PSScriptRoot '..\RtosTask\up_stair.cpp')
-$enableIndex = $source.IndexOf('front_recovery_fsm[0].Should_Enable')
+$enableIndex = $source.IndexOf('UpdateStairMotorEnable(front_4340, 1, front_recovery_fsm[0],')
 $controlIndex = $source.IndexOf('if (front_left_feedback_valid && up_stair_fsm.Is_Enabled())')
 
 if ($enableIndex -lt 0) {

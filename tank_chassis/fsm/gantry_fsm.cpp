@@ -2,6 +2,18 @@
 #include <algorithm>
 #include <cmath>
 
+namespace
+{
+// 顺序与 GantryState::LiftFirst 到 GantryState::Lower 一致。
+constexpr float stage_speed_rad_s[] = {
+    GantryTuning::LIFT_FIRST_SPEED_RAD_S,
+    GantryTuning::DM_EXTEND_SPEED_RAD_S,
+    GantryTuning::LIFT_SECOND_SPEED_RAD_S,
+    GantryTuning::DM_RETRACT_SPEED_RAD_S,
+    GantryTuning::LOWER_SPEED_RAD_S,
+};
+}
+
 bool Class_Gantry_FSM::ConfigValid()
 {
     using namespace GantryTuning;
@@ -28,8 +40,7 @@ bool Class_Gantry_FSM::ConfigValid()
     const float travel = DM_EXTEND_DEG - DM_RETRACT_DEG;
     if (!std::isfinite(travel) || std::abs(travel) < 1e-3f)
         return false;
-    const float speed_rad_s[3] = {LIFT_ID5_SPEED_RAD_S, LIFT_ID6_SPEED_RAD_S, DM_SPEED_RAD_S};
-    for (float speed : speed_rad_s)
+    for (float speed : stage_speed_rad_s)
         if (!std::isfinite(speed) || speed <= 0)
             return false;
     const uint32_t timeout_ms[5] = {LIFT_FIRST_TIMEOUT_MS, EXTEND_TIMEOUT_MS,
@@ -263,18 +274,14 @@ void Class_Gantry_FSM::Update(bool control_enabled, bool feedback_ok, bool lift_
                 static_cast<float>(static_cast<uint32_t>(now_ms - gravity_unload_since_ms_)) /
                 LOWER_UNLOAD_BLEND_MS);
     }
-    // 第一次抬升和 DM 伸缩按行程减速；第二次抬升和下降不分档，但升降仍受同步纠偏影响。
-    if (state_ != GantryState::LiftSecond && state_ != GantryState::Lower)
-    {
-        // 可调减速点：.5/.85 是本段已走行程的 50%/85%；.5/.1 是对应 50%/10% 速度比例。
-        // 提前减速（降低进度阈值）或降低速度比例可减轻触碰冲击，但会延长动作时间，需同时核对超时。
-        const float requested = progress_ >= .85f ? .1f : progress_ >= .5f ? .5f : 1;
-        scale_ = std::min(scale_, requested);
-    }
+    // 第一次抬升任一侧到 80% 后，速度降至 30%，并保持到限位换段。
+    if (state_ == GantryState::LiftFirst && progress_ >= 0.70f)
+        scale_ = 0.30f;
+    const unsigned stage = static_cast<unsigned>(state_) - static_cast<unsigned>(GantryState::LiftFirst);
+    const float speed_limit = stage_speed_rad_s[stage] * scale_;
     if (lift)
     {
-        // 公共升降速度取两侧配置上限的较小值；先在向上为正的坐标中纠偏。
-        const float speed_limit = std::min(LIFT_ID5_SPEED_RAD_S, LIFT_ID6_SPEED_RAD_S) * scale_;
+        // 两侧共用基础速度幅值，在向上为正的坐标中纠偏后再各自换算转向。
         const float correction_limit = speed_limit * LIFT_SYNC_MAX_SPEED_RATIO;
         const float correction = std::clamp(
             LIFT_SYNC_KP * lift_sync_error_deg_ * (3.14159265358979323846f / 180.0f),
@@ -288,6 +295,6 @@ void Class_Gantry_FSM::Update(bool control_enabled, bool feedback_ok, bool lift_
     }
     else
     {
-        target_speed_rad_s_[2] = (distance[2] > 0 ? 1 : -1) * DM_SPEED_RAD_S * scale_;
+        target_speed_rad_s_[2] = distance[2] > 0 ? speed_limit : -speed_limit;
     }
 }

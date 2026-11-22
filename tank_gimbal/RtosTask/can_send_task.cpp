@@ -23,11 +23,14 @@
 #include "usart.h"
 #include "usbd_cdc_if.h"
 #include "../feeder_fsm/gimbal_fsm.hpp"
+#include "../feeder_fsm/yaw_fsm.hpp"
 #include "../feeder_fsm/motor_recovery_fsm.hpp"
 #include "../communication_between_boards/input_dispatcher.hpp"
 #include "../user/core/Alg/Feedforward/Feedforward.hpp"
 #include "../user/core/HAL/UART/uart_hal.hpp"
 #include "../user/core/BSP/Motor/DM/DmMotor.hpp"
+#include <algorithm>
+#include <cmath>
 #include <string.h>
 
 extern "C" USBD_HandleTypeDef hUsbDeviceHS;
@@ -73,6 +76,13 @@ Alg::Feedforward::Gravity pitch_gravity_ff(
     0.0f, 0.0f);
 /********************************************************************************** */
 
+ALG::PID::PID yaw_center_encoder_pid(26.5f, 0.0f, 0.0f, PITCH_MAX_SPEED_RAD_S, 1000.0f, 100.0f);
+
+ALG::PID::PID yaw_angle_encoder_pid(26.5f, 0.0f, 0.0f, PITCH_MAX_SPEED_RAD_S, 1000.0f, 100.0f);
+float yaw_angle_kd = 1.3f;  // Yaw 鼠标微调的 MIT 速度反馈增益
+float yaw_center_kd = 1.3f; // Yaw 回中的 MIT 速度反馈增益
+
+
 using Remote = BSP::REMOTE_CONTROL::RemoteController;
 
 
@@ -96,10 +106,13 @@ float pitch_current_speed = 0.0f; // Pitch 电机反馈角速度(rad/s)
 
 BSP::Motor::DM::J4310<1> yaw_motor(
     0,{7},{7},HAL::FDCAN::FdcanDeviceId::HAL_Fdcan1);
+static volatile uint8_t yaw_drive_status = 0U;
+static Yaw_FSM yaw_fsm;
 
 // Pitch，物理 CAN ID8 对应逻辑槽 1。
 BSP::Motor::DM::J4340<1> pitch_motor(
     0,{8},{8},HAL::FDCAN::FdcanDeviceId::HAL_Fdcan1);
+static volatile uint8_t pitch_drive_status = 0U;
 
 static void UpdatePitchMotorFeedback();
 static void UpdateYawMotorFeedback();
@@ -153,10 +166,33 @@ static void ResetPitchControlState()
     pitch_keymouse_angle_encoder_pid.reset();
 }
 
-// 遥控故障后复位 Pitch，恢复分支重新锚定目标。
-static void ResetGimbalControlState()
+static void ResetYawControlState()
 {
-    ResetPitchControlState();
+    yaw_fsm.Reset();
+    yaw_angle_encoder_pid.reset();
+    yaw_center_encoder_pid.reset();
+}
+
+static bool UpdateMotorEnable(BSP::Motor::DM::DMMotorBase<1> &motor, MotorRecoveryFSM &recovery,
+                              bool online, uint8_t drive_status, uint32_t now_tick, bool &was_ready)
+{
+    if (!online)
+    {
+        if (was_ready)
+        {
+            motor.Off(1, BSP::Motor::DM::MIT);
+            recovery.Reset();
+        }
+        else
+            motor.ctrl_Mit(1, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); // 请求新反馈，等待确认驱动状态。
+        was_ready = false;
+        return false;
+    }
+
+    if (recovery.Update(true, drive_status, now_tick) == MotorRecoveryFSM::Request::On)
+        motor.On(1, BSP::Motor::DM::MIT);
+    was_ready = drive_status == 1U;
+    return was_ready;
 }
 
 void vofa_send(float x1, float x2, float x3, float x4, float x5, float x6);
@@ -190,8 +226,8 @@ pitch_gimbal_fsm.Init(pitch_gimbal_fsm_config, GIMBAL_STATUS_STOP); // 初始停
 /************************************************************************************* */
 
 	static uint32_t can2_tick = 0; // 有效遥控分支中的调度拍数，用于 VOFA 分频，不是毫秒时间戳
-static bool remote_was_offline = false; // 遥控曾异常：恢复时用选定反馈角重新建立目标
-static bool pitch_motor_was_offline = false; // Pitch 恢复后只重新锚定自身
+static bool remote_was_offline = false; // 遥控失联或双下停车后，恢复时用当前反馈重建目标
+static bool pitch_motor_was_unready = false; // Pitch 恢复后只重新锚定自身
 
 static uint16_t startup_protect = 0; // 遥控有效且 Pitch 在线时累计的启动保护次数
 
@@ -206,14 +242,17 @@ static uint16_t startup_protect = 0; // 遥控有效且 Pitch 在线时累计的
 
     // FDCAN3：龙门架 3508 ID5/6 和 DM4310 ID9。
     fdcan1.register_rx_callback([](const HAL::FDCAN::Frame &frame) {
-        if (frame.id == 8)
+        if (frame.id == 8 && frame.dlc == 8 && !frame.is_extended_id &&
+            !frame.is_remote_frame && (frame.data[0] & 0x0F) == 8)
         {
             pitch_motor.Parse(frame);
+            pitch_drive_status = frame.data[0] >> 4;
         }
         else if (frame.id == 7 && frame.dlc == 8 && !frame.is_extended_id &&
                  !frame.is_remote_frame && (frame.data[0] & 0x0F) == 7)
         {
             yaw_motor.Parse(frame);
+            yaw_drive_status = frame.data[0] >> 4;
             Gimbal485_UpdateYawFromISR(yaw_motor.getAngleDeg(1));
         }
     });
@@ -262,72 +301,199 @@ UpdateYawMotorFeedback();
 // 初始目标使用编码器；电机或遥控恢复时按编码器角重新锚定。
 pitch_target_angle = pitch_current_angle;
 
-// 最后才使能电机
+// 两轴启动先失能，进入各自的正常控制分支后再请求使能。
 MotorRecoveryFSM pitch_recovery_fsm;
-const uint32_t motor_init_tick = HAL_GetTick();
-pitch_recovery_fsm.Init(motor_init_tick);
-// 看门狗复位后跳过启动时 On，解锁并退出双下后由恢复 FSM 使能。
-if (!g_watchdog_rearm_required && !g_watchdog_reset_detected)
-    pitch_motor.On(1, BSP::Motor::DM::MIT); // Pitch, FDCAN3
+MotorRecoveryFSM yaw_recovery_fsm;
+yaw_motor.Off(1, BSP::Motor::DM::MIT);
+pitch_motor.Off(1, BSP::Motor::DM::MIT);
 vTaskDelay(500); // 等电机上电完成
+
+    bool yaw_wait_for_release = false;
+    bool yaw_was_ready = false;
+    bool pitch_was_ready = false;
+    uint32_t yaw_last_off_tick = 0U;
 
     // 主循环：采集输入、更新状态机、计算控制量并发送 CAN。
     for(;;)
     {
-        UpdatePitchMotorFeedback();
         UpdateYawMotorFeedback();
-         // 一次性消费此前收到的鼠标累计位移，避免控制任务多次累加同一帧。
-         int32_t mouse_delta_x = 0;
-         int32_t mouse_delta_y = 0;
-         remoteController.ConsumeMouseDelta(mouse_delta_x, mouse_delta_y);
 
-         if (!Gimbal485_RemoteOnline() || g_watchdog_rearm_required)
-        {
-            gimbal_remote_offline = 1;
-            // 遥控安全门期间不使能，恢复后的首次正常检查补发 On。
-            pitch_recovery_fsm.Force_Enable_On_Next_Check();
-            remote_was_offline = true;
-            RemoteData = {};
-            input_dispatcher.Update(0U, 0U, 0U, false, false);
-            // 遥控失联仍发送完整快照，清零操作量，阻止底盘沿用旧速度或键盘。
-            // The chassis is now the RS485 master.
-
-            ResetGimbalControlState();
-            pitch_motor.ctrl_Mit(1, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); // Pitch
-
-        }
-         else {
-        gimbal_remote_offline = 0;
+        RemoteData_t remote_input{};
+        int32_t unused_mouse_delta_x = 0;
+        int32_t mouse_delta_y = 0;
+        // 同一临界区取出两个轴共用的 DBUS 输入和各自待消费的鼠标位移。
         taskENTER_CRITICAL();
-                 RemoteData.chassis_vx = remoteController.get_left_y();
-        RemoteData.chassis_vy = remoteController.get_left_x();
-        RemoteData.gimbal_pitch = remoteController.get_right_y();
-        RemoteData.s1 = remoteController.get_s1();
-        RemoteData.s2 = remoteController.get_s2();
-
-        // [新增] 填充键鼠数据字段
-        RemoteData.mouse_x    = remoteController.get_mouseX();
-        RemoteData.mouse_y    = remoteController.get_mouseY();
-        RemoteData.mouse_z    = remoteController.get_mouseZ();
-        RemoteData.mouse_left = remoteController.get_mouseLeft() ? 1 : 0;
-        RemoteData.mouse_right = remoteController.get_mouseRight() ? 1 : 0;
-        RemoteData.keyboard   = remoteController.get_keyboard();
+        UpdatePitchMotorFeedback();
+        const bool pitch_motor_online = pitch_motor.isConnected(1, 8);
+        const uint8_t pitch_status = pitch_drive_status;
+        const auto yaw_mouse = Gimbal485_ConsumeYawMouseInput();
+        remoteController.ConsumeMouseDelta(unused_mouse_delta_x, mouse_delta_y);
+        const bool remote_enabled = yaw_mouse.online && !g_watchdog_rearm_required;
+        if (yaw_mouse.online)
+        {
+            remote_input.chassis_vx = remoteController.get_left_y();
+            remote_input.chassis_vy = remoteController.get_left_x();
+            remote_input.gimbal_pitch = remoteController.get_right_y();
+            remote_input.s1 = remoteController.get_s1();
+            remote_input.s2 = remoteController.get_s2();
+            remote_input.mouse_x = remoteController.get_mouseX();
+            remote_input.mouse_y = remoteController.get_mouseY();
+            remote_input.mouse_z = remoteController.get_mouseZ();
+            remote_input.mouse_left = remoteController.get_mouseLeft() ? 1 : 0;
+            remote_input.mouse_right = remoteController.get_mouseRight() ? 1 : 0;
+            remote_input.keyboard = remoteController.get_keyboard();
+        }
+        const bool valid_switches = remote_input.s1 >= Remote::UP && remote_input.s1 <= Remote::MIDDLE &&
+                                    remote_input.s2 >= Remote::UP && remote_input.s2 <= Remote::MIDDLE;
+        RemoteData = remote_enabled && valid_switches ? remote_input : RemoteData_t{};
         taskEXIT_CRITICAL();
 
-         // 输入调度 FSM：双中选择键鼠，其余档位选择遥控器；维护按键消抖及视觉右键状态。
-         // 云台 FSM 随后结合视觉是否就绪/新鲜决定是否进入视觉控制。
-        input_dispatcher.Update(
-            RemoteData.s1,
-            RemoteData.s2,
-            RemoteData.keyboard,
-            RemoteData.mouse_left != 0,
-            RemoteData.mouse_right != 0
-        );
+        const bool double_down = remote_enabled && remote_input.s1 == Remote::DOWN && remote_input.s2 == Remote::DOWN;
+         if (!remote_enabled || !valid_switches || double_down)
+        {
+            gimbal_remote_offline = !remote_enabled || !valid_switches;
+            // 安全停车期间没有有效的键鼠释放帧。
+            if (yaw_fsm.Is_Target_Valid())
+                yaw_wait_for_release = true;
+            ResetYawControlState();
+            yaw_was_ready = false;
+            pitch_was_ready = false;
 
-        if (input_dispatcher.GetSource() != InputSource::KeyMouse)
+            const uint32_t now_tick = HAL_GetTick();
+            if (yaw_recovery_fsm.Update(false, MotorRecoveryFSM::UNKNOWN_DRIVE_STATUS, now_tick) ==
+                MotorRecoveryFSM::Request::Off)
+            {
+                yaw_motor.Off(1, BSP::Motor::DM::MIT);
+                yaw_last_off_tick = now_tick;
+            }
+            if (pitch_recovery_fsm.Update(false, MotorRecoveryFSM::UNKNOWN_DRIVE_STATUS, now_tick) ==
+                MotorRecoveryFSM::Request::Off)
+                pitch_motor.Off(1, BSP::Motor::DM::MIT);
+            remote_was_offline = true;
+            const uint8_t stop_switch = double_down ? static_cast<uint8_t>(Remote::DOWN) : 0U;
+            input_dispatcher.Update(stop_switch, stop_switch, 0U, false, false);
+            ResetPitchControlState();
+        }
+         else   //遥控器正常，看门狗正常
+         {
+        if (remote_was_offline)
+        {
+            yaw_recovery_fsm.Reset();
+            pitch_recovery_fsm.Reset();
+        }
+        input_dispatcher.Update(
+            remote_input.s1,
+            remote_input.s2,
+            remote_input.keyboard,
+            remote_input.mouse_left != 0,
+            remote_input.mouse_right != 0
+        );
+        const InputSource input_source = input_dispatcher.GetSource();
+        const bool is_keymouse = input_source == InputSource::KeyMouse;
+        // 相机 Yaw：按状态计算速度，并在发送前处理限位和失联。
+        {
+            Struct_Yaw_Input input{};
+            input.is_keymouse = is_keymouse;
+            input.enabled = true;
+            input.mouse_active = yaw_mouse.mouse_active;
+            input.reanchor = yaw_mouse.reanchor;
+            input.mouse_delta_x = yaw_mouse.mouse_delta_x;
+
+            taskENTER_CRITICAL();
+            const uint32_t now_tick = HAL_GetTick();
+            const bool online = yaw_motor.isConnected(1, 7);
+            const uint8_t drive_status = yaw_drive_status;
+            const float feedback_angle = yaw_motor.getAngleRad(1);
+            const float feedback_speed = yaw_motor.getVelocityRads(1);
+            taskEXIT_CRITICAL();
+
+            const bool mouse_active = is_keymouse && input.mouse_active;
+            // 角度越界由 Yaw FSM 停止输出，驱动保持使能。
+            const bool finite_feedback = std::isfinite(feedback_angle) && std::isfinite(feedback_speed);
+            const bool ready = online && finite_feedback && drive_status == 1U;
+
+            const bool target_valid = yaw_fsm.Is_Target_Valid();
+            const bool interrupted = target_valid && (!ready || yaw_mouse.reset);
+            // 失联时的空输入不能当成松手，必须收到一帧有效的键鼠释放。
+            if (interrupted && mouse_active)
+                yaw_wait_for_release = true;
+            else if (is_keymouse && !mouse_active)
+                yaw_wait_for_release = false;
+
+            const bool inhibit_enable = (target_valid && yaw_mouse.reset) ||
+                                        (online && (!finite_feedback || drive_status > 1U));
+            if (inhibit_enable)
+            {
+                if (yaw_was_ready || yaw_recovery_fsm.HasPendingOn() ||
+                    (online && drive_status == 1U &&
+                     now_tick - yaw_last_off_tick >= MotorRecoveryFSM::ENABLE_RETRY_MS))
+                {
+                    yaw_motor.Off(1, BSP::Motor::DM::MIT);
+                    yaw_last_off_tick = now_tick;
+                }
+                yaw_recovery_fsm.Reset();
+                yaw_was_ready = false;
+            }
+
+            if (inhibit_enable ||
+                !UpdateMotorEnable(yaw_motor, yaw_recovery_fsm, online, drive_status, now_tick, yaw_was_ready))
+            {
+                ResetYawControlState();
+            }
+            else
+            {
+                const auto previous_mode = yaw_fsm.Get_Mode();
+                // 键鼠档自动使能；失联恢复后等待右键释放期间保持零力矩。
+                if (is_keymouse && yaw_wait_for_release)
+                    yaw_fsm.Reset();
+                else
+                    yaw_fsm.Update(input, feedback_angle, now_tick);
+                const auto mode = yaw_fsm.Get_Mode();
+                if (mode != previous_mode || input.reanchor || mode == Yaw_FSM::Mode::Stop)
+                {
+                    yaw_angle_encoder_pid.reset();
+                    yaw_center_encoder_pid.reset();
+                }
+
+                float target_speed = 0.0f;
+                float mit_kd = 0.0f;
+                const float target_angle = yaw_fsm.Get_Target_Angle();
+                if (mode == Yaw_FSM::Mode::Mouse)
+                {
+                    target_speed = yaw_angle_encoder_pid.UpDate(target_angle, feedback_angle);
+                    mit_kd = yaw_angle_kd;
+                }
+                else if (mode == Yaw_FSM::Mode::Center)
+                {
+                    const float pid_speed = yaw_center_encoder_pid.UpDate(target_angle, feedback_angle);
+                    target_speed = std::clamp(pid_speed, -Yaw_FSM::CENTER_SPEED_RAD_S, Yaw_FSM::CENTER_SPEED_RAD_S);
+                    mit_kd = yaw_center_kd;
+                }
+
+                float torque_command = 0.0f;
+                if (!std::isfinite(mit_kd) || mit_kd <= 0.0f)
+                {
+                    mit_kd = 0.0f;
+                }
+                else
+                {
+                    // 与 Pitch 一样，正常由 MIT 速度反馈闭环，保护触发时改发限幅后的直接力矩。
+                    const float estimated_torque = mit_kd * (target_speed - feedback_speed);
+                    const float limited_torque = yaw_fsm.Limit_Torque(estimated_torque, feedback_angle);
+                    if (Yaw_FSM::Is_Soft_Limit_Active(feedback_angle) || limited_torque != estimated_torque)
+                    {
+                        mit_kd = 0.0f;
+                        torque_command = limited_torque;
+                    }
+                }
+                yaw_motor.ctrl_Mit(1, 0.0f, target_speed, 0.0f, mit_kd, torque_command);
+            }
+        }
+
+        gimbal_remote_offline = 0;
+        if (!is_keymouse)
         {
             // 遥控器档丢弃鼠标累计量，避免切到键鼠后继承此前移动。
-            mouse_delta_x = 0;
             mouse_delta_y = 0;
         }
 
@@ -343,48 +509,22 @@ vTaskDelay(500); // 等电机上电完成
  can2_tick++;/************************************************************************************** */
 
 /************************************************************************************** */
-   // 仅检查仍存在的 Pitch 电机。
-   // isConnected 的第一个参数为逻辑状态槽，第二个参数为蜂鸣器标识，不是另一 CAN ID。
-  const bool pitch_motor_online = pitch_motor.isConnected(1, 8);
-  // 电机恢复使能：双下停车期间不发 On，退出后重新请求一次。
-  const bool motor_recovery_paused =
-      input_dispatcher.GetSource() != InputSource::KeyMouse &&
-      RemoteData.s1 == Remote::DOWN && RemoteData.s2 == Remote::DOWN;
-  if (motor_recovery_paused)
+  const bool pitch_motor_ready = UpdateMotorEnable(pitch_motor, pitch_recovery_fsm, pitch_motor_online,
+                                                   pitch_status, HAL_GetTick(), pitch_was_ready);
+  // Pitch 驱动未确认使能时保持 STOP，恢复后从当前角度接管。
+  if (!pitch_motor_ready)
   {
-      pitch_recovery_fsm.Force_Enable_On_Next_Check();
-  }
-  else
-  {
-      // 先检查恢复请求，离线轴也需要周期性重试使能。
-      const uint32_t motor_recovery_tick = HAL_GetTick();
-      if (pitch_recovery_fsm.Should_Enable(pitch_motor_online, motor_recovery_tick))
-          pitch_motor.On(1, BSP::Motor::DM::MIT);
-  }
-  // 电机掉线按轴处理：Pitch 传入 STOP 并发送零力矩。
-  if (!pitch_motor_online)
-  {
-      pitch_motor_was_offline = true;
+      pitch_motor_was_unready = true;
       ResetPitchControlState();
   }
-
-   // 电机恢复按轴处理：按选定反馈重新锚定 Pitch。
-  if (pitch_motor_online && pitch_motor_was_offline)
+  else if (pitch_motor_was_unready || remote_was_offline)
   {
       pitch_gimbal_fsm.ReAnchor(pitch_current_angle);
       ResetPitchControlState();
-      pitch_motor_was_offline = false;
+      pitch_motor_was_unready = false;
+      mouse_delta_y = 0;
   }
-
-   // 遥控恢复：丢弃旧操作对应的目标偏差，锚定到选定来源的最新角。
-  if (remote_was_offline)
-  {
-      pitch_gimbal_fsm.ReAnchor(pitch_current_angle);
-      ResetGimbalControlState();
-      mouse_delta_x = 0;
-      mouse_delta_y = 0; // 重连时不把失联期间的累计位移施加到新锚点。
-      remote_was_offline = false;
-  }
+  remote_was_offline = false;
 
 /************************************************************************************** */
 //判断为何种模式
@@ -406,18 +546,18 @@ else
     // 纯编码器模式禁止视觉接管，防止使用原 IMU 绝对角目标。
     // 角度模式累加摇杆/鼠标位移，切模式或输入源时按编码器角重新锚定。
     Struct_Gimbal_Input pitch_input = {};
-    pitch_input.s1       = RemoteData.s1;
-    pitch_input.s2       = RemoteData.s2;
-    pitch_input.is_keymouse = (input_dispatcher.GetSource() == InputSource::KeyMouse);
-    pitch_input.joystick_speed = RemoteData.gimbal_pitch;
-    pitch_input.mouse_speed = static_cast<float>(RemoteData.mouse_y);
+    pitch_input.s1       = remote_input.s1;
+    pitch_input.s2       = remote_input.s2;
+    pitch_input.is_keymouse = is_keymouse;
+    pitch_input.joystick_speed = remote_input.gimbal_pitch;
+    pitch_input.mouse_speed = static_cast<float>(remote_input.mouse_y);
     pitch_input.mouse_angle_delta = static_cast<float>(mouse_delta_y); // Pitch 按现有方向映射使用正 Y 累计位移
-    pitch_input.mouse_dx = RemoteData.mouse_x;
-    pitch_input.mouse_dy = RemoteData.mouse_y;
+    pitch_input.mouse_dx = remote_input.mouse_x;
+    pitch_input.mouse_dy = remote_input.mouse_y;
     pitch_input.mouse_right_held = input_dispatcher.IsVisionMode();
     pitch_input.vision_ready = false;
     pitch_input.vision_fresh = false;
-    if (!pitch_motor_online)
+    if (!pitch_motor_ready)
     {
         pitch_input = {};
         pitch_input.s1 = Remote::DOWN;
@@ -469,7 +609,6 @@ while (pitch_error < -kPi) pitch_error += kTwoPi;
  // 角度模式：主控角度 PID 给目标速度，电机 MIT 内部计算速度纠偏力矩。
  else if (pitch_gimbal_fsm.Get_Control_Type() == GIMBAL_CONTROL_ANGLE)
 {
-    const bool is_keymouse = (input_dispatcher.GetSource() == InputSource::KeyMouse);
     pitch_target_speed = is_keymouse
         ? pitch_keymouse_angle_encoder_pid.UpDate(pitch_error, 0.0f)
         : pitch_remote_angle_encoder_pid.UpDate(pitch_error, 0.0f);
@@ -510,8 +649,8 @@ while (pitch_error < -kPi) pitch_error += kTwoPi;
             pitch_feedforward = pitch_control_output;
         }
 
-        // 最终发送保护：Pitch 掉线时力矩清零。
-        if (!pitch_motor_online)
+        // 最终发送保护：Pitch 驱动未确认使能时力矩清零。
+        if (!pitch_motor_ready)
         {
             pitch_target_speed = 0.0f;
             pitch_control_output = 0.0f;
@@ -521,7 +660,8 @@ while (pitch_error < -kPi) pitch_error += kTwoPi;
 
             // MIT 参数顺序为电机槽、位置(rad)、速度(rad/s)、Kp、Kd、力矩(N*m)。
             // 正常由 MIT 速度反馈与前馈产生力矩；STOP 的 Kd/前馈均为 0。
-            pitch_motor.ctrl_Mit(1, 0.0f, pitch_target_speed, 0.0f, pitch_mit_kd, pitch_feedforward); // Pitch
+            if (pitch_motor_ready)
+                pitch_motor.ctrl_Mit(1, 0.0f, pitch_target_speed, 0.0f, pitch_mit_kd, pitch_feedforward);
         // UART10 的 VOFA 六通道 JustFloat 帧为 28 字节；当前每 4 个调度拍尝试 DMA 发送一次。
         // 发送发生在有效控制分支；实际频率取决于任务周期及故障跳过，不是固定每 10 ms。
         
@@ -655,7 +795,7 @@ static void UpdatePitchMotorFeedback()
     pitch_current_speed = dm4340_state[1].velocity_rads;
 }
 
-// 读取 Yaw ID7（逻辑槽 1）的反馈缓存，不发送控制指令。
+// 读取 Yaw ID7（逻辑槽 1）的反馈缓存供调试观测。
 static void UpdateYawMotorFeedback()
 {
     dm4340_state[0].angle_deg = yaw_motor.getAngleDeg(1);

@@ -52,34 +52,13 @@ MotorSpeedTarget_t motorSpeedTarget; // 定义一个全局变量来存储电机�
 MotorCurrentData_t motorCurrentData[4]; // 定义一个结构体来存储电机当前数据
 chassisCurrentData_t chassisCurrentData; // 定义一个结构体来存储底盘当前数据
 
-float yaw_offset_deg = 0.0f;    //云台偏移量
-bool yaw_offset_updated = false; //标志位，表示是否接收到新的云台偏移量数据，接收到了才允许底盘控制任务使用这个数据进行计算
-
-// 定义全局变量来存储云台底盘速度数据
-Gimbal_Chassis_communicate_t gimbalChassis_communicate;
+float yaw_offset_deg = 0.0f; // 云台回传的偏角，供观测。
 ControlInputSnapshot chassis_input_watch{}; // Keil observation copy, written by the drive task.
 
-uint8_t gimbalChassisSpeedUpdated = 0;
-
-// 云台 RS485 -> 底盘的键盘位掩码
-volatile uint16_t gimbal_keyboard = 0;              // 当前键盘按键位掩码
-volatile uint32_t gimbal_keyboard_last_tick = 0;   // 最近一次合法键盘帧时间
-volatile bool gimbal_keyboard_received = false;    // 键盘通信是否已经建立
-volatile uint32_t gimbal_switch_last_tick = 0U;    // 最近一次合法档位帧时间
-volatile bool gimbal_switch_received = false;  // 档位心跳是否已经建立
-static volatile uint32_t gimbal_speed_last_tick = 0U;
-static volatile bool gimbal_speed_received = false;
-static volatile uint32_t gimbal_yaw_last_tick = 0U;
-static volatile bool gimbal_yaw_received = false;
-
-// UART ISR 已校验完整帧；控制任务读快照时关闭中断，保证所有字段属于同一帧。
+// UART ISR 已校验完整的 Yaw 回包。
 void Chassis485_ApplyData(const Chassis485Data &data)
 {
     yaw_offset_deg = data.yaw_offset_deg;
-    gimbalChassis_communicate.yaw_offset_deg = data.yaw_offset_deg;
-    gimbal_yaw_last_tick = HAL_GetTick();
-    gimbal_yaw_received = true;
-    yaw_offset_updated = true;
 }
 
 ControlInputSnapshot GetControlInputSnapshot()
@@ -88,44 +67,21 @@ ControlInputSnapshot GetControlInputSnapshot()
     taskENTER_CRITICAL();
     // 取时和读取 ISR 更新时间戳必须在同一临界区，避免新帧比采样时间更新。
     const uint32_t now_tick = HAL_GetTick();
-    const bool local_online = local_remote_received &&
-                              now_tick - local_remote_last_tick < 100U;
-    const uint8_t gimbal_s1 = static_cast<uint8_t>(gimbalChassis_communicate.s1);
-    const uint8_t gimbal_s2 = static_cast<uint8_t>(gimbalChassis_communicate.s2);
-    const bool gimbal_keyboard_mode = gimbal_s1 == 3U && gimbal_s2 == 3U;
-    const bool gimbal_keyboard_online = gimbal_keyboard_received &&
-        now_tick - gimbal_keyboard_last_tick < 100U;
-    yaw_offset_updated = gimbal_yaw_received &&
-                         now_tick - gimbal_yaw_last_tick < 500U;
-    const bool gimbal_online = gimbal_switch_received &&
-        now_tick - gimbal_switch_last_tick < 100U &&
-        yaw_offset_updated &&
-        (gimbal_keyboard_mode ? gimbal_keyboard_online :
-         (gimbal_speed_received && now_tick - gimbal_speed_last_tick < 100U));
-
-    input.source = local_online ? ControlInputSource::LOCAL : ControlInputSource::NONE;
+    input.source = SelectControlInputSource(now_tick, local_remote_received,
+                                            local_remote_last_tick);
     if (input.source == ControlInputSource::LOCAL) {
         // 本地 DBUS 摇杆是底盘坐标；同一帧提供档位、键盘和失联心跳。
         input.s1 = remoteData.s1;
         input.s2 = remoteData.s2;
         input.keyboard = local_remote_keyboard;
         input.mouse_x = local_remote_mouse_x;
+        input.yaw_mouse_active = local_remote_yaw_mouse_active;
         input.keyboard_online = true;
         input.vx = remoteData.vy;
         input.vy = remoteData.vx;
         input.wz = remoteData.wz;
-    } else if (input.source == ControlInputSource::GIMBAL) {
-        input.s1 = gimbal_s1;
-        input.s2 = gimbal_s2;
-        input.keyboard = gimbal_keyboard;
-        input.keyboard_online = gimbal_keyboard_online;
-        input.wz = gimbalChassis_communicate.right_stick_x;
-        input.mouse_x = gimbalChassis_communicate.mouse_x;
-        input.vx = gimbalChassis_communicate.vx;
-        input.vy = gimbalChassis_communicate.vy;
-        input.yaw_offset_deg = gimbalChassis_communicate.yaw_offset_deg;
     }
-    // 看门狗复位后，只有当前选中的新鲜输入双下才能解除停车锁定。
+    // 看门狗复位后，只有底盘接收机的新鲜双下帧才能解除停车锁定。
     if (g_watchdog_rearm_required)
     {
         if (input.source != ControlInputSource::NONE && input.s1 == 2U && input.s2 == 2U)
@@ -206,9 +162,9 @@ RemoteData_t ChassisData;
 LPFFilter acc_filter_x(0.2f);
 LPFFilter acc_filter_y(0.2f);
 LPFFilter acc_filter_z(0.2f);
-SecondOrderLPFFilter chassis_vx_filter(150.0f, 0.001f, 0.70710678f);
-SecondOrderLPFFilter chassis_vy_filter(150.0f, 0.001f, 0.70710678f);
-SecondOrderLPFFilter chassis_wz_filter(100.0f, 0.001f, 0.70710678f); // 旋转角速度反馈低通：截止频率 Hz、周期 s、阻尼比
+SecondOrderLPFFilter chassis_vx_filter(230.0f, 0.001f, 0.70710678f);
+SecondOrderLPFFilter chassis_vy_filter(230.0f, 0.001f, 0.70710678f);
+SecondOrderLPFFilter chassis_wz_filter(150.0f, 0.001f, 0.70710678f); // 旋转角速度反馈低通：截止频率 Hz、周期 s、阻尼比
 
 
 ALG::PID::PID test_pid = {0.0f, 0.0f, 0.0f, 10000.0f, 5000.0f, 500.0f};
@@ -232,7 +188,7 @@ float motor_output_pre[4];  // 功率控制前的电流，用于VOFA对比
 float current_speed_rads[4];
 float chassis_velocity_feedback[3] = {}; // 轮速正解，m/s、m/s、rad/s
 float phase_comp = 0.0f; // Pitch 固定在车体上，此补偿保持为 0
-    float yaw_offset_rad = 0.0f;
+    constexpr float yaw_offset_rad = 0.0f; // UART5 输入使用底盘坐标。
 // 底盘预测功率 (W), 每个控制周期由 post_power 赋值更新 (只赋值不累加!)
 // 其他文件读取: extern float chassis_power_pred;
 float chassis_power_pred = 0.0f;
@@ -364,7 +320,6 @@ extern "C" void can_send_task(void *argument)
     // 初始化底盘状态机
     chassis_fsm.Init();
     keyboard_fsm.Init();
-memset(&gimbalChassis_communicate, 0, sizeof(gimbalChassis_communicate));
 
 for (int i = 0; i < 4; i++)
 {
@@ -375,7 +330,6 @@ ChassisMotorSendCANChecked();
 // 在循环前声明
 Enum_Chassis_Mode last_mode = CHASSIS_STOP; //为了不疯车
 ControlInputSource last_input_source = ControlInputSource::NONE;
-uint32_t last_force_vofa_tick = 0U;
 // 原功率辨识 VOFA 的状态，恢复采集时与下方原发送段一起启用。
 // uint32_t last_power_meter_sequence = 0U;
 // ALG::PowerControl::PowerControlBase<4> power_identification_model;
@@ -390,7 +344,9 @@ osDelay(500);
          const uint32_t stair_sample_generation = stair_command_generation;
          taskEXIT_CRITICAL();
          const uint32_t now_tick = HAL_GetTick();
-         float force_vofa_channels[15] = {}; // 本周期快照；停机时不沿用旧目标和力请求。
+         float force_target[3] = {};
+         float force_feedback[3] = {};
+         bool force_control_active = false;
          const ControlInputSnapshot input = GetControlInputSnapshot();
          chassis_input_watch = input;
          const bool source_changed = input.source != last_input_source;
@@ -441,13 +397,6 @@ osDelay(500);
 
                  //获取底盘旋转速度
          //ChassisData.wz = remoteController.get_right_x() * MAX_WZ_RAD_S;
-
-         // 测试模式：遥控器直接控制底盘，绕过云台CAN通信
-        //   gimbalChassis_communicate.vx = remoteController.get_left_y();
-        //   gimbalChassis_communicate.vy = remoteController.get_left_x();
-        //   gimbalChassis_communicate.s1 = remoteController.get_s1();
-        //   gimbalChassis_communicate.s2 = remoteController.get_s2();
-        //   yaw_offset_updated = true;  // 模拟云台在线，否则FSM强制STOP
 
 
          // 超级电容在线状态更新
@@ -526,14 +475,13 @@ osDelay(500);
     //                 }
             // ==================== 校准模式结束 ====================
 
-           yaw_offset_rad = input.yaw_offset_deg * M_PI / 180.0f;
 
            // 当前来源完整且新鲜才允许退出 STOP；本地输入以车体为坐标系。
            chassis_fsm.StateUpdate(
                input.s1, input.s2, input.source != ControlInputSource::NONE,
                keyboard_cmd.valid);
            wz_cmd = chassis_fsm.Get_wz_cmd(
-               yaw_offset_rad, input.wz, input.mouse_x, MAX_WZ_RAD_S);
+               yaw_offset_rad, input.wz, input.mouse_x, MAX_WZ_RAD_S, input.yaw_mouse_active);
            ChassisData.wz = wz_cmd;
 
         // 2. 获取电机当前反馈 (当前轮速)
@@ -584,11 +532,9 @@ if (chassis_fsm.Get_Mode() == CHASSIS_STOP)
 /**************************************************************** */
           // 四轮车体力控：目标车速 -> Fx/Fy/Mz -> 轮端力矩 -> 电流。
           chassis_force.ForwardKinematics(current_speed_rads, chassis_velocity_feedback);
-          float force_feedback[3] = {
-              chassis_vx_filter.Filter(chassis_velocity_feedback[0]),
-              chassis_vy_filter.Filter(chassis_velocity_feedback[1]),
-              chassis_wz_filter.Filter(chassis_velocity_feedback[2])
-          };
+          force_feedback[0] = chassis_vx_filter.Filter(chassis_velocity_feedback[0]);
+          force_feedback[1] = chassis_vy_filter.Filter(chassis_velocity_feedback[1]);
+          force_feedback[2] = chassis_wz_filter.Filter(chassis_velocity_feedback[2]);
           // 三轴目标独立限幅，直接使用 m/s、rad/s，不再乘旧操作倍率。
           vx_body = std::clamp(vx_body, -CHASSIS_MAX_VX_M_S, CHASSIS_MAX_VX_M_S);
           vy_body = std::clamp(vy_body, -MAX_VY_M_S, MAX_VY_M_S);
@@ -616,10 +562,9 @@ if (chassis_fsm.Get_Mode() == CHASSIS_STOP)
               ramp_vx.TIM_Calculate_PeriodElapsedCallback(0.0f, 0.0f);
               ramp_vy.TIM_Calculate_PeriodElapsedCallback(0.0f, 0.0f);
           }
-          const float force_target[3] = {
-              std::clamp(vx_body, -CHASSIS_MAX_VX_M_S, CHASSIS_MAX_VX_M_S),
-              std::clamp(vy_body, -MAX_VY_M_S, MAX_VY_M_S), wz_cmd
-          };
+          force_target[0] = std::clamp(vx_body, -CHASSIS_MAX_VX_M_S, CHASSIS_MAX_VX_M_S);
+          force_target[1] = std::clamp(vy_body, -MAX_VY_M_S, MAX_VY_M_S);
+          force_target[2] = wz_cmd;
           // 收腿分组限功率期间关闭同步；当周期清除上一阶段残留，保留车体力控。
           if (stair_retract_power_split)
           {
@@ -632,16 +577,10 @@ if (chassis_fsm.Get_Mode() == CHASSIS_STOP)
           }
           else
           {
-              chassis_force.UpdateWheelSynchronization(current_speed_rads);
+               chassis_force.UpdateWheelSynchronization(current_speed_rads, force_target, force_feedback);
           }
           chassis_force.Update(force_target, force_feedback, motor_output);
-          // 保存本周期力控目标与反馈：与实际传入 PI 的数值一致。
-          for (uint8_t axis = 0; axis < 3; ++axis)
-          {
-              force_vofa_channels[2 * axis] = force_target[axis];
-              force_vofa_channels[2 * axis + 1] = force_feedback[axis];
-          }
-          force_vofa_channels[13] = 1.0f; // 闭环使能；不代表电机一定有非零输出。
+          force_control_active = true;
           // 仅保留目标轮速供观察，输出不再经过四个轮速 PID。
           chassis_force.InverseKinematics(force_target, motor_target_speed);
 	// 保存功率控制前的电流，用于VOFA对比衰减前后
@@ -759,38 +698,44 @@ if (chassis_fsm.Get_Mode() == CHASSIS_STOP)
        
     }
 
-        // 力控 VOFA：USB CDC / JustFloat，15 通道；每 5 ms 尝试发送，未连接或忙则跳过。
-        // 1/2 vx目标/反馈，3/4 vy目标/反馈，5/6 wz目标/反馈，7~9 Fx/Fy/Mz请求，
-        // 10~12 三轴积分输出，13 合成电流缩放比例，14 控制状态，15 板端时间(s)。
-        if (force_vofa_channels[13] == 1.0f)
+        // 力控 VOFA：USB CDC / JustFloat，每轮任务尝试发送一次。
+        float stopped_velocity[3] = {};
+        if (!force_control_active && wheel_feedback_valid)
         {
-            for (uint8_t axis = 0; axis < 3; ++axis)
-            {
-                force_vofa_channels[6 + axis] = chassis_force.force[axis];
-                force_vofa_channels[9 + axis] = chassis_force.integral[axis];
-            }
-            force_vofa_channels[12] = chassis_force.output_scale;
-        }
-        else if (wheel_feedback_valid)
-        {
-            // STOP/输入暂停也显示当前车速估计；滤波器已复位，此时使用未滤波正解。
-            float stopped_velocity[3];
+            // STOP/输入暂停时继续采集当前正解原值。
             chassis_force.ForwardKinematics(current_speed_rads, stopped_velocity);
-            for (uint8_t axis = 0; axis < 3; ++axis)
-            {
-                force_vofa_channels[2 * axis + 1] = stopped_velocity[axis];
-            }
         }
-        else
-        {
-            force_vofa_channels[13] = -1.0f; // 轮反馈无效，反馈通道的 0 不代表实测静止。
-        }
-        force_vofa_channels[14] = static_cast<float>(now_tick) * 0.001f;
-        if (static_cast<uint32_t>(now_tick - last_force_vofa_tick) >= 5U)
-        {
-            last_force_vofa_tick = now_tick;
-            //vofa_sendN(force_vofa_channels, 15);
-        }
+        const float *raw_velocity = force_control_active ? chassis_velocity_feedback : stopped_velocity;
+
+        float force_vofa_channels[24];
+        force_vofa_channels[0] = force_target[0];   // vx 目标 (m/s)
+        force_vofa_channels[1] = raw_velocity[0];   // vx 正解原值
+        force_vofa_channels[2] = force_feedback[0]; // vx 滤波反馈
+        force_vofa_channels[3] = force_target[1];   // vy 目标 (m/s)
+        force_vofa_channels[4] = raw_velocity[1];   // vy 正解原值
+        force_vofa_channels[5] = force_feedback[1]; // vy 滤波反馈
+        force_vofa_channels[6] = force_target[2];   // wz 目标 (rad/s)
+        force_vofa_channels[7] = raw_velocity[2];   // wz 正解原值
+        force_vofa_channels[8] = force_feedback[2]; // wz 滤波反馈
+        force_vofa_channels[9] = chassis_force.force[0];  // Fx 请求 (N)
+        force_vofa_channels[10] = chassis_force.force[1]; // Fy 请求 (N)
+        force_vofa_channels[11] = chassis_force.force[2]; // Mz 请求 (N·m)
+        // 状态：1 力控运行，0 停车或输入暂停，-1 轮反馈无效。
+        force_vofa_channels[12] = wheel_feedback_valid ? static_cast<float>(force_control_active) : -1.0f;
+        force_vofa_channels[13] = static_cast<float>(now_tick) * 0.001f; // 板端时间 (s)
+        force_vofa_channels[14] = chassis_force.sync_current[0]; // 1 号轮同步校正电流 (A)
+        force_vofa_channels[15] = motor_output[0] / MecanumForceControl::RAW_PER_AMP; // 1 号轮最终电流指令 (A)
+
+        // 四轮目标和实际角速度均使用带符号的轮端 rad/s。
+        force_vofa_channels[16] = motor_target_speed[0]; // 左前目标
+        force_vofa_channels[17] = wheel_feedback_valid ? current_speed_rads[0] : 0.0f; // 左前实际
+        force_vofa_channels[18] = motor_target_speed[1]; // 右前目标
+        force_vofa_channels[19] = wheel_feedback_valid ? current_speed_rads[1] : 0.0f; // 右前实际
+        force_vofa_channels[20] = motor_target_speed[2]; // 右后目标
+        force_vofa_channels[21] = wheel_feedback_valid ? current_speed_rads[2] : 0.0f; // 右后实际
+        force_vofa_channels[22] = motor_target_speed[3]; // 左后目标
+        force_vofa_channels[23] = wheel_feedback_valid ? current_speed_rads[3] : 0.0f; // 左后实际
+        vofa_sendN(force_vofa_channels, 24);
 
         // 原功率辨识 VOFA 暂停，保留代码；实际功率限制和功率计接收不受影响。
         /*
@@ -886,13 +831,13 @@ void vofa_send(float x1, float x2, float x3, float x4, float x5, float x6)
 
 void vofa_sendN(const float *data, uint8_t count)
 {
-    if (data == nullptr || count == 0 || count > 20)
+    if (data == nullptr || count == 0 || count > 30)
     {
         return;
     }
 
     // USB 异步发送：缓冲区必须持久有效，且忙时不能改写。
-    static uint8_t send_str2[sizeof(float) * 20 + 4];
+    static uint8_t send_str2[sizeof(float) * 30 + 4];
     const uint8_t frame_tail[4] = {0x00, 0x00, 0x80, 0x7F};
     // USB IRQ 优先级为 5；短临界区防止检查后被断连中断释放 pClassData。
     taskENTER_CRITICAL();

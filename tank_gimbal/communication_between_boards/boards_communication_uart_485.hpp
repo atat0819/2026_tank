@@ -9,6 +9,17 @@ void Gimbal485_Parse(const uint8_t *data, uint16_t size);
 bool Gimbal485_RemoteOnline();
 void Gimbal485_UpdateYawFromISR(float angle_deg);
 
+struct Gimbal485YawMouseInput
+{
+    bool online = false;
+    bool mouse_active = false;
+    bool reset = false;
+    bool reanchor = false;
+    int32_t mouse_delta_x = 0;
+};
+
+Gimbal485YawMouseInput Gimbal485_ConsumeYawMouseInput();
+
 struct Gimbal485RefereeData
 {
     uint16_t cooling_value = 0;

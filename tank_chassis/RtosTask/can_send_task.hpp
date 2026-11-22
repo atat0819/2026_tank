@@ -38,30 +38,8 @@ typedef struct
     float temp;
 } MotorCurrentData_t;
 
-typedef struct
-{
-    float yaw_offset_deg; // 固定安装偏角，当前为 0 度
-    float right_stick_x; // 云台右摇杆 X，归一化 -1..1
-    int16_t mouse_x; // 最新 DT7 鼠标 X，覆盖保存，供角速度控制持续使用
-    float vx;
-    float vy;
-    float s1;
-    float s2;
-
-} Gimbal_Chassis_communicate_t;
-
+// 云台通过 RS485 回传的 Yaw 偏角，供观测。
 extern float yaw_offset_deg;
-extern bool yaw_offset_updated;
-
-extern Gimbal_Chassis_communicate_t gimbalChassis_communicate;
-extern uint8_t gimbalChassisSpeedUpdated;
-
-// 云台发送的键盘位掩码，供底盘控制任务按位判断按键状态
-extern volatile uint16_t gimbal_keyboard;
-extern volatile uint32_t gimbal_keyboard_last_tick; // 最近一次合法键盘帧时间
-extern volatile bool gimbal_keyboard_received;      // 是否收到过合法键盘帧
-extern volatile uint32_t gimbal_switch_last_tick;   // 最近一次合法档位帧时间
-extern volatile bool gimbal_switch_received;  // 是否收到过合法档位帧
 
 extern void vofa_send(float x1, float x2, float x3, float x4, float x5, float x6);
 // USB CDC JustFloat，最多 15 通道；未连接或忙时跳过，不阻塞控制任务。
@@ -81,10 +59,10 @@ struct ControlInputSnapshot {
     uint8_t s2 = 0U;
     uint16_t keyboard = 0U;
     int16_t mouse_x = 0;
+    bool yaw_mouse_active = false;
     float vx = 0.0f;
     float vy = 0.0f;
     float wz = 0.0f;
-    float yaw_offset_deg = 0.0f;
 };
 
 extern ControlInputSnapshot chassis_input_watch;

@@ -1379,6 +1379,16 @@
               <FilePath>..\feeder_fsm\gimbal_fsm.hpp</FilePath>
             </File>
             <File>
+              <FileName>yaw_fsm.cpp</FileName>
+              <FileType>8</FileType>
+              <FilePath>..\feeder_fsm\yaw_fsm.cpp</FilePath>
+            </File>
+            <File>
+              <FileName>yaw_fsm.hpp</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\feeder_fsm\yaw_fsm.hpp</FilePath>
+            </File>
+            <File>
               <FileName>imu_feedback_fsm.hpp</FileName>
               <FileType>5</FileType>
               <FilePath>..\feeder_fsm\imu_feedback_fsm.hpp</FilePath>

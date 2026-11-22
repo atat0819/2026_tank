@@ -12,10 +12,13 @@ filters="\n".join(re.search(r"SecondOrderLPFFilter chassis_"+axis+r"_filter\([^;
                   for axis in ("vx","vy","wz"))
 start=source.index("// 四轮车体力控")
 drive=source[start:source.index("// 保存功率控制前的电流",start)]
+start=source.index("// 力控 VOFA：")
+publish=source[start:source.index("// 原功率辨识 VOFA 暂停",start)]
 host=limits+r'''
 #include <cassert>
 #include <cmath>
 #include <cstdint>
+#include <cstring>
 #include "fsm/chassis_fsm.hpp"
 #include "user/core/Alg/ChassisCalculation/MecanumForceControl.hpp"
 #include "user/core/Alg/Filter/Filter.hpp"
@@ -29,7 +32,11 @@ uint32_t HAL_GetTick() { return 100; }
 ''' + filters + r'''
 Alg::Utility::SlopePlanning ramp_vx(100,100),ramp_vy(100,100);
 float current_speed_rads[4]={},chassis_velocity_feedback[3],motor_output[4],motor_target_speed[4];
-float force_vofa_channels[15]={};
+float force_vofa_channels[24]={};
+void vofa_sendN(const float *data,uint8_t count) {
+    assert(count==24);
+    std::memcpy(force_vofa_channels,data,sizeof(force_vofa_channels));
+}
 float mouse_yaw(int16_t count) {
     Chassis_FSM fsm;
     fsm.Init();
@@ -39,7 +46,11 @@ float mouse_yaw(int16_t count) {
 void step(float vx_body,float vy_body,float wz_cmd) {
     struct { bool valid; } keyboard_cmd={false}; // Exercise remote targets without keyboard acceleration.
     const bool stair_retract_power_split=false; // This fixture exercises ordinary synchronized driving.
-''' + drive + r'''
+    const bool wheel_feedback_valid=true;
+    const uint32_t now_tick=HAL_GetTick();
+    float force_target[3]={},force_feedback[3]={};
+    bool force_control_active=false;
+''' + drive + publish + r'''
 }
 int main() {
     // Explicit test gains, independent of firmware tuning.
@@ -51,8 +62,8 @@ int main() {
     assert(mouse_yaw(0)==0);
     assert(std::fabs(mouse_yaw(1)+M_PI/180)<1e-6);
     assert(std::fabs(mouse_yaw(-1)-M_PI/180)<1e-6);
-    step(0,0,mouse_yaw(32767));assert(force_vofa_channels[4]==-MAX_WZ_RAD_S);
-    step(0,0,mouse_yaw(-32768));assert(force_vofa_channels[4]==MAX_WZ_RAD_S);
+    step(0,0,mouse_yaw(32767));assert(force_vofa_channels[6]==-MAX_WZ_RAD_S);
+    step(0,0,mouse_yaw(-32768));assert(force_vofa_channels[6]==MAX_WZ_RAD_S);
     const float commands[][3]={{1,0,0},{-1,0,0},{0,1,0},{0,-1,0},
                               {0,0,1},{0,0,-1},{0,0,4},{0,0,-4},{.4f,-.7f,.2f},{0,0,0}};
     const float sx[4]={-1,1,1,-1},sy[4]={-1,-1,1,1};
@@ -64,6 +75,7 @@ int main() {
                 sy[i]*std::clamp(command[1],-MAX_VY_M_S,MAX_VY_M_S)+
                 .458f*std::clamp(command[2],-MAX_WZ_RAD_S,MAX_WZ_RAD_S))/.076f;
             assert(std::fabs(motor_target_speed[i]-expected)<.0001f);
+            assert(std::fabs(force_vofa_channels[16+2*i]-expected)<.0001f);
             assert(std::fabs(motor_output[i])<=16384.01f);
             if(expected==0) assert(std::fabs(motor_output[i])<.001f);
             else assert(motor_output[i]*expected>0);
@@ -75,12 +87,17 @@ int main() {
         const float velocity[3]={0,0,yaw};
         chassis_force.InverseKinematics(velocity,current_speed_rads);
         step(0,0,0);
-        assert(force_vofa_channels[5]*yaw>0);
-        assert(std::fabs(force_vofa_channels[5])<std::fabs(yaw)*.5f);
+        assert(std::fabs(force_vofa_channels[7]-yaw)<.0001f);
+        for(unsigned i=0;i<4;++i) {
+            assert(force_vofa_channels[16+2*i]==0);
+            assert(force_vofa_channels[17+2*i]==current_speed_rads[i]);
+        }
+        assert(force_vofa_channels[8]*yaw>0);
+        assert(std::fabs(force_vofa_channels[8])<std::fabs(yaw)*.5f);
         for(unsigned n=0;n<1000;++n) step(0,0,0);
-        assert(std::fabs(force_vofa_channels[5]-yaw)<.0001f);
-        assert(force_vofa_channels[5]==chassis_wz_filter.getOutput());
-        assert(std::fabs(chassis_force.force[2]+chassis_force.kp[2]*force_vofa_channels[5])<.0001f);
+        assert(std::fabs(force_vofa_channels[8]-yaw)<.0001f);
+        assert(force_vofa_channels[8]==chassis_wz_filter.getOutput());
+        assert(std::fabs(chassis_force.force[2]+chassis_force.kp[2]*force_vofa_channels[8])<.0001f);
     }
     // Test well above the actual cutoff; firmware filtering is tuned independently.
     chassis_wz_filter.Reset();
@@ -94,7 +111,7 @@ int main() {
         step(0,0,0);
         if(n>=1000) {
             input_energy+=yaw*yaw;
-            output_energy+=force_vofa_channels[5]*force_vofa_channels[5];
+            output_energy+=force_vofa_channels[8]*force_vofa_channels[8];
         }
     }
     assert(output_energy<input_energy*.01f);

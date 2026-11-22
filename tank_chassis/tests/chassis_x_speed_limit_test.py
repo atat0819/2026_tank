@@ -13,7 +13,9 @@ filters="\n".join(re.search(r"SecondOrderLPFFilter chassis_"+axis+r"_filter\([^;
 start=source.index("if (keyboard_cmd.valid)",source.index("// --- A. 运动学逆解算"))
 transform=source[start:source.index("/**************************************************************** */",start)]
 start=source.index("// 四轮车体力控")
-target="const bool stair_retract_power_split=false;\n"+source[start:source.index("chassis_force.Update(",start)]
+target=("const bool stair_retract_power_split=false;\n"
+        "float force_target[3]={},force_feedback[3]={};\n"
+        +source[start:source.index("chassis_force.Update(",start)])
 start=source.index("chassis_fsm.StateUpdate(")
 yaw_selection=source[start:source.index("phase_comp = 0.0f;",start)]
 host=r'''
@@ -46,10 +48,10 @@ void run(float in_x,float in_y,float in_w,float angle,bool keyboard,float result
     for(unsigned i=0;i<3;++i) result[i]=force_target[i];
 }
 void near(float actual,float expected) { assert(std::isfinite(actual)&&std::fabs(actual-expected)<.0001f); }
-enum class ControlInputSource { LOCAL, GIMBAL, NONE };
+#include "fsm/control_input_selector.hpp"
 float selected_yaw(float stick,int16_t mouse,bool keyboard,ControlInputSource source) {
-    struct { ControlInputSource source;float wz;int16_t mouse_x;uint8_t s1,s2; }
-        input={source,stick,mouse,uint8_t(keyboard?3:1),uint8_t(keyboard?3:1)};
+    struct { ControlInputSource source;float wz;int16_t mouse_x;uint8_t s1,s2;bool yaw_mouse_active; }
+        input={source,stick,mouse,uint8_t(keyboard?3:1),uint8_t(keyboard?3:1),false};
     struct { bool valid; } keyboard_cmd={keyboard};
     Chassis_FSM chassis_fsm;
     chassis_fsm.Init();
@@ -88,14 +90,14 @@ int main() {
         run(-1,1,0,.7853981634f,keyboard,out);near(out[0],0);near(out[1],MAX_VY_M_S);
         run(1,-1,0,.7853981634f,keyboard,out);near(out[0],0);near(out[1],-MAX_VY_M_S);
     }
-    for(auto source:{ControlInputSource::LOCAL,ControlInputSource::GIMBAL}) {
-        for(float stick:{-1.f,-.5f,0.f,.5f,1.f})
-            near(selected_yaw(stick,0,false,source),-stick*MAX_WZ_RAD_S);
-        near(selected_yaw(1,0,true,source),0);
-        near(selected_yaw(0,32767,true,source),-MAX_WZ_RAD_S);
-        near(selected_yaw(0,-32768,true,source),MAX_WZ_RAD_S);
-        near(selected_yaw(0,1,true,source),-3.14159265358979323846f/180.f);
-    }
+    const auto source=ControlInputSource::LOCAL;
+    for(float stick:{-1.f,-.5f,0.f,.5f,1.f})
+        near(selected_yaw(stick,0,false,source),-stick*MAX_WZ_RAD_S);
+    near(selected_yaw(1,0,true,source),0);
+    near(selected_yaw(0,32767,true,source),-MAX_WZ_RAD_S);
+    near(selected_yaw(0,-32768,true,source),MAX_WZ_RAD_S);
+    near(selected_yaw(0,1,true,source),-3.14159265358979323846f/180.f);
+    near(selected_yaw(1,32767,true,ControlInputSource::NONE),0);
 }
 '''
 with tempfile.TemporaryDirectory(prefix="chassis-vx-limit-") as directory:
@@ -112,4 +114,4 @@ with tempfile.TemporaryDirectory(prefix="chassis-vx-limit-") as directory:
                     (ROOT/"user/core/Alg/UtilityFunction/SlopPlanning.cpp").as_posix(),
                     "-o",exe.as_posix()],check=True)
     subprocess.run([str(exe)],check=True)
-print("PASS: X/Y/yaw limits, linear local/gimbal sticks, keyboard/mouse and rotated combined inputs")
+print("PASS: X/Y/yaw limits, UART5 stick and mouse, offline stop and rotated combined inputs")

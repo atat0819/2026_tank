@@ -46,13 +46,12 @@ int main() {
     def test_encoder_startup_recovery_and_limits(self):
         task = (ROOT / "RtosTask/can_send_task.cpp").read_text(encoding="utf-8-sig")
         self.assertLess(task.index("pitch_target_angle = pitch_current_angle;"),
-                        task.index("pitch_motor.On(1,"))
+                        task.index("UpdateMotorEnable(pitch_motor,"))
         loop = task.split("    for(;;)", 1)[1]
         self.assertLess(loop.index("UpdatePitchMotorFeedback();"),
-                        loop.index("if(!remoteController.isConnected()"))
-        for marker in ("if (pitch_motor_online && pitch_motor_was_offline)", "if (remote_was_offline)"):
-            body = task.split(marker, 1)[1].split("\n  }", 1)[0]
-            self.assertIn("pitch_gimbal_fsm.ReAnchor(pitch_current_angle)", body)
+                        loop.index("if (!remote_enabled ||"))
+        body = task.split("else if (pitch_motor_was_unready || remote_was_offline)", 1)[1].split("\n  }", 1)[0]
+        self.assertIn("pitch_gimbal_fsm.ReAnchor(pitch_current_angle)", body)
         self.assertIn("pitch_gimbal_fsm.Update_Angle_Limit(pitch_current_angle, pitch_current_angle)", task)
         self.assertIn("pitch_current_angle - PITCH_ENCODER_HORIZONTAL_RAD", task)
         self.assertIn("pitch_gravity_ff.GravityFeedforward(pitch_gravity_angle)", task)

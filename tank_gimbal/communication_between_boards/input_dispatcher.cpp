@@ -14,7 +14,8 @@ void InputDispatcher::Update(uint8_t s1, uint8_t s2, uint16_t keyboard,
     if (s1 == Remote::MIDDLE && s2 == Remote::MIDDLE) {
         source_ = InputSource::KeyMouse;
     } else {
-        source_ = InputSource::Remote;
+        source_ = (s1 == Remote::DOWN && s2 == Remote::DOWN)
+            ? InputSource::DoubleDown : InputSource::Remote;
         ResetKeyMouseState();  // 切出键鼠时重置，防止状态残留抖动
         return;
     }

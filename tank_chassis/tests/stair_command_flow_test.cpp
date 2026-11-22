@@ -15,14 +15,15 @@ int main()
     keyboard.Init();
     front.Init();
     uint32_t now = 0U;
-    float left = -67.0f, right = -110.0f;
+    const auto &home = Class_Up_Stair_FSM::HOME_ANGLE_RAD;
+    float left = home[0], right = home[1];
     bool control_enabled = true, imu_valid = true;
     auto step = [&](uint16_t keys) {
         keyboard.Update(keys, true, true, now);
         const auto &key = keyboard.GetCommand();
         UpdateStairCommand(command, control_enabled, key.imu_mode_request,
                            key.normal_mode_request, key.stair_toggle);
-        front.Update(left*0.01745329252f, right*0.01745329252f, true, true,
+        front.Update(left, right, true, true,
                      control_enabled, true, command.front_target_requested, now);
         rear.Update(control_enabled && command.mode == StairMode::IMU,
                     imu_valid, true, true, 4.0f, 1.0f, 1.0f, 1.0f, now,
@@ -53,7 +54,8 @@ int main()
     assert(rear.Limit_Torque(1U, 10.0f) == 0.0f);
     imu_valid=true; now+=1U; step(0U);
     assert(rear.Uses_Attitude_Control());
-    left=-20; right=-140;
+    left = 160.0f * 0.01745329252f;
+    right = -140.0f * 0.01745329252f;
     press(ChassisKeyboardFSM::KEY_B);
     assert(front.Get_State() == UP_STAIR_RETURNING_HOME);
     assert(rear.Uses_Retract_Position_Control());
@@ -68,7 +70,7 @@ int main()
     assert(!rear.Uses_Position_Control() && !rear.Uses_Attitude_Control());
     for (uint8_t id=1; id<=2; ++id)
         assert(rear.Limit_Torque(id, 10.0f) == 0.0f);
-    left=-67.0f; right=-110.0f; imu_valid=true;
+    left = home[0]; right = home[1]; imu_valid = true;
     press(ChassisKeyboardFSM::KEY_V);
     assert(front.Get_State() == UP_STAIR_HOME_HOLD);
     press(ChassisKeyboardFSM::KEY_B);

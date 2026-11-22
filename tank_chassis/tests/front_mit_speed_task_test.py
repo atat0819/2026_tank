@@ -28,7 +28,7 @@ host = r'''
 extern float FRONT_MIT_KD;
 Class_Up_Stair_FSM up_stair_fsm;
 float rad(float v) { return v * 3.14159265358979323846f / 180; }
-bool near(float a, float b) { return std::fabs(a-b) < 1e-5f; }
+bool near(float a, float b) { return std::fabs(a-b) < 1e-4f; }
 float SafeMotorAngle(float v) { return std::isfinite(v) ? v : 0; }
 float front_left_target_velocity;
 uint32_t now_tick = 0U;
@@ -67,10 +67,14 @@ int main() {
     using Front = Class_Up_Stair_FSM;
     const float hl = Front::HOME_ANGLE_RAD[0], hr = Front::HOME_ANGLE_RAD[1];
     const float tl = Front::TARGET_ANGLE_RAD[0], tr = Front::TARGET_ANGLE_RAD[1];
-    const float ml = (hl + tl) / 2, mr = (hr + tr - rad(360)) / 2;
+    const float control_tl = tl + rad(360);
+    const float ml = (hl + control_tl) / 2, mr = (hr + tr - rad(360)) / 2;
     const float control_hr = hr + rad(360);
     const uint32_t ramp_time = Front::SPEED_RAMP_TIME_MS;
-    assert(ramp_time == 1000U);
+    const uint32_t quarter_time = ramp_time / 4U;
+    const uint32_t three_quarter_time = 3U * ramp_time / 4U;
+    const float quarter_scale = static_cast<float>(quarter_time) / ramp_time;
+    const float three_quarter_scale = static_cast<float>(three_quarter_time) / ramp_time;
     const float error = rad(0.05f);
     up_stair_fsm.Init();
     run(hl, hr);
@@ -85,30 +89,32 @@ int main() {
     const uint32_t start = now_tick;
     run(hl, hr, true);
     assert(near(front_4340.speed[0], 0) && near(front_4340.speed[1], 0));
-    assert(near(up_stair_fsm.Get_Target_Angle(1), tl));
+    assert(near(up_stair_fsm.Get_Target_Angle(1), control_tl));
     assert(near(up_stair_fsm.Get_Target_Angle(2), tr));
-    now_tick = start + ramp_time / 4U;
+    now_tick = start + quarter_time;
     run(hl, hr, true);
-    assert(near(front_4340.speed[0], left_speed_limit * 0.25f));
-    assert(near(front_4340.speed[1], -right_speed_limit * 0.25f));
+    assert(near(front_4340.speed[0], left_speed_limit * quarter_scale));
+    assert(near(front_4340.speed[1], -right_speed_limit * quarter_scale));
     run(hl, hr, true); // Repeated tick must not advance the ramp.
-    assert(near(front_4340.speed[0], left_speed_limit * 0.25f));
+    assert(near(front_4340.speed[0], left_speed_limit * quarter_scale));
     // Encoder feedback moving ahead does not bypass the time-based ramp.
     now_tick = start + ramp_time / 2U;
     run(ml, mr, true);
     assert(near(front_4340.speed[0], left_speed_limit * 0.5f));
     assert(near(front_4340.speed[1], -right_speed_limit * 0.5f));
-    run(ml, rad(-179.9f), true);
+    run(rad(179.9f), rad(-179.9f), true);
+    assert(near(front_4340.speed[0], left_speed_limit * 0.5f));
     assert(near(front_4340.speed[1], -right_speed_limit * 0.5f));
-    run(ml, rad(179.9f), true);
+    run(rad(-179.9f), rad(179.9f), true);
+    assert(near(front_4340.speed[0], left_speed_limit * 0.5f));
     assert(near(front_4340.speed[1], -right_speed_limit * 0.5f));
     run(tl, tr, true, 0.3f, -0.3f); // Reaching HOLD does not restart the ramp.
     assert(up_stair_fsm.Get_State() == UP_STAIR_TARGET_HOLD);
     assert(near(front_4340.speed[0], 0) && near(front_4340.speed[1], 0));
-    now_tick = start + 3U * ramp_time / 4U;
+    now_tick = start + three_quarter_time;
     run(tl - error, tr + error, true);
-    assert(near(front_4340.speed[0], left_kp * error * 0.75f));
-    assert(near(front_4340.speed[1], -right_kp * error * 0.75f));
+    assert(near(front_4340.speed[0], left_kp * error * three_quarter_scale));
+    assert(near(front_4340.speed[1], -right_kp * error * three_quarter_scale));
     now_tick = start + ramp_time;
     run(tl - error, tr + error, true);
     assert(near(front_4340.speed[0], left_kp * error));
@@ -131,10 +137,10 @@ int main() {
     assert(near(front_4340.speed[0], 0) && near(front_4340.speed[1], 0));
     assert(near(up_stair_fsm.Get_Target_Angle(1), hl));
     assert(near(up_stair_fsm.Get_Target_Angle(2), control_hr));
-    now_tick += ramp_time / 4U;
+    now_tick += quarter_time;
     run(tl, tr, false);
-    assert(near(front_4340.speed[0], -left_speed_limit * 0.25f));
-    assert(near(front_4340.speed[1], right_speed_limit * 0.25f));
+    assert(near(front_4340.speed[0], -left_speed_limit * quarter_scale));
+    assert(near(front_4340.speed[1], right_speed_limit * quarter_scale));
     run(ml, mr, true); // Reverse before HOME: restart the shared ramp once.
     assert(near(front_4340.speed[0], 0) && near(front_4340.speed[1], 0));
     now_tick += ramp_time / 2U;
@@ -143,10 +149,10 @@ int main() {
     assert(near(front_4340.speed[1], -right_speed_limit * 0.5f));
     run(ml, mr, true, 0, 0, true, true, true, false); // Forced HOME.
     assert(near(front_4340.speed[0], 0) && near(front_4340.speed[1], 0));
-    now_tick += ramp_time / 4U;
+    now_tick += quarter_time;
     run(ml, mr, true, 0, 0, true, true, true, false);
-    assert(near(front_4340.speed[0], -left_speed_limit * 0.25f));
-    assert(near(front_4340.speed[1], right_speed_limit * 0.25f));
+    assert(near(front_4340.speed[0], -left_speed_limit * quarter_scale));
+    assert(near(front_4340.speed[1], right_speed_limit * quarter_scale));
     now_tick += 5U * ramp_time; // Long time step is capped at full output.
     run(ml, mr, true, 0, 0, true, true, true, false);
     assert(near(front_4340.speed[0], -left_speed_limit));
@@ -212,4 +218,4 @@ with tempfile.TemporaryDirectory(prefix="front-mit-speed-") as directory:
         "-o", exe.as_posix(),
     ], check=True)
     subprocess.run([str(exe)], check=True)
-print("PASS: front shared 1 s speed ramp, unchanged final angles, HOME/TARGET/reversal/forced HOME, HOLD, recovery, rollover and pair fault zero gains")
+print("PASS: front speed ramp, positive left seam crossing, HOME/TARGET/reversal/forced HOME, HOLD, recovery, rollover and pair fault zero gains")

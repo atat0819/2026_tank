@@ -108,7 +108,7 @@ void Chassis_FSM::StateUpdate(uint8_t s1, uint8_t s2, bool equipment_online,
  * - STOP / NOT_FOLLOW: 返回 0
  */
 float Chassis_FSM::Get_wz_cmd(float yaw_offset_rad, float right_stick_x,
-                             int16_t mouse_x, float max_wz_rad_s)
+                             int16_t mouse_x, float max_wz_rad_s, bool yaw_mouse_active)
 {
     switch (current_mode)
     {
@@ -119,6 +119,8 @@ float Chassis_FSM::Get_wz_cmd(float yaw_offset_rad, float right_stick_x,
         return -right_stick_x * max_wz_rad_s;
 
     case CHASSIS_MOUSE_ROTATE:
+        if (yaw_mouse_active)
+            return 0.0f;
         return -static_cast<float>(mouse_x) * (1.0f * M_PI / 180.0f);
 
     case CHASSIS_STOP:

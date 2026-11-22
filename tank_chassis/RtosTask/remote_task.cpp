@@ -41,6 +41,7 @@ static HAL::UART::Data uart3_rx_data{uart3_rx_buffer, sizeof(uart3_rx_buffer)};
 BSP::REMOTE_CONTROL::RemoteController remoteController(100);
 volatile uint16_t local_remote_keyboard = 0U;
 volatile int16_t local_remote_mouse_x = 0;
+volatile bool local_remote_yaw_mouse_active = false;
 volatile uint32_t local_remote_last_tick = 0U;
 volatile bool local_remote_received = false;
 extern DMA_HandleTypeDef hdma_uart5_rx;   // 遥控器
@@ -337,6 +338,7 @@ extern "C" void remote_task(void *argument)
             local_remote_keyboard = static_cast<uint16_t>(data.buffer[14]) |
                                     (static_cast<uint16_t>(data.buffer[15]) << 8);
             local_remote_mouse_x = remoteController.get_mouseX();
+            local_remote_yaw_mouse_active = BoardLink::dbusYawMouseActive(data.buffer);
             Chassis485_UpdateRemote(data.buffer);
             local_remote_last_tick = HAL_GetTick();
             local_remote_received = true;

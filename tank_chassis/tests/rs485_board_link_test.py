@@ -59,6 +59,8 @@ struct RemoteStub {
         ++parsed;
         mouse_x += static_cast<int16_t>(data[6] | (data[7] << 8));
     }
+    uint8_t get_s1() const { return (raw[5] >> 6) & 3U; }
+    uint8_t get_s2() const { return (raw[5] >> 4) & 3U; }
 };
 extern RemoteStub remoteController;
 '''
@@ -213,9 +215,36 @@ int main() {
     assert(remoteController.parsed==burst_before+2);
     assert(remoteController.mouse_x==mouse_before+4);
 
+    // Only frames routed to camera Yaw contribute X, at most once per sequence.
+    now+=2;
+    pressed[5] = (pressed[5] & 0x0fU) | 0xf0U;
+    pressed[13] = 1;
+    Chassis485_UpdateRemote(pressed);
+    sendReady(); memcpy(frame,active[0],32);
+    assert(BoardLink::decodeChassis(frame,decoded) && decoded.yaw_mouse_active);
+    assert((frame[20]&0x03U)==0x03U);
+    board=1; Gimbal485_Parse(frame,32); Gimbal485_Parse(frame,32);
+    auto camera=Gimbal485_ConsumeYawMouseInput();
+    assert(camera.online && remoteController.get_s1()==3 && remoteController.get_s2()==3);
+    assert(camera.mouse_active && camera.mouse_delta_x==11);
+    assert(Gimbal485_ConsumeYawMouseInput().mouse_delta_x==0);
+
+    // A release clears pending X from a preceding pressed sample.
+    now+=2; Chassis485_UpdateRemote(pressed); sendReady(); memcpy(frame,active[0],32);
+    board=1; Gimbal485_Parse(frame,32);
+    now+=2; released[5]=pressed[5];
+    Chassis485_UpdateRemote(released); sendReady(); memcpy(frame,active[0],32);
+    board=1; Gimbal485_Parse(frame,32);
+    camera=Gimbal485_ConsumeYawMouseInput();
+    assert(camera.online && remoteController.get_s1()==3 && remoteController.get_s2()==3);
+    assert(!camera.mouse_active && camera.mouse_delta_x==0);
+    const unsigned parsed_before_timeout=remoteController.parsed;
+
     // Repeated heartbeats with a frozen radio sequence cannot keep input online forever.
     for (unsigned i=0;i<5;++i) { now+=20; Gimbal485_Parse(frame,32); }
-    assert(!Gimbal485_RemoteOnline() && remoteController.parsed==burst_before+2);
+    assert(!Gimbal485_RemoteOnline() && remoteController.parsed==parsed_before_timeout);
+    camera=Gimbal485_ConsumeYawMouseInput();
+    assert(!camera.online && !camera.mouse_active && camera.mouse_delta_x==0);
 
     // A fresh radio sample must not cause queued commands older than 100 ms to replay.
     now=1200; Chassis485_UpdateRemote(pressed);
@@ -246,6 +275,21 @@ int main() {
 
     assert(fabsf(BoardLink::yawOffsetDeg(24))<0.001f);
     assert(BoardLink::yawOffsetDeg(204)==-180.0f);
+
+    // All switch combinations reach the control task as raw decoded switches.
+    assert(BoardLink::decodeChassis(frame,decoded));
+    board=1;
+    for (uint8_t s1=1; s1<=3; ++s1) {
+        for (uint8_t s2=1; s2<=3; ++s2) {
+            ++now;
+            ++decoded.remote_sequence;
+            decoded.dbus[5]=(decoded.dbus[5]&0x0fU)|(s1<<6)|(s2<<4);
+            BoardLink::encodeChassis(frame,decoded);
+            Gimbal485_Parse(frame,32);
+            camera=Gimbal485_ConsumeYawMouseInput();
+            assert(camera.online && remoteController.get_s1()==s1 && remoteController.get_s2()==s2);
+        }
+    }
 }
 '''
 

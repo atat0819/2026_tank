@@ -35,11 +35,21 @@ if ($rearFsmHeader -notmatch 'static constexpr float ANGLE_START_RAD\[2\]' -or
     $rearFsmImpl -notmatch 'config\.angle_end_rad\[i\]\s*=\s*ANGLE_END_RAD\[i\]') { throw 'rear mechanical angles must be configured in the rear FSM' }
 if ($source -notmatch 'up_stair_behind_motor_fsm\(Class_Up_Stair_Behind_Motor_FSM::Config::WithAngleConstants\(\)\)' -or
     $source -match 'BuildRear6248Config|config\.(?:pitch_target_deg|angle_start_rad|angle_end_rad|retract_target_rad|retract_position_tolerance_rad)\s*(?:\[|=)') { throw 'task must use rear FSM angle constants without assigning angles' }
-if ($source -notmatch 'GetControlInputSnapshot\(now_tick\)' -or
+if ($source -notmatch 'GetControlInputSnapshot\(\)' -or
     $source -notmatch 'input\.source != ControlInputSource::NONE') { throw 'task must use the selected input source heartbeat' }
 if ($source -notmatch 'taskENTER_CRITICAL\(\);\s*command = stair_command;[\s\S]*?taskEXIT_CRITICAL') { throw 'front/rear requests must use one protected snapshot' }
 if ($source -notmatch 'if \(policy\.zero_all_torque\)[\s\S]*?if \(policy\.control_fault\)[\s\S]*?continue;[\s\S]*?\}\s*else\s*\{') { throw 'task must continue only for control faults and use else for normal operation' }
-if ($source -notmatch 'if \(policy\.zero_all_torque\)[\s\S]*?front_recovery_fsm\[0\]\.Force_Enable_On_Next_Check\(\)[\s\S]*?front_recovery_fsm\[1\]\.Force_Enable_On_Next_Check\(\)[\s\S]*?rear_recovery_fsm\[0\]\.Force_Enable_On_Next_Check\(\)[\s\S]*?rear_recovery_fsm\[1\]\.Force_Enable_On_Next_Check\(\)') { throw 'safety mode must re-arm all mechanism motors for one enable request on recovery' }
+if ($source -notmatch 'motor_control_allowed = !policy\.zero_all_torque' -or
+    $source -notmatch 'recovery\.Update\(control_allowed, drive_status, now_tick\)[\s\S]*?Request::Off[\s\S]*?motor\.Off\(slot,[\s\S]*?Request::On[\s\S]*?motor\.On\(slot,') { throw 'DM service frames must follow the shared stop and drive status' }
+foreach ($axis in @('front', 'rear')) {
+    foreach ($slot in @(1, 2)) {
+        $index = $slot - 1
+        if ($source -notmatch "UpdateStairMotorEnable\(${axis}_\d+, $slot, ${axis}_recovery_fsm\[$index\], motor_control_allowed,") { throw "missing DM start/stop dispatch for $axis slot $slot" }
+    }
+}
+if ($source -notmatch 'front_left_status == 1U && up_stair_fsm\.Is_Angle_Valid' -or
+    $source -notmatch 'front_right_status == 1U && up_stair_fsm\.Is_Angle_Valid' -or
+    $source -notmatch 'rear_left_status == 1U,\s*rear_right_status == 1U,') { throw 'both pairs require enabled feedback before motion' }
 if ($source -notmatch 'rear_6248_pitch_pid\.UpDate\(\s*up_stair_behind_motor_fsm\.Get_Target_Pitch_Rad\(\),\s*up_stair_behind_motor_fsm\.Get_Feedback_Pitch_Rad\(\)\);') { throw 'Pitch outer PID must consume radians and output rad/s directly' }
 if ($source -notmatch 'Uses_Position_Control') { throw 'task must select rear position control by FSM mode' }
 if ($source -notmatch 'Uses_Attitude_Control') { throw 'task must preserve rear attitude control by FSM mode' }
@@ -79,7 +89,7 @@ foreach ($kd in @('REAR_RETRACT_MIT_KD', 'left_attitude_kd', 'right_attitude_kd'
 foreach ($id in @('1', '2')) {
     if ($positionBranch.Groups['body'].Value -notmatch "0\.0f, REAR_RETRACT_MIT_KD, up_stair_behind_motor_fsm\.Get_Retract_Feedforward_Torque\(${id}U\)\)") { throw "retract motor $id must send the FSM feedforward directly" }
 }
-if ($source -notmatch 'isConnected\(1, 7\)' -or $source -notmatch 'isConnected\(2, 8\)') { throw 'rear connectivity alarm IDs must use CAN ids 7 and 8' }
+if ($source -notmatch 'rear_6248\.getDriveStatus\(1\)' -or $source -notmatch 'rear_6248\.getDriveStatus\(2\)') { throw 'rear feedback must use both configured logical slots' }
 if ($source -notmatch 'now_tick = HAL_GetTick\(\);') { throw 'heartbeat snapshot must capture task time in protected snapshot' }
 if ($source -notmatch 'imu_snapshot\.valid' -or $source -notmatch 'imu_snapshot\.tick < IMU_CONTROL_TIMEOUT_MS') { throw 'rear control must reject stale/invalid IMU snapshots' }
 if ($source -notmatch 'front_4340\.ctrl_Mit\(1') { throw 'front motor 1 command missing' }

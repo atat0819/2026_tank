@@ -11,7 +11,7 @@ code = r'''
 #include <cassert>
 #include <cstdint>
 namespace BSP::REMOTE_CONTROL {
-struct RemoteController { enum { MIDDLE=3, KEY_R=1<<8, KEY_G=1<<10, KEY_V=1<<14 }; };
+struct RemoteController { enum { DOWN=2, MIDDLE=3, KEY_R=1<<8, KEY_G=1<<10, KEY_V=1<<14 }; };
 }
 #include "user/core/BSP/switch/switch.hpp"
 uint32_t tick = 0;

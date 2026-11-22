@@ -70,7 +70,7 @@ public:
      */
     // 原始操作量统一在状态机内换算；任务保留车体目标的统一限幅。
     float Get_wz_cmd(float yaw_offset_rad, float right_stick_x,
-                     int16_t mouse_x, float max_wz_rad_s);
+                     int16_t mouse_x, float max_wz_rad_s, bool yaw_mouse_active = false);
 
     // 保留原跟随 PID 接口，当前 Z 键跟随停用。
     float Get_follow_wz_cmd(float yaw_offset_rad);

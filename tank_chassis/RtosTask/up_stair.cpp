@@ -38,7 +38,7 @@
  *   V：IMU 模式，前腿回初始位，后腿调平。
  *   第一次 B：前腿去目标位，后腿继续调平；第二次 B：前腿回初始位、后腿收腿。
  *   C：NORMAL 模式，前腿保持/返回初始位，后腿输出零力矩。
- *   双下、控制链路失效或非法档位：四台机构电机都输出零力矩。
+ *   双下、控制链路失效或非法档位：四台机构电机主动失能。
  */
 
 // 对象内部通道 1=前左、2=前右；实际收发 CAN ID 分别为 0x05、0x06，使用 FDCAN2。
@@ -55,15 +55,15 @@ BSP::Motor::DM::J6248<2> rear_6248(
 // 输出限幅约束的是目标速度；MIT 内环的真实硬限流/限矩需在驱动器端设置。
 // 前左 4340 的角度外环：弧度误差转换为 rad/s 目标，速度内环由 MIT Kd 完成。
 ALG::PID::PID front_4340_left_pid = {
-    120.0f, 0.0f, 0.0f, 10.0f, 0.0f, 0.0f,
+    180.0f, 0.0f, 0.0f, 10.0f, 0.0f, 0.0f,
 };
 // 前右角度外环保留独立增益。
 ALG::PID::PID front_4340_right_pid = {
-    120.0f, 0.0f, 0.0f, 10.0f, 0.0f, 0.0f,
+    180.0f, 0.0f, 0.0f, 10.0f, 0.0f, 0.0f,
 };
 
 // 前两台 4340 共用的 MIT 速度阻尼增益。
-float FRONT_MIT_KD = 3.4f;
+float FRONT_MIT_KD = 3.8f;
 
 // 后 6248 的 MIT 阻尼按模式独立调节；各模式左右共用，保护估算与发送一致，范围 0 < Kd <= 5。
 float REAR_IMU_MIT_KD = 3.5f;     // IMU 调平、姿态保持。
@@ -75,7 +75,7 @@ float REAR_IMU_PITCH_DAMPING = 5.0f; // 初始试调值，独立于 MIT Kd。
 // Pitch 外环输入统一为 rad，输出为 rad/s；当前输出上限为 5.4 rad/s。
 // 它根据车身 Pitch 误差生成公共调平速度，再由左右方向系数映射到两台电机。
 ALG::PID::PID rear_6248_pitch_pid = {
-    50.0f, 0.0f, 0.0f, 7.4f, 0.0f, 0.0f,
+    80.0f, 0.0f, 0.0f, 7.4f, 0.0f, 0.0f,
 };
 // 编码器角度外环输入 rad，输出电机轴目标速度 rad/s。
 // 左右各有一个，仅用于收腿位置控制；两侧参数/历史状态彼此独立。
@@ -120,21 +120,15 @@ void ResetAllStairPid()
     rear_6248_right_retract_pid.reset();
 }
 
-// 向前后四个机构电机发送零力矩命令，且保留合法的位置字段。
-void SendAllStairMotorsZero(float front_left_angle, float front_right_angle,
-                            float rear_left_angle, float rear_right_angle)
+void UpdateStairMotorEnable(BSP::Motor::DM::DMMotorBase<2> &motor, uint8_t slot,
+                            MotorRecoveryFSM &recovery, bool control_allowed,
+                            uint8_t drive_status, uint32_t now_tick)
 {
-    // ctrl_Mit 参数依次为：逻辑通道、位置(rad)、速度(rad/s)、Kp、Kd、前馈力矩(Nm)。
-    // 必须同时清零 Kp、Kd 和前馈力矩；只把速度目标设为 0 且保留 Kd 会形成速度制动。
-    // 这里 Kp=0，位置字段不会产生位置保持力矩；本函数也不发送电机 Off 命令。
-    front_4340.ctrl_Mit(1, SafeMotorAngle(front_left_angle), 0.0f, 0.0f,
-                        0.0f, 0.0f);
-    front_4340.ctrl_Mit(2, SafeMotorAngle(front_right_angle), 0.0f, 0.0f,
-                        0.0f, 0.0f);
-    rear_6248.ctrl_Mit(1, SafeMotorAngle(rear_left_angle), 0.0f, 0.0f,
-                       0.0f, 0.0f);
-    rear_6248.ctrl_Mit(2, SafeMotorAngle(rear_right_angle), 0.0f, 0.0f,
-                       0.0f, 0.0f);
+    const auto request = recovery.Update(control_allowed, drive_status, now_tick);
+    if (request == MotorRecoveryFSM::Request::Off)
+        motor.Off(slot, BSP::Motor::DM::MIT);
+    else if (request == MotorRecoveryFSM::Request::On)
+        motor.On(slot, BSP::Motor::DM::MIT);
 }
 }  // namespace
 
@@ -161,12 +155,6 @@ extern "C" void up_stair_task(void *argument)
     // 前后状态机独立运行，前部启动后默认回初始位置。
     // 后腿 FSM 已由全局构造装入头文件的角度/方向配置，是否输出还要经过 IMU 模式门控。
     up_stair_fsm.Init();
-    const uint32_t init_tick = HAL_GetTick();
-    // 初始化四个电机通信恢复状态机的时间基准。
-    front_recovery_fsm[0].Init(init_tick);
-    front_recovery_fsm[1].Init(init_tick);
-    rear_recovery_fsm[0].Init(init_tick);
-    rear_recovery_fsm[1].Init(init_tick);
     ResetAllStairPid();
     ControlInputSource last_input_source = ControlInputSource::NONE;
     // 滤波历史跨循环保存；首次启用/恢复时需要用当前有效帧重建，而非从 0 缓慢爬升。
@@ -175,6 +163,12 @@ extern "C" void up_stair_task(void *argument)
 
     for (;;)
     {
+        uint32_t now_tick;
+        StairCommand command;
+        // 在同一临界区读取机构命令、驱动状态及对应的角度和速度。
+        taskENTER_CRITICAL();
+        command = stair_command;
+        now_tick = HAL_GetTick();
         // 编码器反馈是原始周期角(rad)，跨 ±pi 的连续角展开由对应 FSM 完成。
         // 后腿轴速度(rad/s)用于 MIT 采样力矩估算和端点方向保护；前腿内环直接用驱动器反馈。
         const float front_left_angle = front_4340.getAngleRad(1);
@@ -183,19 +177,10 @@ extern "C" void up_stair_task(void *argument)
         const float rear_right_angle = rear_6248.getAngleRad(2);
         const float rear_left_velocity = rear_6248.getVelocityRads(1);
         const float rear_right_velocity = rear_6248.getVelocityRads(2);
-        // isConnected 的第一个参数是对象内通道，第二个参数是连接状态提示使用的电机 ID。
-        // 在线仅表示反馈及时；是否允许闭环还要检查模式、机械角度以及 IMU 有效性。
-        const bool front_left_online = front_4340.isConnected(1, 5);
-        const bool front_right_online = front_4340.isConnected(2, 6);
-        const bool rear_left_online = rear_6248.isConnected(1, 7);
-        const bool rear_right_online = rear_6248.isConnected(2, 8);
-
-        uint32_t now_tick;
-        StairCommand command;
-        // 模式、前后目标与时间在同一临界区采样，避免读到 B 切换过程中的前后半组目标。
-        taskENTER_CRITICAL();
-        command = stair_command;
-        now_tick = HAL_GetTick();
+        const uint8_t front_left_status = front_4340.getDriveStatus(1);
+        const uint8_t front_right_status = front_4340.getDriveStatus(2);
+        const uint8_t rear_left_status = rear_6248.getDriveStatus(1);
+        const uint8_t rear_right_status = rear_6248.getDriveStatus(2);
         taskEXIT_CRITICAL();
         const ControlInputSnapshot input = GetControlInputSnapshot();
         const bool source_changed = input.source != last_input_source;
@@ -215,8 +200,12 @@ extern "C" void up_stair_task(void *argument)
             policy.rear_attitude_enabled && command.mode == StairMode::IMU;
         // NORMAL 下前腿仍可按 FSM 保持初始位，后腿所有调平/收腿输出都受此 IMU 模式门控。
 
-        // 双下主动停车、遥控链路掉线或档位非法时，策略会置 zero_all_torque，
-        // 本分支让四个机构电机输出零力矩。
+        const bool motor_control_allowed = !policy.zero_all_torque;
+        UpdateStairMotorEnable(front_4340, 1, front_recovery_fsm[0], motor_control_allowed, front_left_status, now_tick);
+        UpdateStairMotorEnable(front_4340, 2, front_recovery_fsm[1], motor_control_allowed, front_right_status, now_tick);
+        UpdateStairMotorEnable(rear_6248, 1, rear_recovery_fsm[0], motor_control_allowed, rear_left_status, now_tick);
+        UpdateStairMotorEnable(rear_6248, 2, rear_recovery_fsm[1], motor_control_allowed, rear_right_status, now_tick);
+
         // 双下属于主动停车；链路掉线或档位非法是异常停车，只有异常状态跳过本周期后续逻辑。
         if (policy.zero_all_torque)
         {
@@ -227,13 +216,6 @@ extern "C" void up_stair_task(void *argument)
             ++stair_command_generation;
             taskEXIT_CRITICAL();
             rear_imu_filter_initialized = false;
-            // 安全门生效期间不发送 On；重新预备四个恢复状态机，确保恢复后的
-            // 首个正常周期分别补发一次使能帧。
-            front_recovery_fsm[0].Force_Enable_On_Next_Check();
-            front_recovery_fsm[1].Force_Enable_On_Next_Check();
-            rear_recovery_fsm[0].Force_Enable_On_Next_Check();
-            rear_recovery_fsm[1].Force_Enable_On_Next_Check();
-
             // 禁用前部状态机，避免安全分支继续执行位置控制。
             up_stair_fsm.Update(
                 front_left_angle,
@@ -258,8 +240,6 @@ extern "C" void up_stair_task(void *argument)
                 now_tick,
                 false);
             ResetAllStairPid();
-            SendAllStairMotorsZero(front_left_angle, front_right_angle,
-                                   rear_left_angle, rear_right_angle);
 
             // 仅链路掉线或档位非法时命中：延时后跳过本周期；双下不会命中，仍会走到循环末尾延时。
             if (policy.control_fault)
@@ -272,11 +252,11 @@ extern "C" void up_stair_task(void *argument)
         else
         {
         // 控制链路在线、档位有效且当前不是双下时，运行前后状态机、恢复逻辑和 PID 控制。
-        // 前 4340 的编码器必须同时满足在线和机械角度有效，才允许位置闭环。
+        // 前 4340 必须确认驱动使能且机械角度有效，才允许位置闭环。
         const bool front_left_feedback_valid =
-            front_left_online && up_stair_fsm.Is_Angle_Valid(1U, front_left_angle);
+            front_left_status == 1U && up_stair_fsm.Is_Angle_Valid(1U, front_left_angle);
         const bool front_right_feedback_valid =
-            front_right_online && up_stair_fsm.Is_Angle_Valid(2U, front_right_angle);
+            front_right_status == 1U && up_stair_fsm.Is_Angle_Valid(2U, front_right_angle);
 
         // 前部独立执行协调层给出的初始位/目标位请求。
         // 任一侧反馈失效会使前 FSM 整组禁用；恢复时先返回初始位，避免重放旧 B 动作。
@@ -350,8 +330,8 @@ extern "C" void up_stair_task(void *argument)
         up_stair_behind_motor_fsm.Update(
             rear_control_enabled,
             imu_valid,
-            rear_left_online,
-            rear_right_online,
+            rear_left_status == 1U,
+            rear_right_status == 1U,
             filtered_pitch_deg,
             filtered_pitch_rate_dps,
             rear_left_angle,
@@ -361,35 +341,6 @@ extern "C" void up_stair_task(void *argument)
             rear_left_velocity,
             rear_right_velocity,
             filtered_roll_deg);
-
-        // 前左反馈从离线恢复，或离线后需要首次/每隔 100 ms 重试使能时发送 On。
-        // 对应逻辑通道 1、CAN ID 0x05；安全门恢复后也会重新请求一次使能。
-        // 使能重试和闭环输出权限分开处理，On 请求本身不会绕过反馈/角度/模式检查。
-        if (front_recovery_fsm[0].Should_Enable(
-                front_left_online,
-                now_tick))
-            front_4340.On(1, BSP::Motor::DM::Model::MIT);
-
-        // 前右反馈从离线恢复，或离线后需要首次/每隔 100 ms 重试使能时发送 On。
-        // 对应逻辑通道 2、CAN ID 0x06；安全门恢复后也会重新请求一次使能。
-        if (front_recovery_fsm[1].Should_Enable(
-                front_right_online,
-                now_tick))
-            front_4340.On(2, BSP::Motor::DM::Model::MIT);
-
-        // 后左反馈从离线恢复，或离线后需要首次/每隔 100 ms 重试使能时发送 On。
-        // 对应逻辑通道 1、CAN ID 0x07；安全门恢复后也会重新请求一次使能。
-        if (rear_recovery_fsm[0].Should_Enable(
-                rear_left_online,
-                now_tick))
-            rear_6248.On(1, BSP::Motor::DM::Model::MIT);
-
-        // 后右反馈从离线恢复，或离线后需要首次/每隔 100 ms 重试使能时发送 On。
-        // 对应逻辑通道 2、CAN ID 0x08；安全门恢复后也会重新请求一次使能。
-        if (rear_recovery_fsm[1].Should_Enable(
-                rear_right_online,
-                now_tick))
-            rear_6248.On(2, BSP::Motor::DM::Model::MIT);
 
         // 前左角度外环输出乘速度启动比例后送入 MIT，最终目标角保持不变。
         // FSM 的目标角和反馈角都已展开成连续 rad，跨过 ±pi 不会出现整圈误差跳变。

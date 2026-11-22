@@ -8,7 +8,7 @@ fsm = (root / "feeder_fsm/gimbal_fsm.cpp").read_text(encoding="utf-8")
 for axis, motor in (("pitch", 1),):
     update = f"{axis}_gimbal_fsm.Update_Angle_Limit("
     guard = f"{axis}_gimbal_fsm.Limit_Torque("
-    assert task.index(f"if (!{axis}_motor_online)") < task.index(update)
+    assert task.index(f"if (!{axis}_motor_ready)") < task.index(update)
     assert task.index("UpdatePitchMotorFeedback();") < task.index(update)
     assert task.index(f"{axis}_gimbal_fsm.Update({axis}_input, {axis}_current_angle)") < task.index(update)
     assert task.index(update) < task.index(f"{axis}_target_angle = {axis}_gimbal_fsm.Get_Target_Angle()")

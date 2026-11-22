@@ -4,29 +4,29 @@
 int main()
 {
     MotorRecoveryFSM fsm;
-    fsm.Init(0U);
+    using Request = MotorRecoveryFSM::Request;
 
-    // A motor can return feedback while still disabled. Enable once at its
-    // initial online transition, then never repeat while it remains online.
-    assert(fsm.Should_Enable(true, 0U));
-    assert(!fsm.Should_Enable(true, 1U));
+    // A valid non-stop gear permits On only with a confirmed disabled drive.
+    assert(fsm.Update(true, 0xFFU, 0U) == Request::None);
+    assert(fsm.Update(true, 1U, 1U) == Request::None);
+    assert(fsm.Update(true, 0xAU, 2U) == Request::None);
+    assert(fsm.Update(true, 0U, 3U) == Request::On);
+    assert(fsm.Update(true, 0U, 102U) == Request::None);
+    assert(fsm.Update(true, 0U, 103U) == Request::On);
+    assert(fsm.Update(true, 1U, 104U) == Request::None);
+    assert(fsm.Update(true, 0U, 105U) == Request::On);
 
-    // After a power loss, send probes while offline. Once feedback returns,
-    // send another enable frame that the newly powered motor can receive.
-    assert(fsm.Should_Enable(false, 2U));
-    assert(!fsm.Should_Enable(false, 3U));
-    assert(fsm.Should_Enable(true, 4U));
-    assert(!fsm.Should_Enable(true, 5U));
+    // Stop takes priority immediately, including when the driver is offline.
+    assert(fsm.Update(false, 0xFFU, 106U) == Request::Off);
+    assert(fsm.Update(false, 0U, 205U) == Request::None);
+    assert(fsm.Update(false, 1U, 206U) == Request::Off);
+    assert(fsm.Update(true, 1U, 207U) == Request::None);
+    assert(fsm.Update(false, 1U, 208U) == Request::Off);
+    assert(fsm.Update(true, 0U, 209U) == Request::On);
 
-    // Leaving double-down or control-link fault must re-arm the motor even
-    // when feedback remained online throughout the safety interval.
-    fsm.Force_Enable_On_Next_Check();
-    assert(fsm.Should_Enable(true, 6U));
-    assert(!fsm.Should_Enable(true, 7U));
-
-    // Offline retry remains rate-limited.
-    assert(fsm.Should_Enable(false, 8U));
-    assert(!fsm.Should_Enable(false, 107U));
-    assert(fsm.Should_Enable(false, 108U));
+    MotorRecoveryFSM wrapping;
+    assert(wrapping.Update(false, 0U, 0xFFFFFFF0U) == Request::Off);
+    assert(wrapping.Update(false, 0U, 0x53U) == Request::None);
+    assert(wrapping.Update(false, 0U, 0x54U) == Request::Off);
     return 0;
 }

@@ -58,6 +58,7 @@ void near(float actual,float expected) {
 }
 void step(float vx_body,float vy_body,float wz_cmd,bool keyboard=true) {
     struct { bool valid; } keyboard_cmd={keyboard};
+    float force_target[3]={},force_feedback[3]={};
 ''' + target + r'''
     chassis_force.Update(force_target,force_feedback,motor_output);
     // Observe the actual values delivered to the force controller.

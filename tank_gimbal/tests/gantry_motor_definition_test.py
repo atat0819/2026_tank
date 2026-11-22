@@ -77,7 +77,7 @@ GPIO_PinState HAL_GPIO_ReadPin(GPIO_TypeDef*, uint16_t pin) {
 }
 namespace BSP::REMOTE_CONTROL {
 struct RemoteController {
-    enum { MIDDLE=3, KEY_R=1<<8, KEY_G=1<<10, KEY_V=1<<14 };
+    enum { DOWN=2, MIDDLE=3, KEY_R=1<<8, KEY_G=1<<10, KEY_V=1<<14 };
     bool online=true, right=false;
     uint8_t s1=3, s2=3;
     bool isConnected() { return online; }

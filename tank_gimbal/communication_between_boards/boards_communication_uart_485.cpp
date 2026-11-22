@@ -11,20 +11,40 @@ static volatile bool remote_online = false;
 static volatile bool remote_received = false;
 static volatile uint32_t remote_receive_tick = 0;
 static volatile uint32_t remote_sample_tick = 0;
+static Gimbal485YawMouseInput yaw_mouse_input;
 static volatile float yaw_encoder_deg = 0;
 static volatile bool yaw_received = false;
 static volatile uint32_t yaw_receive_tick = 0;
 static Gimbal485RefereeData referee_data;
 static uint32_t referee_receive_tick = 0;
 
+static bool RemoteOnline(uint32_t now)
+{
+    return remote_received && remote_online &&
+           now - remote_receive_tick < 100U && now - remote_sample_tick < 100U;
+}
+
 bool Gimbal485_RemoteOnline()
 {
     taskENTER_CRITICAL();
-    const uint32_t now = HAL_GetTick();
-    const bool online = remote_received && remote_online &&
-                        now - remote_receive_tick < 100U && now - remote_sample_tick < 100U;
+    const bool online = RemoteOnline(HAL_GetTick());
     taskEXIT_CRITICAL();
     return online;
+}
+
+Gimbal485YawMouseInput Gimbal485_ConsumeYawMouseInput()
+{
+    taskENTER_CRITICAL();
+    const bool online = RemoteOnline(HAL_GetTick());
+    if (!online)
+        yaw_mouse_input = {};
+    auto input = yaw_mouse_input;
+    input.online = online;
+    yaw_mouse_input.mouse_delta_x = 0;
+    yaw_mouse_input.reset = false;
+    yaw_mouse_input.reanchor = false;
+    taskEXIT_CRITICAL();
+    return input;
 }
 
 void Gimbal485_UpdateYawFromISR(float angle_deg)
@@ -109,8 +129,26 @@ void Gimbal485_Parse(const uint8_t *data, uint16_t size)
         {
             if (!dbus_received || chassis_data.remote_sequence != last_remote_sequence || link_recovered)
             {
+                const uint32_t sample_tick = HAL_GetTick();
                 remoteController.parseData(chassis_data.dbus);
-                remote_sample_tick = HAL_GetTick();
+                const bool mouse_active = chassis_data.yaw_mouse_active &&
+                                          BoardLink::dbusYawMouseActive(chassis_data.dbus);
+                if (!RemoteOnline(sample_tick))
+                {
+                    yaw_mouse_input = {};
+                    yaw_mouse_input.reset = true;
+                }
+                if (mouse_active != yaw_mouse_input.mouse_active)
+                {
+                    yaw_mouse_input.mouse_delta_x = 0;
+                    yaw_mouse_input.reanchor = mouse_active;
+                }
+                yaw_mouse_input.mouse_active = mouse_active;
+                if (mouse_active)
+                    yaw_mouse_input.mouse_delta_x +=
+                        static_cast<int16_t>(BoardLink::get16(chassis_data.dbus + 6));
+
+                remote_sample_tick = sample_tick;
                 last_remote_sequence = chassis_data.remote_sequence;
                 dbus_received = true;
             }
@@ -118,6 +156,7 @@ void Gimbal485_Parse(const uint8_t *data, uint16_t size)
         else
         {
             dbus_received = false;
+            yaw_mouse_input = {};
         }
         remote_online = chassis_data.remote_online != 0U;
         remote_receive_tick = HAL_GetTick();

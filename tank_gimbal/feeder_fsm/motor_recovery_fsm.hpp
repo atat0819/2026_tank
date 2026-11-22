@@ -3,63 +3,38 @@
 
 #include <stdint.h>
 
-// 电机没有反馈时，按时间间隔产生受限的 MIT 使能请求。
-// 一旦收到在线反馈，就结束重试周期，避免健康电机被重复发送 On。
+// 根据遥控停车条件与新鲜驱动状态，限频请求 On 或 Off。
 class MotorRecoveryFSM
 {
 public:
-    // 电机无反馈时，两次自动 On 请求之间的最小间隔。
+    enum class Request : uint8_t { None, On, Off };
     static constexpr uint32_t ENABLE_RETRY_MS = 100U;
+    static constexpr uint8_t UNKNOWN_DRIVE_STATUS = 0xFFU;
 
-    // 设置恢复状态机的时间基准，并清除历史请求状态。
-    void Init(uint32_t now_tick)
-    {
-        last_enable_tick_ = now_tick;
-        enable_requested_ = false;
-        was_online_ = false;
-    }
+    void Reset() { last_request_ = Request::None; }
+    bool HasPendingOn() const { return last_request_ == Request::On; }
 
-    // 安全门生效期间不立即使能；恢复后的首次正常检查强制请求一次 On，
-    // 即使电机反馈在整个安全阶段始终在线。
-    void Force_Enable_On_Next_Check()
+    Request Update(bool control_allowed, uint8_t drive_status, uint32_t now_tick)
     {
-        enable_requested_ = false;
-        was_online_ = false;
-    }
+        Request request = Request::None;
+        if (!control_allowed)
+            request = Request::Off;
+        else if (drive_status == 0U)
+            request = Request::On;
 
-    // 根据反馈在线状态决定当前周期是否需要发送一次 MIT On。
-    // now_tick 使用无符号减法，天然支持系统 tick 回绕。
-    bool Should_Enable(bool feedback_online, uint32_t now_tick)
-    {
-        if (feedback_online)
+        // 请求切换时立即发送，同类请求持续时按周期补发。
+        if (request != last_request_ || now_tick - last_request_tick_ >= ENABLE_RETRY_MS)
         {
-            const bool recovered_online = !was_online_;
-            was_online_ = true;
-            enable_requested_ = false;
-            if (recovered_online)
-            {
-                last_enable_tick_ = now_tick;
-                return true;
-            }
-            return false;
+            last_request_ = request;
+            last_request_tick_ = now_tick;
+            return request;
         }
-
-        was_online_ = false;
-        if (!enable_requested_ ||
-            (now_tick - last_enable_tick_ >= ENABLE_RETRY_MS))
-        {
-            last_enable_tick_ = now_tick;
-            enable_requested_ = true;
-            return true;
-        }
-
-        return false;
+        return Request::None;
     }
 
 private:
-    uint32_t last_enable_tick_ = 0U; // 最近一次发送 On 请求的时间
-    bool enable_requested_ = false;  // 当前离线周期是否已经请求过 On
-    bool was_online_ = false;        // 上一周期是否检测到电机在线
+    Request last_request_ = Request::None;
+    uint32_t last_request_tick_ = 0U;
 };
 
 #endif // MOTOR_RECOVERY_FSM_HPP

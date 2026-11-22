@@ -4,8 +4,9 @@
 #include <cstdint>
 
 enum class InputSource : uint8_t {
-    Remote   = 0,
-    KeyMouse = 1,
+    Remote     = 0,
+    KeyMouse   = 1,
+    DoubleDown = 2,
 };
 
 class InputDispatcher {

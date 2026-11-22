@@ -15,11 +15,19 @@ class WatchdogSupervisionTest(unittest.TestCase):
         ui = (ROOT / "RtosTask/UI_task.cpp").read_text(encoding="utf-8-sig")
         self.assertIn("Watchdog_RecordHeartbeat(WATCHDOG_TASK_CAN_SEND);\nosDelay(1);", can)
         self.assertIn("Watchdog_RecordHeartbeat(WATCHDOG_TASK_REMOTE);\n        osDelay(1);", remote)
-        fault = stair[stair.index("SendAllStairMotorsZero(front_left_angle", stair.index("if (policy.zero_all_torque)")):]
+        fault = stair[stair.index("if (policy.zero_all_torque)"):]
         fault = fault[:fault.index("continue;")]
         self.assertIn("Watchdog_RecordHeartbeat(WATCHDOG_TASK_UP_STAIR);", fault)
         self.assertIn("Watchdog_RecordHeartbeat(WATCHDOG_TASK_UP_STAIR);\n        osDelay(1U);", stair)
         self.assertNotIn("Watchdog_RecordHeartbeat", ui)
+
+    def test_gantry_dm_uses_shared_stop_policy_and_drive_status(self):
+        task = (ROOT / "RtosTask/gantry_task.cpp").read_text(encoding="utf-8-sig")
+        self.assertIn("dm_control_allowed = !EvaluateStairModePolicy(", task)
+        self.assertIn("dm_recovery_fsm.Update(dm_control_allowed, dm_status, now_ms)", task)
+        self.assertIn("gantry_dm4310_motor.Off(1, BSP::Motor::DM::MIT)", task)
+        self.assertIn("gantry_dm4310_motor.On(1, BSP::Motor::DM::MIT)", task)
+        self.assertIn("if (dm_control_allowed && dm_ready && gantry_fsm.IsActive())", task)
 
     def test_startup_timeout_stall_and_tick_wrap(self):
         with tempfile.TemporaryDirectory() as temp:

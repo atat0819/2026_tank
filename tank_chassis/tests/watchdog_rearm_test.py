@@ -1,6 +1,5 @@
-"""Exercise the real selected-input snapshot and watchdog rearm gate."""
+"""Exercise the UART5 input snapshot and watchdog rearm gate."""
 from pathlib import Path
-import re
 import subprocess
 import tempfile
 import unittest
@@ -9,10 +8,10 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class WatchdogRearmTest(unittest.TestCase):
-    def test_selected_fresh_source_must_be_double_down(self):
+    def test_only_fresh_uart5_double_down_can_rearm(self):
         source = (ROOT / "RtosTask/can_send_task.cpp").read_text(encoding="utf-8-sig")
         header = (ROOT / "RtosTask/can_send_task.hpp").read_text(encoding="utf-8-sig")
-        state_type = re.search(r"typedef struct\s*\{[^}]+\}\s*Gimbal_Chassis_communicate_t;", header).group(0)
+        self.assertNotIn("ControlInputSource::GIMBAL", source)
         snapshot_type = header[header.index("struct ControlInputSnapshot"):header.index("ControlInputSnapshot GetControlInputSnapshot")]
         publication = source[source.index("float yaw_offset_deg ="):source.index("StairCommand stair_command;")]
         harness = r'''
@@ -30,14 +29,15 @@ uint32_t HAL_GetTick() { if (in_critical) ++locked_clock_reads; return tick; }
 volatile uint32_t g_watchdog_rearm_required=1;
 bool local_remote_received=false; uint32_t local_remote_last_tick=0;
 uint16_t local_remote_keyboard=0; int16_t local_remote_mouse_x=0;
+bool local_remote_yaw_mouse_active=false;
 struct { uint8_t s1=1,s2=1; float vx=0,vy=0,wz=0; } remoteData;
-STATE
 SNAPSHOT
 PUBLICATION
-void publish(uint8_t s1,uint8_t s2) {
-    Chassis485Data data={}; data.s1=s1; data.s2=s2;
-    data.vx=0.5f; data.vy=-0.5f; data.right_stick_x=0.3f;
-    Chassis485_ApplyData(data);
+void publish_local(uint8_t s1,uint8_t s2) {
+    local_remote_received=true;
+    local_remote_last_tick=tick;
+    remoteData.s1=s1;
+    remoteData.s2=s2;
 }
 void stopped() {
     const auto input=GetControlInputSnapshot();
@@ -48,48 +48,38 @@ void stopped() {
 }
 int main() {
     stopped();
-    publish(1,1); stopped();
-    local_remote_received=true; local_remote_last_tick=tick;
-    remoteData.s1=1; remoteData.s2=1;
-    publish(2,2); stopped(); // nonselected gimbal cannot unlock local control
-    local_remote_last_tick=tick-100; // stale local, fresh gimbal selected
+    Chassis485_ApplyData({3.0f});
+    assert(yaw_offset_deg==3.0f);
+    stopped();
+    publish_local(1,1); stopped();
+    publish_local(2,2);
+    tick+=100;
+    Chassis485_ApplyData({4.0f});
+    stopped(); // Fresh Yaw feedback cannot authorize stale remote input.
+    publish_local(2,2);
     auto input=GetControlInputSnapshot();
-    assert(!g_watchdog_rearm_required && input.source==ControlInputSource::GIMBAL);
-    assert(input.s1==2 && input.s2==2);
-    publish(1,1); input=GetControlInputSnapshot();
-    assert(input.source==ControlInputSource::GIMBAL && input.vx==0.5f);
-    g_watchdog_rearm_required=1; tick+=100; stopped(); // stale source cannot unlock
-    local_remote_received=true; local_remote_last_tick=tick;
-    remoteData.s1=remoteData.s2=2; input=GetControlInputSnapshot();
     assert(!g_watchdog_rearm_required && input.source==ControlInputSource::LOCAL);
+    assert(input.s1==2 && input.s2==2);
 
-    // Caller samples time, then a fresh local ISR frame arrives one tick later.
-    // A gimbal double-down must not unlock while selected LOCAL is not double-down.
-    g_watchdog_rearm_required=1; tick=1000; publish(2,2);
+    // A fresh ISR frame arrives after the caller samples time.
+    g_watchdog_rearm_required=1; tick=1000;
     const uint32_t sampled_tick=tick;
-    ++tick; local_remote_last_tick=tick;
-    remoteData.s1=remoteData.s2=1;
+    ++tick; publish_local(2,2);
     const unsigned reads_before=locked_clock_reads;
     input=GetControlInputSnapshot();
     assert(tick-sampled_tick==1 && locked_clock_reads==reads_before+1);
-    assert(g_watchdog_rearm_required && input.source==ControlInputSource::NONE);
+    assert(!g_watchdog_rearm_required && input.source==ControlInputSource::LOCAL);
 
-    // A fresh gimbal frame arriving after the caller's sample is still valid.
-    g_watchdog_rearm_required=0; local_remote_received=false;
-    const uint32_t old_tick=tick;
-    ++tick; publish(1,1);
+    // Unsigned freshness also holds across the 32-bit tick rollover.
+    g_watchdog_rearm_required=1; tick=UINT32_MAX; publish_local(2,2);
+    ++tick;
     input=GetControlInputSnapshot();
-    assert(tick-old_tick==1);
-    assert(input.source==ControlInputSource::GIMBAL);
-
-    // The same local-priority guarantee holds across 32-bit tick rollover.
-    g_watchdog_rearm_required=1; tick=UINT32_MAX; publish(2,2);
-    ++tick; local_remote_received=true; local_remote_last_tick=tick;
-    remoteData.s1=remoteData.s2=1;
-    input=GetControlInputSnapshot();
-    assert(g_watchdog_rearm_required && input.source==ControlInputSource::NONE);
+    assert(!g_watchdog_rearm_required && input.source==ControlInputSource::LOCAL);
+    tick=99;
+    Chassis485_ApplyData({5.0f});
+    assert(GetControlInputSnapshot().source==ControlInputSource::NONE);
 }
-'''.replace("STATE", state_type).replace("SNAPSHOT", snapshot_type).replace("PUBLICATION", publication)
+'''.replace("SNAPSHOT", snapshot_type).replace("PUBLICATION", publication)
         with tempfile.TemporaryDirectory() as temp:
             work = Path(temp)
             (work / "test.cpp").write_text(harness, encoding="utf-8")

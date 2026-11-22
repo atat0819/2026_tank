@@ -6,7 +6,9 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 source = (ROOT / "RtosTask/can_send_task.cpp").read_text(encoding="utf-8")
-assert "chassis_force.UpdateWheelSynchronization(current_speed_rads);" in source, "task is missing wheel synchronization"
+assert (
+    "chassis_force.UpdateWheelSynchronization(current_speed_rads, force_target, force_feedback);" in source
+), "wheel synchronization must use the task's target and filtered feedback"
 assert "rear_wheel_drive_only" not in source, "obsolete rear-only wheel policy remains"
 assert "motor_pid[0].UpDate" not in re.sub(r"//[^\n]*", "", source), "wheel-speed PID still owns output"
 
@@ -65,7 +67,6 @@ uint32_t stair_command_generation=0;
 struct Keys { bool imu_mode_request=false,normal_mode_request=false,stair_toggle=false,valid=true; };
 Alg::CalculationBase::MecanumForceControl chassis_force;
 float current_speed_rads[4],motor_output[4],motor_output_pre[4],motor_target_speed[4];
-float force_vofa_channels[15]={};
 float chassis_velocity_feedback[3];
 float vx_body=.5f,vy_body=0,wz_cmd=0;
 ''' + filters + r'''
@@ -89,6 +90,8 @@ void step(Keys keyboard_cmd={},bool stopped=false,bool limited=true,
     const auto stair_sample_generation=stair_command_generation;
     struct { bool zero_all_torque; } stair_policy={stopped};
     struct { ControlInputSource source; } input={source};
+    float force_target[3]={},force_feedback[3]={};
+    bool force_control_active=false;
 '''
 host += publish + "\n" + feedback + "\n" + fault_anchor + " {\n" + fault + "\nreturn;\n}\n"
 host += "if(stopped) {\n" + stop + "\nreturn;\n}\n"

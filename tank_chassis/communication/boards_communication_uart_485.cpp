@@ -102,6 +102,7 @@ void Chassis485_Send()
     {
         memcpy(data.dbus, remote_frame, sizeof(remote_frame));
     }
+    data.yaw_mouse_active = data.remote_online && BoardLink::dbusYawMouseActive(data.dbus);
     data.cooling = cooling_value;
     data.heat_limit = heat_limit;
     data.heat_42mm = heat_42mm;

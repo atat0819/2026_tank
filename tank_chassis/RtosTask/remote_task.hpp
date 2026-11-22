@@ -73,6 +73,7 @@ extern QueueHandle_t IMUDataQueue;  // 用于传递 IMU 数据的队列
 extern BSP::REMOTE_CONTROL::RemoteController remoteController;
 extern volatile uint16_t local_remote_keyboard;
 extern volatile int16_t local_remote_mouse_x;
+extern volatile bool local_remote_yaw_mouse_active;
 extern volatile uint32_t local_remote_last_tick;
 extern volatile bool local_remote_received;
 

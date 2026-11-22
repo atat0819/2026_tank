@@ -27,7 +27,7 @@ namespace Alg::CalculationBase
         static constexpr float MAX_CURRENT = 20.0f;
 
         // 比例增益：速度误差越大，请求作用力越大；单位依次为 N/(m/s)、N/(m/s)、N*m/(rad/s)。
-        float kp[3] = {420.0f, 450.0f, 65.0f};
+        float kp[3] = {580.0f, 580.0f, 76.0f};
         // 积分增益：累积速度误差以消除稳态偏差；单位依次为 N/m、N/m、N*m/rad。
         float ki[3] = {3.0f, 3.0f, 0.0f};
         // 积分输出绝对值上限，N、N、N*m；须非负，0 表示该轴不产生积分输出。
@@ -39,14 +39,15 @@ namespace Alg::CalculationBase
         // 电流限幅与后续功率限幅的合成电流缩放比例。
         float output_scale = 1.0f;
         // 四轮同步 PID 当前仅启用 P，单位 A/(轮端 rad/s)，不积累 I/D 状态。
-        float sync_kp[4] = {4.0f, 4.0f, 4.0f, 4.0f};
-        float sync_current_limit = 10.0f; // 投影后同步校正的单轮峰值，A；初试值。
+        float sync_kp[4] = {4.8f, 4.0f, 4.0f, 4.0f};
+        float sync_current_limit = 10.0f; // 全量同步校正的单轮峰值，A。
         float sync_target_speed[4] = {}; // 与当前等效车速兼容的轮端 rad/s。
         float sync_error[4] = {};
         float sync_current[4] = {}; // 统一限流/限功率前的同步校正，A。
 
-        // 每个有效控制周期、Update 前调用；使用原始轮速，避免滤波滞后产生伪差速。
-        void UpdateWheelSynchronization(const float wheel_speed[4])
+        // Update 前调用。原始轮速用于计算同步误差，目标与滤波反馈用于近零速缩放。
+        void UpdateWheelSynchronization(const float wheel_speed[4], const float target[3],
+                                        const float filtered_feedback[3])
         {
             float velocity[3];
             ForwardKinematics(wheel_speed, velocity);
@@ -58,7 +59,16 @@ namespace Alg::CalculationBase
                 q += SYNC_DIRECTION[i] * sync_kp[i] * sync_error[i] / 4.0f;
             }
             // n=(1,-1,1,-1) 对名义 Fx/Fy/Mz 的贡献为零；整体限制 q 保持此性质。
-            q = std::clamp(q, -sync_current_limit, sync_current_limit);
+            constexpr float SYNC_ZERO_SPEED = 0.08f; // m/s
+            constexpr float SYNC_FULL_SPEED = 0.18f; // m/s
+            const float target_speed = std::fabs(target[0]) + std::fabs(target[1]) +
+                LEVER_ARM * std::fabs(target[2]);
+            const float feedback_speed = std::fabs(filtered_feedback[0]) + std::fabs(filtered_feedback[1]) +
+                LEVER_ARM * std::fabs(filtered_feedback[2]);
+            const float motion_speed = std::max(target_speed, feedback_speed);
+            const float sync_scale = std::clamp((motion_speed - SYNC_ZERO_SPEED) /
+                (SYNC_FULL_SPEED - SYNC_ZERO_SPEED), 0.0f, 1.0f);
+            q = std::clamp(q, -sync_current_limit, sync_current_limit) * sync_scale;
             for (unsigned i = 0; i < 4; ++i)
             {
                 sync_current[i] = SYNC_DIRECTION[i] * q;

@@ -18,7 +18,7 @@ class EncoderOnlyTest(unittest.TestCase):
             self.assertTrue(marker not in remote, f"IMU or vision TX remains: {marker}")
         self.assertIn("pitch_input.vision_ready = false;", task)
         self.assertIn("pitch_input.vision_fresh = false;", task)
-        self.assertIn("pitch_recovery_fsm.Should_Enable(pitch_motor_online", task)
+        self.assertIn("UpdateMotorEnable(pitch_motor, pitch_recovery_fsm, pitch_motor_online", task)
         self.assertIn("pitch_gimbal_fsm.Limit_Torque(pitch_control_output)", task)
 
     def test_actual_feedback_uses_only_pitch_encoder(self):

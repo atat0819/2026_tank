@@ -35,6 +35,8 @@ namespace BSP::Motor::DM
         VELOCITY = 2
     };
 
+    constexpr uint8_t UNKNOWN_DRIVE_STATUS = 0xFFU;
+
     // 参数结构体定义
     struct Parameters
     {
@@ -78,6 +80,7 @@ namespace BSP::Motor::DM
             uint16_t torque : 12;
             uint8_t T_Mos;
             uint8_t T_Rotor;
+            bool received;
         };
 
         /**
@@ -138,14 +141,27 @@ namespace BSP::Motor::DM
         }
 
     public:
+        // 首帧前或反馈超时时，状态未知；0 和 1 分别是驱动反馈的失能和使能。
+        uint8_t getDriveStatus(uint8_t slot)
+        {
+            if (slot == 0U || slot > N || !feedback_[slot - 1U].received ||
+                !this->isConnected(slot, recv_idxs_[slot - 1U]))
+                return UNKNOWN_DRIVE_STATUS;
+            return feedback_[slot - 1U].err;
+        }
+
         /**
          * @brief 解析FDCAN数据
          */
         void Parse(const HAL::FDCAN::Frame &frame) override
         {
+            if (frame.dlc != 8U || frame.is_extended_id || frame.is_remote_frame)
+                return;
+
             for (uint8_t i = 0; i < N; ++i)
             {
-                if (frame.id == init_address + recv_idxs_[i])
+                if (frame.id == init_address + recv_idxs_[i] &&
+                    (frame.data[0] & 0x0FU) == (send_idxs_[i] & 0x0FU))
                 {
                     const uint8_t* pData = frame.data;
                         
@@ -158,7 +174,8 @@ namespace BSP::Motor::DM
                     feedback_[i].T_Rotor = pData[7];
 
                     Configure(i);
-                    this->updateTimestamp(i + 1);                       
+                    this->updateTimestamp(i + 1);
+                    feedback_[i].received = true;
                 }
             }
         }
@@ -339,7 +356,7 @@ namespace BSP::Motor::DM
         const int16_t init_address;
         uint8_t recv_idxs_[N];
         uint32_t send_idxs_[N];
-        DMMotorfeedback feedback_[N];
+        DMMotorfeedback feedback_[N]{};
         Parameters params_;
         HAL::FDCAN::FdcanDeviceId fdcan_device_id_;
     };

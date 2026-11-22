@@ -89,11 +89,13 @@ static constexpr float LIFT_ID6_SECOND_DEG = 0.0f;  // deg：ID6 第二次抬升
 static constexpr float DM_RETRACT_DEG = 0.0f;       // deg：4310 后收开关触发时的累计角度；与 EXTEND 在同一反馈坐标下标定
 static constexpr float DM_EXTEND_DEG = 0.0f;        // deg：4310 前伸开关触发时的累计角度；EXTEND-RETRACT 决定前伸方向和行程，差值不能为 0
 
-// 只改表达式最前面的数，填写正的轴端 deg/s；表达式结果为 rad/s，方向由行程差决定，不能用负速度配置方向。
-// 两台升降运动的公共限速取 ID5/ID6 较小值，再乘速度档位；各自保持角度环的输出上限也引用这里。
-static constexpr float LIFT_ID5_SPEED_RAD_S = 0.0f / 180.0f * 3.1415926f; // ID5 输出轴速度上限；增大加快动作，也增大到位制动需求；0 禁止启动
-static constexpr float LIFT_ID6_SPEED_RAD_S = 0.0f / 180.0f * 3.1415926f; // ID6 输出轴速度上限；传动相同一般与 ID5 填相同幅值；0 禁止启动
-static constexpr float DM_SPEED_RAD_S = 0.0f / 180.0f * 3.1415926f;        // 4310 前伸/后收及保持速度上限；换算后须 >0 且 <=30 rad/s
+// 表达式最前面的数填写正的输出轴 deg/s，换算结果为 rad/s；任一速度为 0 时禁止启动。
+// 升降两侧共用本段速度幅值，各自的转向由标定行程决定。
+static constexpr float LIFT_FIRST_SPEED_RAD_S = 0.0f / 180.0f * 3.1415926f;  // 第一次抬升
+static constexpr float DM_EXTEND_SPEED_RAD_S = 0.0f / 180.0f * 3.1415926f;   // 前伸，换算后不超过 30 rad/s
+static constexpr float LIFT_SECOND_SPEED_RAD_S = 0.0f / 180.0f * 3.1415926f; // 第二次抬升
+static constexpr float DM_RETRACT_SPEED_RAD_S = 0.0f / 180.0f * 3.1415926f;  // 后收，换算后不超过 30 rad/s
+static constexpr float LOWER_SPEED_RAD_S = 0.0f / 180.0f * 3.1415926f;       // 下降
 
 // 每段从进入状态开始计时；应覆盖正常行程、减速、同步等待和开关消抖，过大将延迟故障发现。
 // 单位 ms；有效范围 1..0x7FFFFFFF，目标开关未触发且达到超时则锁存 Timeout。
@@ -126,5 +128,5 @@ static constexpr uint32_t LOWER_UNLOAD_BLEND_MS = 200; // ms，>0：带载补偿
 // 以下 KD 是 4310 MIT 速度阻尼，不是上位机角度 PID 的微分 Kd；MIT 位置 Kp 固定为 0。
 static constexpr float DM_MOVE_KD = 1.0f;      // Nm/(rad/s)，(0,5]：前伸/后收速度误差乘此值产生力矩；越大响应越强，也更易放大速度噪声
 static constexpr float DM_HOLD_KD = 1.0f;      // Nm/(rad/s)，(0,5]：4310 位置保持时的速度阻尼，配合 hold_angle_pid[2]；独立于运动 KD 整定
-static constexpr float DM_TORQUE_LIMIT_NM = 0.15f; // Nm，(0,3]：前伸/后收/保持共用的力矩绝对值上限；当前 0.15 为空载起始值，过小会跟不上目标
+static constexpr float DM_TORQUE_LIMIT_NM = 7.0f; // Nm，(0,3]：前伸/后收/保持共用的力矩绝对值上限；当前 0.15 为空载起始值，过小会跟不上目标
 }
