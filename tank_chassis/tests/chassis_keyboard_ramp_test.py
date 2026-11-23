@@ -123,7 +123,7 @@ int main() {
     for(unsigned tick=0;tick<500;++tick) step(CHASSIS_MAX_VX_M_S,0,0);
     set_feedback(1.5f,0);
     step(CHASSIS_MAX_VX_M_S,0,1);
-    near(chassis_velocity_feedback[0],1.75f);
+    near(chassis_velocity_feedback[0],CHASSIS_MAX_VX_M_S);
     near(chassis_velocity_feedback[2],1);
     float previous=chassis_velocity_feedback[0];
     for(unsigned tick=0;tick<105;++tick) {
@@ -140,8 +140,8 @@ int main() {
     near(chassis_velocity_feedback[0],-.008f);
     fresh();
     for(unsigned tick=0;tick<125;++tick) step(1,-1,-1);
-    near(chassis_velocity_feedback[0],.25f/std::sqrt(2.f));
-    near(chassis_velocity_feedback[1],-.25f/std::sqrt(2.f));
+    near(chassis_velocity_feedback[0],1.f);
+    near(chassis_velocity_feedback[1],-1.f);
     // Reversal discards the old direction and starts the new direction with one step.
     for(float sign:{-1.f,1.f}) {
         fresh();

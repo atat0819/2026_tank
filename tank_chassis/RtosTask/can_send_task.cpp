@@ -24,6 +24,7 @@
 #include "../fsm/chassis_fsm.hpp"
 #include "../user/core/Alg/PowerControl-TestVersion/PowerControlTestVersion.hpp"
 #include "../user/core/Alg/PowerControl/PowerControl.hpp"
+#include "../user/core/Alg/PowerControl/ChassisPowerAllocator.hpp"
 #include "../user/core/HAL/UART/uart_hal.hpp"
 #include "../communication/super_cupacitor.hpp"
 #include "../communication/boards_communication_uart_485.hpp"
@@ -225,7 +226,7 @@ const float ABUNDANCE_LINE          = SUPERCAP_TOTAL_CAPACITY * 0.8f; // 富足�
 const float POVERTY_LINE            = 250.0f;                         // 贫困线 (生死线, <250J强制80%功率)
 
 // 功率控制器 (衰减电流法执行层)
-ALG::PowerControl::PowerControl<4> chassis_power_ctrl;
+ALG::PowerControl::ChassisPowerAllocator chassis_power_allocator;
 ALG::PowerControl::PowerControl<2> chassis_front_power_ctrl;
 ALG::PowerControl::PowerControl<2> chassis_rear_power_ctrl;
 
@@ -330,7 +331,6 @@ ChassisMotorSendCANChecked();
 // 在循环前声明
 Enum_Chassis_Mode last_mode = CHASSIS_STOP; //为了不疯车
 ControlInputSource last_input_source = ControlInputSource::NONE;
-float keyboard_turn_limit_blend = 0.0f;
 // 原功率辨识 VOFA 的状态，恢复采集时与下方原发送段一起启用。
 // uint32_t last_power_meter_sequence = 0U;
 // ALG::PowerControl::PowerControlBase<4> power_identification_model;
@@ -425,7 +425,6 @@ osDelay(500);
          chassis_force.Reset();
          ramp_vx.TIM_Calculate_PeriodElapsedCallback(0.0f, 0.0f);
          ramp_vy.TIM_Calculate_PeriodElapsedCallback(0.0f, 0.0f);
-         keyboard_turn_limit_blend = 0.0f;
          chassis_fsm.Get_Follow_PID().reset();
          chassis_vx_filter.Reset(0.0f);
          chassis_vy_filter.Reset(0.0f);
@@ -524,7 +523,6 @@ if (chassis_fsm.Get_Mode() == CHASSIS_STOP)
    chassis_force.Reset();
    ramp_vx.TIM_Calculate_PeriodElapsedCallback(0.0f, 0.0f);
    ramp_vy.TIM_Calculate_PeriodElapsedCallback(0.0f, 0.0f);
-   keyboard_turn_limit_blend = 0.0f;
    chassis_vx_filter.Reset(0.0f);
    chassis_vy_filter.Reset(0.0f);
    chassis_wz_filter.Reset(0.0f);
@@ -559,35 +557,12 @@ if (chassis_fsm.Get_Mode() == CHASSIS_STOP)
               vx_body = ramp_vx.GetOut();
               vy_body = ramp_vy.GetOut();
 
-              // wz_cmd 已经过鼠标死区和右键接管判断。
-              keyboard_turn_limit_blend = wz_cmd != 0.0f ? 1.0f :
-                  std::max(0.0f, keyboard_turn_limit_blend - MecanumForceControl::TURN_LIMIT_RELEASE_STEP);
-              if (keyboard_turn_limit_blend > 0.0f)
-              {
-                  // 只提取同向加速误差，保留松键和反向制动请求。
-                  const auto accelerating_error = [](float target, float feedback)
-                  {
-                      const float error = target - feedback;
-                      return target * feedback >= 0.0f && target * error > 0.0f ? error : 0.0f;
-                  };
-                  const float accel_error_x = accelerating_error(vx_body, force_feedback[0]);
-                  const float accel_error_y = accelerating_error(vy_body, force_feedback[1]);
-                  const float accel_error = sqrtf(accel_error_x * accel_error_x + accel_error_y * accel_error_y);
-                  if (accel_error > MecanumForceControl::TURN_MAX_ACCEL_ERROR_M_S)
-                  {
-                      const float reduction = keyboard_turn_limit_blend *
-                          (1.0f - MecanumForceControl::TURN_MAX_ACCEL_ERROR_M_S / accel_error);
-                      vx_body -= accel_error_x * reduction;
-                      vy_body -= accel_error_y * reduction;
-                  }
-              }
           }
           else
           {
               // 遥控器直接使用目标；清空键鼠规划，防止再次进入时沿用旧速度。
               ramp_vx.TIM_Calculate_PeriodElapsedCallback(0.0f, 0.0f);
               ramp_vy.TIM_Calculate_PeriodElapsedCallback(0.0f, 0.0f);
-              keyboard_turn_limit_blend = 0.0f;
           }
           force_target[0] = std::clamp(vx_body, -CHASSIS_MAX_VX_M_S, CHASSIS_MAX_VX_M_S);
           force_target[1] = std::clamp(vy_body, -MAX_VY_M_S, MAX_VY_M_S);
@@ -606,7 +581,8 @@ if (chassis_fsm.Get_Mode() == CHASSIS_STOP)
           {
                chassis_force.UpdateWheelSynchronization(current_speed_rads, force_target, force_feedback);
           }
-          chassis_force.Update(force_target, force_feedback, motor_output);
+          chassis_force.Update(force_target, force_feedback, motor_output,
+                                stair_retract_power_split || !CHASSIS_POWER_LIMIT_ENABLED);
           force_control_active = true;
           // 仅保留目标轮速供观察，输出不再经过四个轮速 PID。
           chassis_force.InverseKinematics(force_target, motor_target_speed);
@@ -676,18 +652,15 @@ if (chassis_fsm.Get_Mode() == CHASSIS_STOP)
 	    }
 	    else
 	    {
-	    // CorrectionConstant: 四轮求和已包含每电机常数项 4*K0，修正项为 0
-	    chassis_power_ctrl.DecayingCurrent(
-	        I, V, poly_coeffs, I_other,
-	        0.0f,   // CorrectionConstant = 0
-	        PowerMax
-	    );
-
-	    // 6. 物理电流 → raw, 覆写 motor_output
-	     for (int i = 0; i < 4; i++) {
-	         motor_output[i] = chassis_power_ctrl.getCurrentCalculate(i) * (16384.0f / 20.0f);
-	     }
-         chassis_force.ApplyOutputScale(chassis_power_ctrl.getEta());
+            float translation[4], rotation[4];
+            chassis_force.GetCurrentComponents(translation, rotation);
+            chassis_power_allocator.Allocate(
+                translation, rotation, chassis_force.sync_current, V, poly_coeffs,
+                PowerMax, MecanumForceControl::MAX_CURRENT);
+            for (unsigned i = 0; i < 4; ++i)
+                motor_output[i] = chassis_power_allocator.current[i] * MecanumForceControl::RAW_PER_AMP;
+            chassis_force.ApplyAllocationScale(
+                chassis_power_allocator.alpha, chassis_power_allocator.beta);
 	    }
 	}
 	// ========== 功率控制结束 ==========

@@ -26,11 +26,6 @@ namespace Alg::CalculationBase
         // 单轮电流上限，A；超限时四轮统一缩放，保留力控与同步的合成电流比例。
         static constexpr float MAX_CURRENT = 20.0f;
 
-        // 键鼠转向时的同向平移加速误差上限，m/s。
-        static constexpr float TURN_MAX_ACCEL_ERROR_M_S = 0.25f;
-        // 转向结束后每周期减小的限幅混合系数，0.01 对应约 100 个周期。
-        static constexpr float TURN_LIMIT_RELEASE_STEP = 0.01f;
-
         // 比例增益：速度误差越大，请求作用力越大；单位依次为 N/(m/s)、N/(m/s)、N*m/(rad/s)。
         float kp[3] = {580.0f, 580.0f, 76.0f};
         // 积分增益：累积速度误差以消除稳态偏差；单位依次为 N/m、N/m、N*m/rad。
@@ -116,8 +111,9 @@ namespace Alg::CalculationBase
         }
 
         // 执行三轴速度 PI、力分配并合成同步电流；target/feedback 为同坐标车速。
-        // 本函数完成统一电流限幅；在线判断、总功率限制和 CAN 发送由任务层负责。
-        void Update(const float target[3], const float feedback[3], float raw_output[4])
+        // limit_current=false 时保留原始请求，由任务层分配器统一处理电流与功率约束。
+        void Update(const float target[3], const float feedback[3], float raw_output[4],
+                    bool limit_current = true)
         {
             for (unsigned axis = 0; axis < 3; ++axis)
             {
@@ -136,7 +132,7 @@ namespace Alg::CalculationBase
                 raw_output[i] = torque[i] / WHEEL_TORQUE_PER_AMP + sync_current[i];
                 peak_current = std::fmax(peak_current, std::fabs(raw_output[i]));
             }
-            const float current_scale = MAX_CURRENT / peak_current;
+            const float current_scale = limit_current ? MAX_CURRENT / peak_current : 1.0f;
             for (unsigned i = 0; i < 4; ++i)
             {
                 // 四轮统一限流，再将 A 换算成 raw。
@@ -144,6 +140,33 @@ namespace Alg::CalculationBase
             }
             output_scale = 1.0f;
             ApplyOutputScale(current_scale);
+        }
+
+        // Unscaled requests for the power allocator, preserving the existing
+        // inverse-dynamics geometry and wheel sign conventions.
+        void GetCurrentComponents(float translation[4], float rotation[4]) const
+        {
+            const float translation_force[3] = {force[0], force[1], 0.0f};
+            const float rotation_force[3] = {0.0f, 0.0f, force[2]};
+            InverseDynamics(translation_force, translation);
+            InverseDynamics(rotation_force, rotation);
+            for (unsigned i = 0; i < 4; ++i)
+            {
+                translation[i] /= WHEEL_TORQUE_PER_AMP;
+                rotation[i] /= WHEEL_TORQUE_PER_AMP;
+            }
+        }
+
+        // Each body axis rolls back only its own saturated integral increment.
+        void ApplyAllocationScale(float translation_scale, float rotation_scale)
+        {
+            output_scale = std::min(translation_scale, rotation_scale);
+            for (unsigned axis = 0; axis < 3; ++axis)
+            {
+                const float scale = axis == 2 ? rotation_scale : translation_scale;
+                if (scale < 1.0f && error_[axis] * force[axis] > 0.0f)
+                    integral[axis] = previous_integral_[axis];
+            }
         }
 
         // 反馈本级电流缩放比例 scale（0~1），累计比例并回退继续推向饱和的积分。

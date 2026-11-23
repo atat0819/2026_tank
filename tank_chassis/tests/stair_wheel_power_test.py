@@ -56,6 +56,7 @@ host = r'''
 #include "fsm/chassis_keyboard_fsm.hpp"
 #include "user/core/Alg/ChassisCalculation/MecanumForceControl.hpp"
 #include "user/core/Alg/PowerControl/PowerControl.hpp"
+#include "user/core/Alg/PowerControl/ChassisPowerAllocator.hpp"
 #include "user/core/Alg/Filter/Filter.hpp"
 #include "user/core/Alg/UtilityFunction/SlopePlanning.hpp"
 #define taskENTER_CRITICAL() ((void)0)
@@ -69,7 +70,7 @@ Alg::CalculationBase::MecanumForceControl chassis_force;
 float current_speed_rads[4],motor_output[4],motor_output_pre[4],motor_target_speed[4];
 float chassis_velocity_feedback[3];
 float vx_body=.5f,vy_body=0,wz_cmd=0;
-float keyboard_turn_limit_blend=0;
+ALG::PowerControl::ChassisPowerAllocator chassis_power_allocator;
 ''' + filters + r'''
 Alg::Utility::SlopePlanning ramp_vx(100,100),ramp_vy(100,100);
 Chassis_FSM chassis_fsm(8,0,0,100,25,2.5f);
@@ -87,7 +88,8 @@ host += limits + "\n" + coefficients + "\n" + controllers + "\n" + shares
 host += "\nvoid reset_mode() {\n" + mode_reset + "\n}\n"
 host += r'''
 void step(Keys keyboard_cmd={},bool stopped=false,bool limited=true,
-          ControlInputSource source=ControlInputSource::LOCAL,bool source_changed=false) {
+          ControlInputSource source=ControlInputSource::LOCAL,bool source_changed=false,float yaw=0) {
+    const bool CHASSIS_POWER_LIMIT_ENABLED=limited;
     const auto stair_sample_generation=stair_command_generation;
     struct { bool zero_all_torque; } stair_policy={stopped};
     struct { ControlInputSource source; } input={source};
@@ -96,7 +98,7 @@ void step(Keys keyboard_cmd={},bool stopped=false,bool limited=true,
 '''
 host += publish + "\n" + feedback + "\n" + fault_anchor + " {\n" + fault + "\nreturn;\n}\n"
 host += "if(stopped) {\n" + stop + "\nreturn;\n}\n"
-host += "vx_body=.5f;vy_body=0;wz_cmd=0;\n" + drive
+host += "vx_body=.5f;vy_body=0;wz_cmd=yaw;\n" + drive
 host += "\nif(limited) {\nconst float PowerMax=50;\n" + power + "\n}\n"
 host += send + "\n}\n"
 host += r'''
@@ -129,15 +131,6 @@ void check_budget(bool split,float budget=50) {
     assert(front+rear<=budget+.01f);
     if(split) {
         assert(front<=budget*.75f+.01f);assert(rear<=budget*.25f+.01f);
-    } else {
-        float requested[4],rotor[4],other[4]={};
-        for(unsigned i=0;i<4;++i) {
-            requested[i]=motor_output_pre[i]*(20.f/16384);rotor[i]=chassis_motor.velocity[i];
-        }
-        ALG::PowerControl::PowerControl<4> reference;
-        reference.DecayingCurrent(requested,rotor,poly_coeffs,other,0,budget);
-        for(unsigned i=0;i<4;++i)
-            assert(fabsf(motor_output[i]-reference.getCurrentCalculate(i)*(16384.f/20))<.01f);
     }
 }
 void check_drive(bool limited=true,bool keyboard_valid=true) {
@@ -276,6 +269,19 @@ int main() {
     }
     step({true,false,false,true});step({false,false,true,true});step({false,false,true,true});
     step_switch(MIDDLE,MIDDLE,0,10000,false);check_drive(true,false);
+    // Forward motion at the 50 W limit must retain the requested yaw torque.
+    stair_command={};chassis_force.Reset();
+    for(unsigned axis=0;axis<3;++axis) chassis_force.ki[axis]=0;
+    chassis_force.kp[0]=600;chassis_force.kp[2]=10;
+    for(unsigned i=0;i<4;++i) chassis_motor.velocity[i]=0;
+    step({},false,true,ControlInputSource::LOCAL,false,1);
+    assert(chassis_power_allocator.beta==1&&chassis_power_allocator.alpha<1);
+    float yaw_current=0;
+    for(float raw:motor_output) yaw_current+=raw/MecanumForceControl::RAW_PER_AMP;
+    const float actual_yaw=yaw_current*MecanumForceControl::WHEEL_TORQUE_PER_AMP*
+        MecanumForceControl::LEVER_ARM/MecanumForceControl::WHEEL_RADIUS;
+    assert(fabsf(actual_yaw-chassis_force.force[2])<.001f);
+    check_budget(false);
     const float cases[][4]={{-20,20,20,-20},{0,0,20,-20},{-20,20,0,0},
         {-2,1,18,-17},{-18,16,1,-2},{0,0,0,0},{20,-15,-12,17}};
     for(float budget:{20.f,50.f,100.f}) for(float speed:{0.f,80.f,200.f})
