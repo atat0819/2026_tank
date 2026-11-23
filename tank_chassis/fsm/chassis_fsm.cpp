@@ -4,11 +4,14 @@
  */
 
 #include "chassis_fsm.hpp"
+#include <cstdlib>
 #include <math.h>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846f
 #endif
+
+constexpr int MOUSE_TURN_DEADZONE_COUNTS = 6;
 
 void Chassis_FSM::Init()
 {
@@ -119,7 +122,7 @@ float Chassis_FSM::Get_wz_cmd(float yaw_offset_rad, float right_stick_x,
         return -right_stick_x * max_wz_rad_s;
 
     case CHASSIS_MOUSE_ROTATE:
-        if (yaw_mouse_active)
+        if (yaw_mouse_active || std::abs(static_cast<int>(mouse_x)) <= MOUSE_TURN_DEADZONE_COUNTS)
             return 0.0f;
         return -static_cast<float>(mouse_x) * (1.0f * M_PI / 180.0f);
 

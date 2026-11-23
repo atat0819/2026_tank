@@ -23,11 +23,11 @@ public:
     // 左前：110° -> 180°/-180° -> -136°。
     static constexpr float LIMIT_MARGIN_DEG = 15.0f; // 两侧电机在初始位、目标位两端各放宽的角度，单位：度
     static constexpr float HOME_ANGLE_RAD[2] = {    // 两侧电机的机械初始角
-        110.0f * 3.14159265359f / 180.0f,
-        13.0f * 3.14159265359f / 180.0f};
+        131.0f * 3.14159265359f / 180.0f,
+        14.0f * 3.14159265359f / 180.0f};
     static constexpr float TARGET_ANGLE_RAD[2] = {    // 两侧电机的上台阶目标角
-        -136.0f * 3.14159265359f / 180.0f,
-        -92.0f * 3.14159265359f / 180.0f};
+        -134.0f * 3.14159265359f / 180.0f,
+        -86.0f * 3.14159265359f / 180.0f};
     static constexpr float LIMIT_START_RAD[2] = {   // 左前从初始位向外放宽，右前从目标位向外放宽
         HOME_ANGLE_RAD[0] - LIMIT_MARGIN_DEG * 3.14159265359f / 180.0f,
         TARGET_ANGLE_RAD[1] - LIMIT_MARGIN_DEG * 3.14159265359f / 180.0f};

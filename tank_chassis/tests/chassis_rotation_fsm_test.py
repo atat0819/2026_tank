@@ -53,7 +53,8 @@ int main() {
                                               int16_t(1), int16_t(32767)}) {
                             const float expected = mode == CHASSIS_STOP ? 0 :
                                 mode == CHASSIS_MOUSE_ROTATE ?
-                                    -static_cast<float>(mouse) * (1.0f * M_PI / 180.0f) :
+                                    (std::abs(mouse) <= 6 ? 0.0f :
+                                     -static_cast<float>(mouse) * (1.0f * M_PI / 180.0f)) :
                                 -stick * MAX_WZ;
                             assert(fsm.Get_wz_cmd(.2f, stick, mouse, MAX_WZ) == expected);
                         }
@@ -62,10 +63,11 @@ int main() {
             }
         }
     }
-    // Every signed mouse sample retains its exact conversion and downstream cap.
+    // The dead zone is inclusive and larger inputs retain their conversion.
     fsm.StateUpdate(3, 3, true, true);
     for (int count = -32768; count <= 32767; ++count) {
-        const float expected = -static_cast<float>(count) * (1.0f * M_PI / 180.0f);
+        const float expected = std::abs(count) <= 6 ? 0.0f :
+            -static_cast<float>(count) * (1.0f * M_PI / 180.0f);
         const float actual = fsm.Get_wz_cmd(0, 1, static_cast<int16_t>(count), MAX_WZ);
         assert(actual == expected);
         assert(std::clamp(actual, -MAX_WZ, MAX_WZ) == std::clamp(expected, -MAX_WZ, MAX_WZ));
@@ -88,6 +90,7 @@ int main() {
     fsm.StateUpdate(3, 3, true, true);
     assert(fsm.Status[CHASSIS_JOYSTICK_ROTATE].Count_Time == 0);
     near(fsm.Get_wz_cmd(.2f, 1, 10, MAX_WZ), -10.f * M_PI / 180.f);
+    near(fsm.Get_wz_cmd(.2f, 1, 10, MAX_WZ, true), 0);
     // Retain the existing follow PID without selecting it in the switch map.
     near(fsm.Get_follow_wz_cmd(.2f), 1.6f);
     near(fsm.Get_follow_wz_cmd(.02f), 0);

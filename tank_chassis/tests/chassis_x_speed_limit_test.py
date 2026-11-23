@@ -15,6 +15,7 @@ transform=source[start:source.index("/******************************************
 start=source.index("// 四轮车体力控")
 target=("const bool stair_retract_power_split=false;\n"
         "float force_target[3]={},force_feedback[3]={};\n"
+        "float keyboard_turn_limit_blend=0;\n"
         +source[start:source.index("chassis_force.Update(",start)])
 start=source.index("chassis_fsm.StateUpdate(")
 yaw_selection=source[start:source.index("phase_comp = 0.0f;",start)]
@@ -71,8 +72,9 @@ int main() {
             near(out[0],0);near(out[1],y*MAX_VY_M_S);near(out[2],0);
         }
         run(1,1,3,0,keyboard,out);
-        near(out[0],CHASSIS_MAX_VX_M_S);
-        near(out[1],MAX_VY_M_S);
+        const float accel_scale=keyboard ? .25f/std::hypot(CHASSIS_MAX_VX_M_S,MAX_VY_M_S) : 1.f;
+        near(out[0],CHASSIS_MAX_VX_M_S*accel_scale);
+        near(out[1],MAX_VY_M_S*accel_scale);
         near(out[2],MAX_WZ_RAD_S);
         run(2,0,0,0,keyboard,out);near(out[0],CHASSIS_MAX_VX_M_S);
         run(-2,0,0,0,keyboard,out);near(out[0],-CHASSIS_MAX_VX_M_S);
@@ -96,7 +98,8 @@ int main() {
     near(selected_yaw(1,0,true,source),0);
     near(selected_yaw(0,32767,true,source),-MAX_WZ_RAD_S);
     near(selected_yaw(0,-32768,true,source),MAX_WZ_RAD_S);
-    near(selected_yaw(0,1,true,source),-3.14159265358979323846f/180.f);
+    near(selected_yaw(0,6,true,source),0);
+    near(selected_yaw(0,7,true,source),-7.f*3.14159265358979323846f/180.f);
     near(selected_yaw(1,32767,true,ControlInputSource::NONE),0);
 }
 '''

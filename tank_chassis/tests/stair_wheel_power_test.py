@@ -69,6 +69,7 @@ Alg::CalculationBase::MecanumForceControl chassis_force;
 float current_speed_rads[4],motor_output[4],motor_output_pre[4],motor_target_speed[4];
 float chassis_velocity_feedback[3];
 float vx_body=.5f,vy_body=0,wz_cmd=0;
+float keyboard_turn_limit_blend=0;
 ''' + filters + r'''
 Alg::Utility::SlopePlanning ramp_vx(100,100),ramp_vy(100,100);
 Chassis_FSM chassis_fsm(8,0,0,100,25,2.5f);

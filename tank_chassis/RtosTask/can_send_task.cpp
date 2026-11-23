@@ -330,6 +330,7 @@ ChassisMotorSendCANChecked();
 // 在循环前声明
 Enum_Chassis_Mode last_mode = CHASSIS_STOP; //为了不疯车
 ControlInputSource last_input_source = ControlInputSource::NONE;
+float keyboard_turn_limit_blend = 0.0f;
 // 原功率辨识 VOFA 的状态，恢复采集时与下方原发送段一起启用。
 // uint32_t last_power_meter_sequence = 0U;
 // ALG::PowerControl::PowerControlBase<4> power_identification_model;
@@ -424,6 +425,7 @@ osDelay(500);
          chassis_force.Reset();
          ramp_vx.TIM_Calculate_PeriodElapsedCallback(0.0f, 0.0f);
          ramp_vy.TIM_Calculate_PeriodElapsedCallback(0.0f, 0.0f);
+         keyboard_turn_limit_blend = 0.0f;
          chassis_fsm.Get_Follow_PID().reset();
          chassis_vx_filter.Reset(0.0f);
          chassis_vy_filter.Reset(0.0f);
@@ -522,6 +524,7 @@ if (chassis_fsm.Get_Mode() == CHASSIS_STOP)
    chassis_force.Reset();
    ramp_vx.TIM_Calculate_PeriodElapsedCallback(0.0f, 0.0f);
    ramp_vy.TIM_Calculate_PeriodElapsedCallback(0.0f, 0.0f);
+   keyboard_turn_limit_blend = 0.0f;
    chassis_vx_filter.Reset(0.0f);
    chassis_vy_filter.Reset(0.0f);
    chassis_wz_filter.Reset(0.0f);
@@ -555,12 +558,36 @@ if (chassis_fsm.Get_Mode() == CHASSIS_STOP)
               ramp_vy.TIM_Calculate_PeriodElapsedCallback(vy_body, ramp_vy.GetOut());
               vx_body = ramp_vx.GetOut();
               vy_body = ramp_vy.GetOut();
+
+              // wz_cmd 已经过鼠标死区和右键接管判断。
+              keyboard_turn_limit_blend = wz_cmd != 0.0f ? 1.0f :
+                  std::max(0.0f, keyboard_turn_limit_blend - MecanumForceControl::TURN_LIMIT_RELEASE_STEP);
+              if (keyboard_turn_limit_blend > 0.0f)
+              {
+                  // 只提取同向加速误差，保留松键和反向制动请求。
+                  const auto accelerating_error = [](float target, float feedback)
+                  {
+                      const float error = target - feedback;
+                      return target * feedback >= 0.0f && target * error > 0.0f ? error : 0.0f;
+                  };
+                  const float accel_error_x = accelerating_error(vx_body, force_feedback[0]);
+                  const float accel_error_y = accelerating_error(vy_body, force_feedback[1]);
+                  const float accel_error = sqrtf(accel_error_x * accel_error_x + accel_error_y * accel_error_y);
+                  if (accel_error > MecanumForceControl::TURN_MAX_ACCEL_ERROR_M_S)
+                  {
+                      const float reduction = keyboard_turn_limit_blend *
+                          (1.0f - MecanumForceControl::TURN_MAX_ACCEL_ERROR_M_S / accel_error);
+                      vx_body -= accel_error_x * reduction;
+                      vy_body -= accel_error_y * reduction;
+                  }
+              }
           }
           else
           {
               // 遥控器直接使用目标；清空键鼠规划，防止再次进入时沿用旧速度。
               ramp_vx.TIM_Calculate_PeriodElapsedCallback(0.0f, 0.0f);
               ramp_vy.TIM_Calculate_PeriodElapsedCallback(0.0f, 0.0f);
+              keyboard_turn_limit_blend = 0.0f;
           }
           force_target[0] = std::clamp(vx_body, -CHASSIS_MAX_VX_M_S, CHASSIS_MAX_VX_M_S);
           force_target[1] = std::clamp(vy_body, -MAX_VY_M_S, MAX_VY_M_S);

@@ -24,15 +24,15 @@ class Class_Up_Stair_Behind_Motor_FSM : public Class_FSM
 public:
     // 后腿生产角度配置：数组下标 0=左腿、1=右腿；实车标定后在此修改。
     // Config() 仍保留未标定的安全默认值，任务必须显式装入这些角度才能启用控制。
-    static constexpr float IMU_PITCH_TARGET_DEG = 1.0f; // 最终希望保持的 HI14 原始 Pitch 读数，度
+    static constexpr float IMU_PITCH_TARGET_DEG = 1.4f; // 最终希望保持的 HI14 原始 Pitch 读数，度
     // Roll 回正补偿：目标直接使用 HI14 原始角度；左侧抬高时读数增大。
-    static constexpr float ROLL_TARGET_DEG = 0.75f; // 实测左右水平读数，度。
-    static constexpr float ROLL_KP = 2.3f; // N·m/度；0=关闭，独立于 MIT Kd。
-    static constexpr float ROLL_MAX_TORQUE_NM = 6.0f; // 每侧 Roll 补偿上限，N·m，须 >= 0。
+    static constexpr float ROLL_TARGET_DEG = 0.6f; // 实测左右水平读数，度。
+    static constexpr float ROLL_KP = 2.7f; // N·m/度；0=关闭，独立于 MIT Kd。
+    static constexpr float ROLL_MAX_TORQUE_NM = 7.0f; // 每侧 Roll 补偿上限，N·m，须 >= 0。
     // 实车机械区间：左 30°～93.1°，右 5.7°～69°，均不跨零或 ±π。
     static constexpr float ANGLE_START_RAD[2] = { // 左右电机机械安全区起始角，弧度
         30.0f * 3.14159265358979323846f / 180.0f,   //左电机腿伸最长时候的角度
-        5.46f * 3.14159265358979323846f / 180.0f};   //右电机腿收最短时候的角度
+        3.9f * 3.14159265358979323846f / 180.0f};   //右电机腿收最短时候的角度
     static constexpr float ANGLE_END_RAD[2] = { // 左右电机机械安全区终止角，弧度
         94.7f * 3.14159265358979323846f / 180.0f,   //左电机腿收最短时候的角度
         69.0f * 3.14159265358979323846f / 180.0f};  //右电机腿伸最长时候的角度

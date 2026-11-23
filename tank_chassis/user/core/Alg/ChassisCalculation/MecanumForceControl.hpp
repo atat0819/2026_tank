@@ -26,6 +26,11 @@ namespace Alg::CalculationBase
         // 单轮电流上限，A；超限时四轮统一缩放，保留力控与同步的合成电流比例。
         static constexpr float MAX_CURRENT = 20.0f;
 
+        // 键鼠转向时的同向平移加速误差上限，m/s。
+        static constexpr float TURN_MAX_ACCEL_ERROR_M_S = 0.25f;
+        // 转向结束后每周期减小的限幅混合系数，0.01 对应约 100 个周期。
+        static constexpr float TURN_LIMIT_RELEASE_STEP = 0.01f;
+
         // 比例增益：速度误差越大，请求作用力越大；单位依次为 N/(m/s)、N/(m/s)、N*m/(rad/s)。
         float kp[3] = {580.0f, 580.0f, 76.0f};
         // 积分增益：累积速度误差以消除稳态偏差；单位依次为 N/m、N/m、N*m/rad。
@@ -39,7 +44,7 @@ namespace Alg::CalculationBase
         // 电流限幅与后续功率限幅的合成电流缩放比例。
         float output_scale = 1.0f;
         // 四轮同步 PID 当前仅启用 P，单位 A/(轮端 rad/s)，不积累 I/D 状态。
-        float sync_kp[4] = {4.8f, 4.0f, 4.0f, 4.0f};
+        float sync_kp[4] = {5.0f, 5.0f, 5.0f, 5.0f};
         float sync_current_limit = 10.0f; // 全量同步校正的单轮峰值，A。
         float sync_target_speed[4] = {}; // 与当前等效车速兼容的轮端 rad/s。
         float sync_error[4] = {};

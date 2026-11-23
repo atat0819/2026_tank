@@ -32,6 +32,7 @@ uint32_t HAL_GetTick() { return 100; }
 ''' + filters + r'''
 Alg::Utility::SlopePlanning ramp_vx(100,100),ramp_vy(100,100);
 float current_speed_rads[4]={},chassis_velocity_feedback[3],motor_output[4],motor_target_speed[4];
+float keyboard_turn_limit_blend=0;
 float force_vofa_channels[24]={};
 void vofa_sendN(const float *data,uint8_t count) {
     assert(count==24);
@@ -60,8 +61,9 @@ int main() {
         chassis_force.integral_limit[axis]=0;
     }
     assert(mouse_yaw(0)==0);
-    assert(std::fabs(mouse_yaw(1)+M_PI/180)<1e-6);
-    assert(std::fabs(mouse_yaw(-1)-M_PI/180)<1e-6);
+    assert(mouse_yaw(6)==0 && mouse_yaw(-6)==0);
+    assert(std::fabs(mouse_yaw(7)+7*M_PI/180)<1e-6);
+    assert(std::fabs(mouse_yaw(-7)-7*M_PI/180)<1e-6);
     step(0,0,mouse_yaw(32767));assert(force_vofa_channels[6]==-MAX_WZ_RAD_S);
     step(0,0,mouse_yaw(-32768));assert(force_vofa_channels[6]==MAX_WZ_RAD_S);
     const float commands[][3]={{1,0,0},{-1,0,0},{0,1,0},{0,-1,0},
