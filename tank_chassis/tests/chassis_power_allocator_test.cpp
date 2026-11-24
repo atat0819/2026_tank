@@ -32,6 +32,7 @@ static void check(const Allocator &a, const float t[4], const float r[4], const 
                   const float speed[4], const float k[6], float budget)
 {
     for (float scale : {a.alpha, a.beta, a.gamma}) assert(scale >= 0 && scale <= 1);
+    assert(a.beta == a.gamma);
     for (unsigned i = 0; i < 4; ++i)
     {
         near(a.current[i], a.alpha*t[i] + a.beta*r[i] + a.gamma*s[i]);
@@ -62,9 +63,31 @@ int main()
     near(a.beta,2.f/3);
     a.Allocate(t,zero,zero,zero,copper,100,20);
     near(a.alpha,.5f);
-    // Synchronization gets only the remaining budget.
+    // Translation yields budget to both yaw and synchronization.
     a.Allocate(t,r,sync,zero,copper,100,20);
-    near(a.beta,1); near(a.alpha,.4f); near(a.gamma,0,.002f);
+    near(a.beta,1); near(a.gamma,1); near(a.alpha,std::sqrt(.15f));
+    check(a,t,r,sync,zero,copper,100);
+    // Insufficient correction budget reduces yaw and synchronization together.
+    a.Allocate(t,r,sync,zero,copper,16,20);
+    near(a.beta,std::sqrt(.4f)); near(a.gamma,a.beta); near(a.alpha,0);
+    check(a,t,r,sync,zero,copper,16);
+    // A single-wheel current limit must also preserve their common scale.
+    a.Allocate(zero,r,sync,zero,copper,10000,2);
+    near(a.beta,.5f); near(a.gamma,.5f);
+    for(float value:a.current) assert(std::fabs(value)<=2.0001f);
+    // Synchronization is preserved while translation consumes the remainder.
+    a.Allocate(t,zero,sync,zero,copper,100,20);
+    near(a.gamma,1); near(a.alpha,std::sqrt(.24f));
+    check(a,t,zero,sync,zero,copper,100);
+
+    // A double root that rounds upward to float must move back below the limit.
+    const float unit[4] = {1,1,1,1};
+    const float rounding_budget = .3f;
+    const double boundary = std::sqrt(static_cast<double>(rounding_budget) / 4.0);
+    assert(static_cast<float>(boundary) > boundary);
+    a.Allocate(zero,unit,zero,zero,copper,rounding_budget,20);
+    assert(a.feasible && a.beta <= boundary && a.beta == a.gamma);
+    near(a.beta,static_cast<float>(boundary));
 
     const float linear[6] = {0,1,0,0,0,0};
     a.Allocate(zero,r,zero,zero,linear,6,20);
@@ -118,14 +141,17 @@ int main()
         a.Allocate(trans,rot,s,w,poly_coeffs,limit,20);
         if(power(zero,w,poly_coeffs)<limit-.01f) assert(a.feasible);
         check(a,trans,rot,s,w,poly_coeffs,limit);
-        if(a.feasible && a.alpha<.999f && a.gamma==0)
+        // A feasible zero-current point guarantees the priority path can run.
+        // Regenerative fallback scales the whole request along a different path.
+        if(a.feasible && a.alpha<.999f && power(zero,w,poly_coeffs)<limit-.01f)
         {
             float more[4];
-            for(unsigned i=0;i<4;++i) more[i]=a.beta*rot[i]+(a.alpha+.001f)*trans[i];
+            for(unsigned i=0;i<4;++i)
+                more[i]=a.beta*rot[i]+a.gamma*s[i]+(a.alpha+.001f)*trans[i];
             bool over_current=false;
             for(float value:more) over_current |= std::fabs(value)>20;
             assert(over_current || power(more,w,poly_coeffs)>limit-.005f);
         }
     }
-    std::puts("PASS: yaw priority, current/power limits, regeneration, infeasible budgets, 20000 dynamic cases");
+    std::puts("PASS: shared yaw/sync priority, current/power limits, regeneration, infeasible budgets, 20000 dynamic cases");
 }

@@ -634,7 +634,7 @@ if (chassis_fsm.Get_Mode() == CHASSIS_STOP)
 	        I_other[i] = 0.0f;                                       // 无前馈
 	    }
 
-	    if (stair_retract_power_split)
+	    if (stair_retract_power_split)  //. 爬台阶收回阶段，采用前后轮分组预算，前75%，后25%，不互借。
 	    {
 	        // 力控与同步的合成电流按组限幅，每组预算包含本组两轮的基础损耗。
 	        chassis_front_power_ctrl.DecayingCurrent(

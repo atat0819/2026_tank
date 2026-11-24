@@ -3,15 +3,18 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
+#include <cstring>
 
 namespace ALG::PowerControl
 {
     // All currents are amperes and speeds are motor-rotor rad/s.
-    // Priority under saturation: yaw, translation, then wheel synchronization.
+    // Reserve yaw and synchronization together, then add translation.
     class ChassisPowerAllocator
     {
     public:
         float alpha = 1.0f;
+        // beta and gamma expose the same shared scale for existing observers.
         float beta = 1.0f;
         float gamma = 1.0f;
         float current[4] = {};
@@ -23,9 +26,12 @@ namespace ALG::PowerControl
                       const float coefficients[6], float power_limit, float current_limit)
         {
             const float zero[4] = {};
-            float demand[4];
+            float correction[4], demand[4];
             for (unsigned i = 0; i < 4; ++i)
-                demand[i] = translation[i] + rotation[i] + synchronization[i];
+            {
+                correction[i] = rotation[i] + synchronization[i];
+                demand[i] = translation[i] + correction[i];
+            }
 
             float scale = 0.0f;
             feasible = MaximumScale(zero, demand, speed, coefficients,
@@ -37,31 +43,29 @@ namespace ALG::PowerControl
             }
             else
             {
-                alpha = gamma = 0.0f;
+                alpha = 0.0f;
                 // Conservative sequential allocation with no translation assumed
-                // when reserving yaw authority.
-                if (MaximumScale(zero, rotation, speed, coefficients,
+                // when reserving yaw and synchronization authority together.
+                if (MaximumScale(zero, correction, speed, coefficients,
                                  power_limit, current_limit, beta))
                 {
                     feasible = true;
-                    for (unsigned i = 0; i < 4; ++i) current[i] = beta * rotation[i];
+                    for (unsigned i = 0; i < 4; ++i) current[i] = beta * correction[i];
                     // On a rounded boundary, a subsequent interval can be
                     // empty by float precision. Keep the already feasible base.
                     MaximumScale(current, translation, speed, coefficients,
                                  power_limit, current_limit, alpha);
                     for (unsigned i = 0; i < 4; ++i) current[i] += alpha * translation[i];
-                    MaximumScale(current, synchronization, speed, coefficients,
-                                 power_limit, current_limit, gamma);
-                    for (unsigned i = 0; i < 4; ++i) current[i] += gamma * synchronization[i];
                 }
                 else
                 {
                     // Regenerative combinations can be feasible even when yaw
-                    // alone cannot cover the model's speed-dependent losses.
+                    // and synchronization cannot cover speed-dependent losses alone.
                     alpha = beta = gamma = feasible ? scale : 0.0f;
                     for (unsigned i = 0; i < 4; ++i) current[i] = alpha * demand[i];
                 }
             }
+            gamma = beta;
             predicted_power = 0.0f;
             for (unsigned i = 0; i < 4; ++i)
             {
@@ -122,7 +126,15 @@ namespace ALG::PowerControl
             if (lower > upper) return false;
             // Move a rounded upper boundary into the feasible interval.
             scale = static_cast<float>(upper);
-            if (scale > upper) scale = std::nextafter(scale, 0.0f);
+            if (scale > upper)
+            {
+                // scale is positive here. The preceding IEEE-754 float moves
+                // toward zero without requiring MicroLIB's nextafterf symbol.
+                uint32_t bits;
+                std::memcpy(&bits, &scale, sizeof(bits));
+                --bits;
+                std::memcpy(&scale, &bits, sizeof(scale));
+            }
             return true;
         }
     };

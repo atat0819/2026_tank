@@ -282,6 +282,18 @@ int main() {
         MecanumForceControl::LEVER_ARM/MecanumForceControl::WHEEL_RADIUS;
     assert(fabsf(actual_yaw-chassis_force.force[2])<.001f);
     check_budget(false);
+    // Unequal wheel speeds require synchronization while moving and turning.
+    const float unequal_rotor[4]={-40,40,10,-10};
+    for(unsigned i=0;i<4;++i) chassis_motor.velocity[i]=unequal_rotor[i];
+    step({},false,true,ControlInputSource::LOCAL,false,1);
+    assert(chassis_power_allocator.beta==chassis_power_allocator.gamma);
+    assert(chassis_power_allocator.gamma>0&&fabsf(chassis_force.sync_current[0])>.01f);
+    const float sync_sign[4]={1,-1,1,-1};
+    float applied_sync=0;
+    for(unsigned i=0;i<4;++i)
+        applied_sync+=sync_sign[i]*motor_output[i]/(4*MecanumForceControl::RAW_PER_AMP);
+    assert(fabsf(applied_sync-chassis_power_allocator.gamma*chassis_force.sync_current[0])<.001f);
+    check_budget(false);
     const float cases[][4]={{-20,20,20,-20},{0,0,20,-20},{-20,20,0,0},
         {-2,1,18,-17},{-18,16,1,-2},{0,0,0,0},{20,-15,-12,17}};
     for(float budget:{20.f,50.f,100.f}) for(float speed:{0.f,80.f,200.f})
